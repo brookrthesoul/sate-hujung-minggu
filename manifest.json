@@ -1,5 +1,5 @@
 {
-  "name": "Sate-Hujung-Minggu",
+  "name": "sate-hujung-minggu",
   "short_name": "OrderApp",
   "start_url": "/",
   "display": "standalone",
@@ -19,3 +19,4 @@
   ]
 
 }
+
