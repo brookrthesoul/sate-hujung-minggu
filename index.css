@@ -1,0 +1,56 @@
+.b1{
+    margin-bottom: 0;
+    margin-top: 0;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.header1{
+    background-color: lightblue;
+    align-self: end;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+.page-title{
+    text-align: center;
+    font-size: 5rem;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: 0;
+    padding: 5px;
+}
+
+.ichi-line{
+    background-color: lightblue;
+    display: flex;
+    flex: 1; 
+    margin-bottom: 10px; 
+    margin-left: 0; 
+    margin-right: 0;
+    justify-content: flex-end;
+    align-items: center;
+    height: 30px;
+    font-size: 20px;
+
+}
+
+.ni-line{
+    display: flex;
+    flex: 2;
+    flex-direction: row;
+    background-color: lightblue;
+    align-items: satrt;
+    padding-left: 20px;
+    height: 30px;
+}
+
+.san-line{
+    background-color: lightgoldenrodyellow;
+}
+
+.yon-line{
+    background-color: lightblue;
+}
+

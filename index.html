@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="theme-color" content="#007bff">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sate-Hujung-Minggu</title>
+    <style>
+        /* (same styles as before) */
+        * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+        body { background: #f8f9fa; margin: 0; padding: 10px; max-width: 600px; margin: auto; }
+        .tab-bar { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab { flex: 1; text-align: center; padding: 12px; background: #e9ecef; border-radius: 30px; cursor: pointer; font-weight: bold; }
+        .tab.active { background: #007bff; color: white; }
+        .panel { display: none; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .panel.active { display: block; }
+        label { display: block; margin: 15px 0 5px; font-weight: 500; }
+        input[type=number], textarea { width: 100%; padding: 12px; border: 1px solid #ced4da; border-radius: 12px; font-size: 16px; }
+        textarea { min-height: 80px; resize: vertical; }
+        button { background: #007bff; color: white; border: none; padding: 14px 20px; border-radius: 30px; font-size: 16px; font-weight: bold; width: 100%; margin-top: 15px; cursor: pointer; }
+        button.secondary { background: #6c757d; }
+        .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
+        .result-item { background: #f1f3f5; padding: 10px; border-radius: 12px; text-align: center; }
+        .result-item .label { font-size: 14px; color: #495057; }
+        .result-item .value { font-size: 22px; font-weight: bold; }
+        .order-card { background: #f8f9fa; border-radius: 16px; padding: 15px; margin-bottom: 15px; border-left: 5px solid #007bff; }
+        .order-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .order-id { font-weight: bold; background: #007bff; color: white; padding: 4px 12px; border-radius: 20px; font-size: 14px; }
+        .order-date { color: #6c757d; font-size: 14px; }
+        .order-details { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 10px 0; }
+        .detail-badge { background: white; padding: 6px 10px; border-radius: 20px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .edit-input { width: 100%; padding: 6px; border-radius: 20px; border: 1px solid #ced4da; text-align: center; }
+        .status-row { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
+        .status-btn { flex: 1; padding: 8px; border-radius: 30px; border: 1px solid #ced4da; background: white; font-weight: 500; cursor: pointer; }
+        .status-btn.paid { background: #28a745; color: white; border-color: #28a745; }
+        .status-btn.unpaid { background: #dc3545; color: white; border-color: #dc3545; }
+        .status-btn.picked { background: #28a745; color: white; border-color: #28a745; }
+        .status-btn.notpicked { background: #ffc107; color: black; border-color: #ffc107; }
+        .order-description { background: white; border-radius: 12px; padding: 10px; margin: 10px 0; border: 1px dashed #17a2b8; cursor: text; outline: none; }
+        .order-description:focus { border: 2px solid #17a2b8; background: #fff; }
+        .action-buttons { display: flex; gap: 8px; }
+        .action-buttons button { margin: 0; padding: 10px; font-size: 14px; }
+        .edit-btn { background: #17a2b8; }
+        .delete-btn { background: #dc3545; }
+        .save-btn { background: #28a745; }
+        .cancel-btn { background: #6c757d; }
+        .sort-dropdown { width: 100%; padding: 12px; border-radius: 30px; border: 1px solid #ced4da; margin-bottom: 20px; font-size: 16px; }
+        .day-group { margin-bottom: 25px; }
+        .day-header { font-weight: bold; font-size: 18px; padding-bottom: 5px; border-bottom: 2px solid #dee2e6; margin-bottom: 10px; color: #007bff; }
+        .ice-cream { background: #fff3cd; border-left-color: #ffc107; }
+
+	/* Ratio tab specific */
+        .ratio-container { text-align: center; margin: 20px 0; }
+        .slider-labels { display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
+        .slider-labels span:first-child { color: #d9534f; }  /* apple red */
+        .slider-labels span:last-child { color: #f0ad4e; }  /* banana yellow */
+        .percentage { font-size: 18px; margin: 10px 0; color: #007bff; }
+        .ratio-results { display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+        .ratio-card { background: #e9ecef; border-radius: 16px; padding: 15px; min-width: 120px; flex: 1; text-align: center; }
+        .ratio-card .value { font-size: 28px; font-weight: bold; display: block; }
+        .ratio-card .label { font-size: 14px; color: #495057; }
+    </style>
+</head>
+<body style="margin-top: 20px;">
+    <div class="tab-bar">
+        <div class="tab active" onclick="switchTab('home')">🍎 Home</div>
+        <div class="tab" onclick="switchTab('orders')">📋 Orders</div>
+        <div class="tab" onclick="switchTab('ratio')">⚖️ Ratio</div>
+    </div>
+
+    <!-- HOME PANEL -->
+    <div id="homePanel" class="panel active">
+        <h2>New Order</h2>
+        <label>Ayam (RM1.20 each)</label>
+        <input type="number" id="apples" step="1" placeholder="0">
+        <label>Daging (RM1.50 each)</label>
+        <input type="number" id="bananas" min="0" step="1" placeholder="0">
+        <label>Lontong (RM3.00 each)</label>
+        <input type="number" id="eggs" min="0" step="1" placeholder="0">
+        <label>Shortong (RM2.00 each)</label>
+        <input type="number" id="carrots" min="0" step="1" placeholder="0">
+        <label>📝 Order Description (optional)</label>
+        <textarea id="orderDescription" placeholder="Write any notes about this order..."></textarea>
+        <button onclick="calculate()">Calculate</button>
+        <div id="results" style="display: none;">
+            <h3>Results</h3>
+            <div class="result-grid">
+                <div class="result-item"><span class="label">Ayam <br></span><span class="value" id="resApplesCost">$0.00</span></div>
+                <div class="result-item"><span class="label">Daging <br></span><span class="value" id="resBananasCost">$0.00</span></div>
+                <div class="result-item"><span class="label">Lontong <br></span><span class="value" id="resEggsCost">$0.00</span></div>
+                <div class="result-item"><span class="label">Shortong <br></span><span class="value" id="resCarrotsCost">$0.00</span></div>
+                <div class="result-item"><span class="label">Jumlah Cucuk <br></span><span class="value" id="resAppleBananaQty">0</span></div>
+                <div class="result-item"><span class="label">Jumlah Kuah Kacang <br></span><span class="value" id="resScoops">$0.00</span></div>
+                <div class="result-item ice-cream" style="grid-column: span 2;"><span class="label">Jumlah RM <br></span><span class="value" id="resTotalCost">0</span></div>
+            </div>
+            <button id="saveOrderBtn" onclick="saveOrder()">Save Order</button>
+            <button class="secondary" onclick="clearForm()">Clear</button>
+        </div>
+        <p id="editHint" style="display:none; color:#17a2b8;">Editing order #<span id="editId"></span> — <a href="#" onclick="cancelEdit()">Cancel</a></p>
+    </div>
+
+    <!-- ORDERS PANEL -->
+    <div id="ordersPanel" class="panel">
+        <h2>Customer Orders</h2>
+        <select id="sortOrders" class="sort-dropdown" onchange="loadOrders()">
+            <option value="desc">Newest first</option>
+            <option value="asc">Oldest first</option>
+        </select>
+        <div id="ordersList"></div>
+    </div>
+
+     <!-- RATIO PANEL (updated with Total Spent) -->
+    <div id="ratioPanel" class="panel">
+        <h2>Allocator</h2>
+        <label>RM</label>
+        <input type="number" id="moneyInput" min="0" value="" step="0.01" oninput="calculateRatio()">
+
+        <div class="ratio-container">
+            <input type="range" id="ratioSlider" min="0" max="100" value="50" step="1" oninput="updateSliderLabel(); calculateRatio()">
+            <div class="slider-labels">
+                <span>Ayam</span>
+                <span>Daging</span>
+            </div>
+            <div class="percentage" id="sliderPercent">50% toward Apples</div>
+        </div>
+
+        <div class="ratio-results">
+            <div class="ratio-card">
+                <span class="value" id="appleCount">0</span>
+                <span class="label">Ayam</span>
+            </div>
+            <div class="ratio-card">
+                <span class="value" id="bananaCount">0</span>
+                <span class="label">Daging</span>
+            </div>
+            <div class="ratio-card">
+                <span class="value" id="totalItemsCount">0</span>
+                <span class="label">Total</span>
+            </div>
+            <div class="ratio-card">
+                <span class="value" id="balanceAmount">$0.00</span>
+                <span class="label">Balance</span>
+            </div>
+            <div class="ratio-card">
+                <span class="value" id="totalSpent">RM0.00</span>
+                <span class="label">Total Spent</span>
+            </div>
+        </div>
+
+        <p style="font-size: 14px; color: #6c757d; text-align: center;">
+            Items are bought one by one, always choosing the sate that brings the ratio closer to your slider.
+        </p>
+    </div>
+    <script>
+        // ---------- Database setup (IndexedDB) with error handling ----------
+        const DB_NAME = 'OrdersDB';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'orders';
+
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result);
+                request.onupgradeneeded = (ev) => {
+                    const db = ev.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                        store.createIndex('createdAt', 'createdAt');
+                    }
+                };
+            });
+        }
+
+        // Test database on load
+        (async function testDB() {
+            try {
+                await openDB();
+                console.log('✅ Database connected');
+            } catch (e) {
+                alert('❌ IndexedDB is not available. Orders cannot be saved. Error: ' + e.message);
+            }
+        })();
+
+        async function getAllOrders() {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readonly');
+                const store = tx.objectStore(STORE_NAME);
+                const request = store.getAll();
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result);
+            });
+        }
+
+        async function addOrder(order) {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                const request = store.add(order);
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result);
+            });
+        }
+
+        async function updateOrder(order) {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                const request = store.put(order);
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result);
+            });
+        }
+
+        async function deleteOrder(id) {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                const request = store.delete(id);
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve();
+            });
+        }
+
+        // ---------- Helper functions ----------
+        function formatDate(ts) {
+            const d = new Date(ts);
+            return d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function formatDay(ts) {
+            const d = new Date(ts);
+            return d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        }
+
+        function calculateTotals(apples, bananas, eggs, carrots) {
+            const appleCost = apples * 1.2;
+            const bananaCost = bananas * 1.5;
+            const eggCost = eggs * 3;
+            const carrotCost = carrots * 2;
+            const totalCost = appleCost + bananaCost + eggCost + carrotCost;
+            const appleBananaQty = apples + bananas;
+            const fruitScoops = Math.floor(apples/10) + Math.floor(bananas/10); //+ Math.floor((apples+bananas)/10)
+            const vegScoops = eggs * 2 + carrots * 2;
+            const scoops = fruitScoops + vegScoops;
+            return { appleCost, bananaCost, eggCost, carrotCost, totalCost, appleBananaQty, scoops };
+        }
+
+        // ---------- Save order from home with error handling ----------
+        async function saveOrder() {
+            const apples = parseInt(document.getElementById('apples').value) || 0;
+            const bananas = parseInt(document.getElementById('bananas').value) || 0;
+            const eggs = parseInt(document.getElementById('eggs').value) || 0;
+            const carrots = parseInt(document.getElementById('carrots').value) || 0;
+            const description = document.getElementById('orderDescription').value.trim() || '';
+
+            if (apples === 0 && bananas === 0 && eggs === 0 && carrots === 0) {
+                alert('Please enter at least one item.');
+                return;
+            }
+
+            const totals = calculateTotals(apples, bananas, eggs, carrots);
+            const order = {
+                apples, bananas, eggs, carrots,
+                ...totals,
+                paid: false,
+                pickedUp: false,
+                description: description,
+                createdAt: Date.now()
+            };
+
+            try {
+                const id = await addOrder(order);
+                console.log('✅ Order saved with id:', id);
+                clearForm();
+                // Switch to orders tab and refresh
+                switchTab('orders');
+            } catch (error) {
+                alert('❌ Failed to save order: ' + error.message);
+                console.error(error);
+            }
+        }
+
+        // ---------- Load orders ----------
+        async function loadOrders() {
+            try {
+                const orders = await getAllOrders();
+                const sortDir = document.getElementById('sortOrders').value;
+
+                orders.sort((a, b) => sortDir === 'asc' ? a.createdAt - b.createdAt : b.createdAt - a.createdAt);
+
+                const groups = {};
+                orders.forEach(order => {
+                    const day = formatDay(order.createdAt);
+                    if (!groups[day]) groups[day] = [];
+                    groups[day].push(order);
+                });
+
+                const container = document.getElementById('ordersList');
+                container.innerHTML = '';
+
+                for (const [day, dayOrders] of Object.entries(groups)) {
+                    const dayDiv = document.createElement('div');
+                    dayDiv.className = 'day-group';
+                    dayDiv.innerHTML = `<div class="day-header">${day}</div>`;
+
+                    dayOrders.forEach(order => {
+                        const card = document.createElement('div');
+                        card.className = 'order-card';
+                        card.id = `order-${order.id}`;
+                        renderOrderCard(card, order, 'view');
+                        dayDiv.appendChild(card);
+                    });
+                    container.appendChild(dayDiv);
+                }
+                if (orders.length === 0) container.innerHTML = '<p style="text-align:center; color:#999;">No orders yet.</p>';
+            } catch (error) {
+                alert('❌ Failed to load orders: ' + error.message);
+                console.error(error);
+            }
+        }
+
+        // ---------- Render order card (view/edit) ----------
+        function renderOrderCard(card, order, mode = 'view') {
+            if (mode === 'view') {
+                card.innerHTML = `
+                    <div class="order-header">
+                        <span class="order-id">#${order.id}</span>
+                        <span class="order-date">${formatDate(order.createdAt)}</span>
+                    </div>
+                    <div class="order-details">
+                        <div class="detail-badge">Ayam (${order.apples}) <br> RM${order.appleCost.toFixed(2)}</div>
+                        <div class="detail-badge">Daging (${order.bananas}) <br> RM${order.bananaCost.toFixed(2)}</div>
+                        <div class="detail-badge">Lontong (${order.eggs}) <br> RM${order.eggCost.toFixed(2)}</div>
+                        <div class="detail-badge">Shortong (${order.carrots}) <br> RM${order.carrotCost.toFixed(2)}</div>
+                        <div class="detail-badge">Cucuk: ${order.appleBananaQty}</div>
+                        <div class="detail-badge"> ${order.scoops} Senduk</div>
+                        <div class="detail-badge ice-cream" style="grid-column: span 2;">RM ${order.totalCost.toFixed(2)}</div>
+                    </div>
+                    <div class="status-row">
+                        <button class="status-btn ${order.paid ? 'paid' : 'unpaid'}" onclick="togglePaid(${order.id})">${order.paid ? 'Paid' : 'Unpaid'}</button>
+                        <button class="status-btn ${order.pickedUp ? 'picked' : 'notpicked'}" onclick="togglePicked(${order.id})">${order.pickedUp ? 'Picked up' : 'Not picked'}</button>
+                    </div>
+                    <div class="order-description" id="desc-${order.id}" contenteditable="true" onblur="updateDescription(${order.id}, this.innerText)">${order.description || ''}</div>
+                    <div class="action-buttons">
+                        <button class="edit-btn" onclick="startEdit(${order.id})">✏️ Edit</button>
+                        <button class="delete-btn" onclick="deleteOrderConfirm(${order.id})">🗑️ Delete</button>
+                    </div>
+                `;
+            } else {
+                card.innerHTML = `
+                    <div class="order-header">
+                        <span class="order-id">#${order.id}</span>
+                        <span class="order-date">${formatDate(order.createdAt)}</span>
+                    </div>
+                    <div class="order-details" id="edit-details-${order.id}">
+                        <div><label>Ayam</label><input type="number" id="edit-apples-${order.id}" class="edit-input" value="${order.apples}" min="0" step="1" oninput="updateEditTotals(${order.id})"></div>
+                        <div><label>Daging</label><input type="number" id="edit-bananas-${order.id}" class="edit-input" value="${order.bananas}" min="0" step="1" oninput="updateEditTotals(${order.id})"></div>
+                        <div><label>Lontong</label><input type="number" id="edit-eggs-${order.id}" class="edit-input" value="${order.eggs}" min="0" step="1" oninput="updateEditTotals(${order.id})"></div>
+                        <div><label>Shortong</label><input type="number" id="edit-carrots-${order.id}" class="edit-input" value="${order.carrots}" min="0" step="1" oninput="updateEditTotals(${order.id})"></div>
+                        <div class="detail-badge" id="edit-appleBananaQty-${order.id}">Cucuk: ${order.appleBananaQty}</div>
+                        <div class="detail-badge" id="edit-scoops-${order.id}">${order.scoops} Senduk</div>
+                        <div class="detail-badge ice-cream" style="grid-column: span 2;" id="edit-totalCost-${order.id}">RM${order.totalCost.toFixed(2)} </div>
+                    </div>
+                    <div class="status-row">
+                        <button class="status-btn ${order.paid ? 'paid' : 'unpaid'}" onclick="togglePaid(${order.id})">${order.paid ? 'Paid' : 'Unpaid'}</button>
+                        <button class="status-btn ${order.pickedUp ? 'picked' : 'notpicked'}" onclick="togglePicked(${order.id})">${order.pickedUp ? 'Picked up' : 'Not picked'}</button>
+                    </div>
+                    <div class="order-description" id="desc-${order.id}" contenteditable="true" onblur="updateDescription(${order.id}, this.innerText)">${order.description || ''}</div>
+                    <div class="action-buttons">
+                        <button class="save-btn" onclick="saveEdit(${order.id})">💾 Save</button>
+                        <button class="cancel-btn" onclick="cancelEdit(${order.id})">✖ Cancel</button>
+                    </div>
+                `;
+            }
+        }
+
+        // ---------- Edit functions ----------
+        function startEdit(id) {
+            const card = document.getElementById(`order-${id}`);
+            if (!card) return;
+            getAllOrders().then(orders => {
+                const order = orders.find(o => o.id === id);
+                if (order) {
+                    renderOrderCard(card, order, 'edit');
+                }
+            });
+        }
+
+        function cancelEdit(id) {
+            const card = document.getElementById(`order-${id}`);
+            if (!card) return;
+            getAllOrders().then(orders => {
+                const order = orders.find(o => o.id === id);
+                if (order) {
+                    renderOrderCard(card, order, 'view');
+                }
+            });
+        }
+
+        function updateEditTotals(id) {
+            const apples = parseInt(document.getElementById(`edit-apples-${id}`).value) || 0;
+            const bananas = parseInt(document.getElementById(`edit-bananas-${id}`).value) || 0;
+            const eggs = parseInt(document.getElementById(`edit-eggs-${id}`).value) || 0;
+            const carrots = parseInt(document.getElementById(`edit-carrots-${id}`).value) || 0;
+            const totals = calculateTotals(apples, bananas, eggs, carrots);
+
+            document.getElementById(`edit-appleBananaQty-${id}`).innerText = ` qty: ${totals.appleBananaQty}`;
+            document.getElementById(`edit-totalCost-${id}`).innerText = `RM${totals.totalCost.toFixed(2)}`;
+            document.getElementById(`edit-scoops-${id}`).innerHTML = ` ${totals.scoops} senduk`;
+        }
+
+        async function saveEdit(id) {
+            const apples = parseInt(document.getElementById(`edit-apples-${id}`).value) || 0;
+            const bananas = parseInt(document.getElementById(`edit-bananas-${id}`).value) || 0;
+            const eggs = parseInt(document.getElementById(`edit-eggs-${id}`).value) || 0;
+            const carrots = parseInt(document.getElementById(`edit-carrots-${id}`).value) || 0;
+            const description = document.getElementById(`desc-${id}`).innerText.trim() || '';
+
+            const totals = calculateTotals(apples, bananas, eggs, carrots);
+
+            const all = await getAllOrders();
+            const existing = all.find(o => o.id === id);
+            if (!existing) return;
+
+            const updatedOrder = {
+                ...existing,
+                apples, bananas, eggs, carrots,
+                ...totals,
+                description: description,
+            };
+
+            await updateOrder(updatedOrder);
+
+            const card = document.getElementById(`order-${id}`);
+            renderOrderCard(card, updatedOrder, 'view');
+        }
+
+        async function updateDescription(id, newText) {
+            const all = await getAllOrders();
+            const order = all.find(o => o.id === id);
+            if (order) {
+                order.description = newText.trim() || '';
+                await updateOrder(order);
+            }
+        }
+
+        async function togglePaid(id) {
+            const all = await getAllOrders();
+            const order = all.find(o => o.id === id);
+            if (order) {
+                order.paid = !order.paid;
+                await updateOrder(order);
+                const card = document.getElementById(`order-${id}`);
+                const isEdit = !!card.querySelector('.save-btn');
+                if (isEdit) {
+                    renderOrderCard(card, order, 'edit');
+                } else {
+                    renderOrderCard(card, order, 'view');
+                }
+            }
+        }
+
+        async function togglePicked(id) {
+            const all = await getAllOrders();
+            const order = all.find(o => o.id === id);
+            if (order) {
+                order.pickedUp = !order.pickedUp;
+                await updateOrder(order);
+                const card = document.getElementById(`order-${id}`);
+                const isEdit = !!card.querySelector('.save-btn');
+                if (isEdit) {
+                    renderOrderCard(card, order, 'edit');
+                } else {
+                    renderOrderCard(card, order, 'view');
+                }
+            }
+        }
+
+        async function deleteOrderConfirm(id) {
+            if (confirm('Delete this order?')) {
+                await deleteOrder(id);
+                loadOrders();
+            }
+        }
+
+        // ---------- Home functions ----------
+        function clearForm() {
+            document.getElementById('apples').value = 0;
+            document.getElementById('bananas').value = 0;
+            document.getElementById('eggs').value = 0;
+            document.getElementById('carrots').value = 0;
+            document.getElementById('orderDescription').value = '';
+            document.getElementById('results').style.display = 'none';
+        }
+
+        function calculate() {
+            const apples = parseInt(document.getElementById('apples').value) || 0;
+            const bananas = parseInt(document.getElementById('bananas').value) || 0;
+            const eggs = parseInt(document.getElementById('eggs').value) || 0;
+            const carrots = parseInt(document.getElementById('carrots').value) || 0;
+            const totals = calculateTotals(apples, bananas, eggs, carrots);
+
+            document.getElementById('resApplesCost').innerText = 'RM' + totals.appleCost.toFixed(2);
+            document.getElementById('resBananasCost').innerText = 'RM' + totals.bananaCost.toFixed(2);
+            document.getElementById('resEggsCost').innerText = 'RM' + totals.eggCost.toFixed(2);
+            document.getElementById('resCarrotsCost').innerText = 'RM' + totals.carrotCost.toFixed(2);
+            document.getElementById('resAppleBananaQty').innerText = totals.appleBananaQty;
+            document.getElementById('resTotalCost').innerText = 'RM' + totals.totalCost.toFixed(2);
+            document.getElementById('resScoops').innerText = totals.scoops;
+
+            document.getElementById('results').style.display = 'block';
+        }
+
+         // ---------- Ratio Tab Functions (Corrected) ----------
+        function updateSliderLabel() {
+            const val = document.getElementById('ratioSlider').value;
+            const displayPercent = 100 - val;
+            document.getElementById('sliderPercent').innerText = displayPercent + '% toward Apples';
+        }
+
+        function calculateRatio() {
+            const money = parseFloat(document.getElementById('moneyInput').value) || 0;
+            const sliderVal = parseInt(document.getElementById('ratioSlider').value) || 50;
+            const targetRatio = 1 - (sliderVal / 100); // 0 = all bananas, 1 = all apples
+
+            const applePrice = 1.2;
+            const bananaPrice = 1.5;
+            const minPrice = Math.min(applePrice, bananaPrice);
+
+            let remaining = money;
+            let apples = 0;
+            let bananas = 0;
+
+            while (remaining >= minPrice) {
+                const canBuyApple = remaining >= applePrice;
+                const canBuyBanana = remaining >= bananaPrice;
+
+                if (canBuyApple && canBuyBanana) {
+                    const total = apples + bananas;
+                    const currentRatio = total === 0 ? 0.0 : apples / total;
+
+                    if (currentRatio < targetRatio) {
+                        apples++;
+                        remaining -= applePrice;
+                    } else {
+                        bananas++;
+                        remaining -= bananaPrice;
+                    }
+                } else if (canBuyApple) {
+                    apples++;
+                    remaining -= applePrice;
+                } else if (canBuyBanana) {
+                    bananas++;
+                    remaining -= bananaPrice;
+                } else {
+                    break;
+                }
+            }
+
+            const totalCost = apples * applePrice + bananas * bananaPrice;
+            const balance = money - totalCost;
+
+            document.getElementById('appleCount').innerText = apples;
+            document.getElementById('bananaCount').innerText = bananas;
+            document.getElementById('totalItemsCount').innerText = apples + bananas;
+            document.getElementById('balanceAmount').innerText = 'RM' + (balance < 0 ? 0 : balance).toFixed(2);
+            document.getElementById('totalSpent').innerText = 'RM' + totalCost.toFixed(2);
+        }
+
+        // ---------- Tab switching ----------
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+
+            if (tab === 'home') {
+                document.getElementById('homePanel').classList.add('active');
+                document.querySelector('.tab:nth-child(1)').classList.add('active');
+            } else if (tab === 'orders') {
+                document.getElementById('ordersPanel').classList.add('active');
+                document.querySelector('.tab:nth-child(2)').classList.add('active');
+                loadOrders();
+            } else if (tab === 'ratio') {
+                document.getElementById('ratioPanel').classList.add('active');
+                document.querySelector('.tab:nth-child(3)').classList.add('active');
+                updateSliderLabel();
+                calculateRatio();
+            }
+        }
+
+        // ---------- Initial load ----------
+        window.onload = () => {
+            // Nothing extra needed
+        };
+
+    
+    </script>
+
+    <!-- PWA manifest and service worker --> 
+     
+    
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed', err));
+        }
+
+    </script>
+</body>
+</html>
