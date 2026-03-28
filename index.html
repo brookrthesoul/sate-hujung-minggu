@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="manifest" href="./manifest.json">
+    <link rel="manifest" href="/manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="theme-color" content="#007bff">
@@ -10,15 +10,16 @@
     <title>Sate-Hujung-Minggu</title>
     <style>
         /* (same styles as before) */
-        * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+         * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
         body { background: #f8f9fa; margin: 0; padding: 10px; max-width: 600px; margin: auto; }
-        .tab-bar { display: flex; gap: 10px; margin-bottom: 20px; }
-        .tab { flex: 1; text-align: center; padding: 12px; background: #e9ecef; border-radius: 30px; cursor: pointer; font-weight: bold; }
+        .tab-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab { flex: 1; text-align: center; padding: 12px; background: #e9ecef; border-radius: 30px; cursor: pointer; font-weight: bold; min-width: 80px; }
         .tab.active { background: #007bff; color: white; }
         .panel { display: none; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .panel.active { display: block; }
         label { display: block; margin: 15px 0 5px; font-weight: 500; }
-        input[type=number], textarea { width: 100%; padding: 12px; border: 1px solid #ced4da; border-radius: 12px; font-size: 16px; }
+        input[type=number], textarea, input[type=range] { width: 100%; padding: 12px; border: 1px solid #ced4da; border-radius: 12px; font-size: 16px; }
+        input[type=range] { padding: 0; }
         textarea { min-height: 80px; resize: vertical; }
         button { background: #007bff; color: white; border: none; padding: 14px 20px; border-radius: 30px; font-size: 16px; font-weight: bold; width: 100%; margin-top: 15px; cursor: pointer; }
         button.secondary { background: #6c757d; }
@@ -62,6 +63,12 @@
         .ratio-card { background: #e9ecef; border-radius: 16px; padding: 15px; min-width: 120px; flex: 1; text-align: center; }
         .ratio-card .value { font-size: 28px; font-weight: bold; display: block; }
         .ratio-card .label { font-size: 14px; color: #495057; }
+
+    /* Settings panel */
+        .settings-group { margin-bottom: 20px; }
+        .settings-group label { display: inline-block; width: 120px; font-weight: bold; }
+        .settings-group input { width: calc(100% - 130px); display: inline-block; margin-left: 10px; }
+        button.small { width: auto; padding: 8px 16px; margin-top: 0; margin-right: 10px; display: inline-block; }
     </style>
 </head>
 <body style="margin-top: 20px;">
@@ -69,6 +76,7 @@
         <div class="tab active" onclick="switchTab('home')">🍎 Home</div>
         <div class="tab" onclick="switchTab('orders')">📋 Orders</div>
         <div class="tab" onclick="switchTab('ratio')">⚖️ Ratio</div>
+        <div class="tab" onclick="switchTab('settings')">⚙️ Settings</div>
     </div>
 
     <!-- HOME PANEL -->
@@ -141,7 +149,7 @@
                 <span class="label">Total</span>
             </div>
             <div class="ratio-card">
-                <span class="value" id="balanceAmount">$0.00</span>
+                <span class="value" id="balanceAmount">RM0.00</span>
                 <span class="label">Balance</span>
             </div>
             <div class="ratio-card">
@@ -154,7 +162,95 @@
             Items are bought one by one, always choosing the sate that brings the ratio closer to your slider.
         </p>
     </div>
+
+    <!-- SETTINGS PANEL -->
+    <div id="settingsPanel" class="panel">
+        <h2>Update Prices</h2>
+        <div class="settings-group">
+            <label>Ayam</label>
+            <input type="number" id="priceApple" step="0.01" min="0" value="1.20">
+        </div>
+        <div class="settings-group">
+            <label>Daging</label>
+            <input type="number" id="priceBanana" step="0.01" min="0" value="1.50">
+        </div>
+        <div class="settings-group">
+            <label>Lontong</label>
+            <input type="number" id="priceEgg" step="0.01" min="0" value="3.00">
+        </div>
+        <div class="settings-group">
+            <label>Shortong</label>
+            <input type="number" id="priceCarrot" step="0.01" min="0" value="2.00">
+        </div>
+        <button onclick="savePrices()">Save Prices</button>
+        <button class="secondary" onclick="resetToDefaultPrices()" style="margin-top: 10px;">Reset to Default</button>
+        <p style="font-size: 14px; color: #6c757d; margin-top: 20px;">
+            Changing prices will affect all future calculations and new orders. Existing orders keep their original totals.
+        </p>
+    </div>
+    
     <script>
+         // ---------- Pricing ----------
+        let prices = {
+            apple: 1.20,
+            banana: 1.50,
+            egg: 3.00,
+            carrot: 2.00
+        };
+
+        // Load saved prices from localStorage
+        function loadPrices() {
+            const saved = localStorage.getItem('prices');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.apple) prices.apple = parsed.apple;
+                    if (parsed.banana) prices.banana = parsed.banana;
+                    if (parsed.egg) prices.egg = parsed.egg;
+                    if (parsed.carrot) prices.carrot = parsed.carrot;
+                } catch(e) { console.warn('Failed to parse prices'); }
+            }
+            // Update input fields in settings panel
+            document.getElementById('priceApple').value = prices.apple;
+            document.getElementById('priceBanana').value = prices.banana;
+            document.getElementById('priceEgg').value = prices.egg;
+            document.getElementById('priceCarrot').value = prices.carrot;
+        }
+
+        function savePrices() {
+            const apple = parseFloat(document.getElementById('priceApple').value);
+            const banana = parseFloat(document.getElementById('priceBanana').value);
+            const egg = parseFloat(document.getElementById('priceEgg').value);
+            const carrot = parseFloat(document.getElementById('priceCarrot').value);
+            if (isNaN(apple) || isNaN(banana) || isNaN(egg) || isNaN(carrot)) {
+                alert('Please enter valid numbers.');
+                return;
+            }
+            prices = { apple, banana, egg, carrot };
+            localStorage.setItem('prices', JSON.stringify(prices));
+            alert('Prices updated! New orders will use these prices.');
+            // If currently on home tab and calculation is visible, recalc
+            if (document.getElementById('results').style.display === 'block') {
+                calculate();
+            }
+            // If currently on ratio tab, recalc
+            if (document.getElementById('ratioPanel').classList.contains('active')) {
+                calculateRatio();
+            }
+        }
+
+        function resetToDefaultPrices() {
+            prices = { apple: 1.20, banana: 1.50, egg: 3.00, carrot: 2.00 };
+            localStorage.setItem('prices', JSON.stringify(prices));
+            document.getElementById('priceApple').value = prices.apple;
+            document.getElementById('priceBanana').value = prices.banana;
+            document.getElementById('priceEgg').value = prices.egg;
+            document.getElementById('priceCarrot').value = prices.carrot;
+            alert('Prices reset to default.');
+            if (document.getElementById('results').style.display === 'block') calculate();
+            if (document.getElementById('ratioPanel').classList.contains('active')) calculateRatio();
+        }
+
         // ---------- Database setup (IndexedDB) with error handling ----------
         const DB_NAME = 'OrdersDB';
         const DB_VERSION = 1;
@@ -241,13 +337,13 @@
         }
 
         function calculateTotals(apples, bananas, eggs, carrots) {
-            const appleCost = apples * 1.2;
-            const bananaCost = bananas * 1.5;
-            const eggCost = eggs * 3;
-            const carrotCost = carrots * 2;
+            const appleCost = apples * prices.apple;
+            const bananaCost = bananas * prices.banana;
+            const eggCost = eggs * prices.egg;
+            const carrotCost = carrots * prices.carrot;
             const totalCost = appleCost + bananaCost + eggCost + carrotCost;
             const appleBananaQty = apples + bananas;
-            const fruitScoops = Math.floor(apples/10) + Math.floor(bananas/10); //+ Math.floor((apples+bananas)/10)
+            const fruitScoops = Math.floor(apples/10) + Math.floor(bananas/10) + Math.floor((apples+bananas)/10);
             const vegScoops = eggs * 2 + carrots * 2;
             const scoops = fruitScoops + vegScoops;
             return { appleCost, bananaCost, eggCost, carrotCost, totalCost, appleBananaQty, scoops };
@@ -288,12 +384,11 @@
             }
         }
 
-        // ---------- Load orders ----------
+          // ---------- Load orders ----------
         async function loadOrders() {
             try {
                 const orders = await getAllOrders();
                 const sortDir = document.getElementById('sortOrders').value;
-
                 orders.sort((a, b) => sortDir === 'asc' ? a.createdAt - b.createdAt : b.createdAt - a.createdAt);
 
                 const groups = {};
@@ -327,60 +422,83 @@
             }
         }
 
+       
+
         // ---------- Render order card (view/edit) ----------
         function renderOrderCard(card, order, mode = 'view') {
+            const safeOrder = {
+                apples: order.apples || 0,
+                bananas: order.bananas || 0,
+                eggs: order.eggs || 0,
+                carrots: order.carrots || 0,
+                appleCost: order.appleCost || 0,
+                bananaCost: order.bananaCost || 0,
+                eggCost: order.eggCost || 0,
+                carrotCost: order.carrotCost || 0,
+                totalCost: order.totalCost || 0,
+                appleBananaQty: order.appleBananaQty || 0,
+                scoops: order.scoops || 0,
+                paid: !!order.paid,
+                pickedUp: !!order.pickedUp,
+                description: order.description || '',
+                id: order.id,
+                createdAt: order.createdAt || Date.now()
+            };
+        
+
             if (mode === 'view') {
                 card.innerHTML = `
                     <div class="order-header">
-                        <span class="order-id">#${order.id}</span>
-                        <span class="order-date">${formatDate(order.createdAt)}</span>
+                        <span class="order-id">#${safeOrder.id}</span>
+                        <span class="order-date">${formatDate(safeOrder.createdAt)}</span>
                     </div>
                     <div class="order-details">
-                        <div class="detail-badge">Ayam (${order.apples}) <br> RM${order.appleCost.toFixed(2)}</div>
-                        <div class="detail-badge">Daging (${order.bananas}) <br> RM${order.bananaCost.toFixed(2)}</div>
-                        <div class="detail-badge">Lontong (${order.eggs}) <br> RM${order.eggCost.toFixed(2)}</div>
-                        <div class="detail-badge">Shortong (${order.carrots}) <br> RM${order.carrotCost.toFixed(2)}</div>
-                        <div class="detail-badge">Cucuk: ${order.appleBananaQty}</div>
-                        <div class="detail-badge"> ${order.scoops} Senduk</div>
-                        <div class="detail-badge ice-cream" style="grid-column: span 2;">RM ${order.totalCost.toFixed(2)}</div>
+                        <div class="detail-badge">Ayam (${safeOrder.apples}) <br> RM${safeOrder.appleCost.toFixed(2)}</div>
+                        <div class="detail-badge">Daging (${safeOrder.bananas}) <br> RM${safeOrder.bananaCost.toFixed(2)}</div>
+                        <div class="detail-badge">Lontong (${safeOrder.eggs}) <br> RM${safeOrder.eggCost.toFixed(2)}</div>
+                        <div class="detail-badge">Shortong (${safeOrder.carrots}) <br> RM${safeOrder.carrotCost.toFixed(2)}</div>
+                        <div class="detail-badge">Cucuk: ${safeOrder.appleBananaQty}</div>
+                        <div class="detail-badge"> ${safeOrder.scoops} Senduk</div>
+                        <div class="detail-badge ice-cream" style="grid-column: span 2;">RM ${safeOrder.totalCost.toFixed(2)}</div>
                     </div>
                     <div class="status-row">
-                        <button class="status-btn ${order.paid ? 'paid' : 'unpaid'}" onclick="togglePaid(${order.id})">${order.paid ? 'Paid' : 'Unpaid'}</button>
-                        <button class="status-btn ${order.pickedUp ? 'picked' : 'notpicked'}" onclick="togglePicked(${order.id})">${order.pickedUp ? 'Picked up' : 'Not picked'}</button>
+                        <button class="status-btn ${safeOrder.paid ? 'paid' : 'unpaid'}" onclick="togglePaid(${safeOrder.id})">${safeOrder.paid ? 'Paid' : 'Unpaid'}</button>
+                        <button class="status-btn ${safeOrder.pickedUp ? 'picked' : 'notpicked'}" onclick="togglePicked(${safeOrder.id})">${safeOrder.pickedUp ? 'Picked up' : 'Not picked'}</button>
                     </div>
-                    <div class="order-description" id="desc-${order.id}" contenteditable="true" onblur="updateDescription(${order.id}, this.innerText)">${order.description || ''}</div>
+                    <div class="order-description" id="desc-${safeOrder.id}" contenteditable="true" onblur="updateDescription(${safeOrder.id}, this.innerText)">${safeOrder.description || ''}</div>
                     <div class="action-buttons">
-                        <button class="edit-btn" onclick="startEdit(${order.id})">✏️ Edit</button>
-                        <button class="delete-btn" onclick="deleteOrderConfirm(${order.id})">🗑️ Delete</button>
+                        <button class="edit-btn" onclick="startEdit(${safeOrder.id})">✏️ Edit</button>
+                        <button class="delete-btn" onclick="deleteOrderConfirm(${safeOrder.id})">🗑️ Delete</button>
                     </div>
                 `;
             } else {
                 card.innerHTML = `
                     <div class="order-header">
-                        <span class="order-id">#${order.id}</span>
-                        <span class="order-date">${formatDate(order.createdAt)}</span>
+                        <span class="order-id">#${safeOrder.id}</span>
+                        <span class="order-date">${formatDate(safeOrder.createdAt)}</span>
                     </div>
-                    <div class="order-details" id="edit-details-${order.id}">
-                        <div><label>Ayam</label><input type="number" id="edit-apples-${order.id}" class="edit-input" value="${order.apples}" min="0" step="1" oninput="updateEditTotals(${order.id})"></div>
-                        <div><label>Daging</label><input type="number" id="edit-bananas-${order.id}" class="edit-input" value="${order.bananas}" min="0" step="1" oninput="updateEditTotals(${order.id})"></div>
-                        <div><label>Lontong</label><input type="number" id="edit-eggs-${order.id}" class="edit-input" value="${order.eggs}" min="0" step="1" oninput="updateEditTotals(${order.id})"></div>
-                        <div><label>Shortong</label><input type="number" id="edit-carrots-${order.id}" class="edit-input" value="${order.carrots}" min="0" step="1" oninput="updateEditTotals(${order.id})"></div>
-                        <div class="detail-badge" id="edit-appleBananaQty-${order.id}">Cucuk: ${order.appleBananaQty}</div>
-                        <div class="detail-badge" id="edit-scoops-${order.id}">${order.scoops} Senduk</div>
-                        <div class="detail-badge ice-cream" style="grid-column: span 2;" id="edit-totalCost-${order.id}">RM${order.totalCost.toFixed(2)} </div>
+                    <div class="order-details" id="edit-details-${safeOrder.id}">
+                        <div><label>Ayam</label><input type="number" id="edit-apples-${safeOrder.id}" class="edit-input" value="${safeOrder.apples}" min="0" step="1" oninput="updateEditTotals(${safeOrder.id})"></div>
+                        <div><label>Daging</label><input type="number" id="edit-bananas-${safeOrder.id}" class="edit-input" value="${safeOrder.bananas}" min="0" step="1" oninput="updateEditTotals(${safeOrder.id})"></div>
+                        <div><label>Lontong</label><input type="number" id="edit-eggs-${safeOrder.id}" class="edit-input" value="${safeOrder.eggs}" min="0" step="1" oninput="updateEditTotals(${safeOrder.id})"></div>
+                        <div><label>Shortong</label><input type="number" id="edit-carrots-${safeOrder.id}" class="edit-input" value="${safeOrder.carrots}" min="0" step="1" oninput="updateEditTotals(${safeOrder.id})"></div>
+                        <div class="detail-badge" id="edit-appleBananaQty-${safeOrder.id}">Cucuk: ${safeOrder.appleBananaQty}</div>
+                        <div class="detail-badge" id="edit-scoops-${safeOrder.id}">${safeOrder.scoops} Senduk</div>
+                        <div class="detail-badge ice-cream" style="grid-column: span 2;" id="edit-totalCost-${safeOrder.id}">RM${safeOrder.totalCost.toFixed(2)} </div>
                     </div>
                     <div class="status-row">
-                        <button class="status-btn ${order.paid ? 'paid' : 'unpaid'}" onclick="togglePaid(${order.id})">${order.paid ? 'Paid' : 'Unpaid'}</button>
-                        <button class="status-btn ${order.pickedUp ? 'picked' : 'notpicked'}" onclick="togglePicked(${order.id})">${order.pickedUp ? 'Picked up' : 'Not picked'}</button>
+                        <button class="status-btn ${safeOrder.paid ? 'paid' : 'unpaid'}" onclick="togglePaid(${safeOrder.id})">${safeOrder.paid ? 'Paid' : 'Unpaid'}</button>
+                        <button class="status-btn ${safeOrder.pickedUp ? 'picked' : 'notpicked'}" onclick="togglePicked(${safeOrder.id})">${safeOrder.pickedUp ? 'Picked up' : 'Not picked'}</button>
                     </div>
-                    <div class="order-description" id="desc-${order.id}" contenteditable="true" onblur="updateDescription(${order.id}, this.innerText)">${order.description || ''}</div>
+                    <div class="order-description" id="desc-${safeOrder.id}" contenteditable="true" onblur="updateDescription(${safeOrder.id}, this.innerText)">${safeOrder.description || ''}</div>
                     <div class="action-buttons">
-                        <button class="save-btn" onclick="saveEdit(${order.id})">💾 Save</button>
-                        <button class="cancel-btn" onclick="cancelEdit(${order.id})">✖ Cancel</button>
+                        <button class="save-btn" onclick="saveEdit(${safeOrder.id})">💾 Save</button>
+                        <button class="cancel-btn" onclick="cancelEdit(${safeOrder.id})">✖ Cancel</button>
                     </div>
                 `;
             }
         }
+    
 
         // ---------- Edit functions ----------
         function startEdit(id) {
@@ -531,8 +649,8 @@
             const sliderVal = parseInt(document.getElementById('ratioSlider').value) || 50;
             const targetRatio = 1 - (sliderVal / 100); // 0 = all bananas, 1 = all apples
 
-            const applePrice = 1.2;
-            const bananaPrice = 1.5;
+            const applePrice = prices.apple;
+            const bananaPrice = prices.banana;
             const minPrice = Math.min(applePrice, bananaPrice);
 
             let remaining = money;
@@ -592,6 +710,14 @@
                 document.querySelector('.tab:nth-child(3)').classList.add('active');
                 updateSliderLabel();
                 calculateRatio();
+            }else if (tab === 'settings') {
+                document.getElementById('settingsPanel').classList.add('active');
+                document.querySelector('.tab:nth-child(4)').classList.add('active');
+                // Refresh displayed prices from stored values
+                document.getElementById('priceApple').value = prices.apple;
+                document.getElementById('priceBanana').value = prices.banana;
+                document.getElementById('priceEgg').value = prices.egg;
+                document.getElementById('priceCarrot').value = prices.carrot;
             }
         }
 
@@ -625,7 +751,4 @@
 
     </script>
 </body>
-
 </html>
-
-
