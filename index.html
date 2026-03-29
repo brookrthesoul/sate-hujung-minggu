@@ -159,7 +159,7 @@
         </div>
 
         <p style="font-size: 14px; color: #6c757d; text-align: center;">
-            Items are bought one by one, always choosing the sate that brings the ratio closer to your slider.
+            Items are bought one by one, always choosing the Sate that brings the ratio closer to your slider.
         </p>
     </div>
 
@@ -168,11 +168,11 @@
         <h2>Update Prices</h2>
         <div class="settings-group">
             <label>Ayam</label>
-            <input type="number" id="priceApple" step="0.01" min="0" value="1.20">
+            <input type="number" id="priceApple" step="0.01" min="0" value="1.30">
         </div>
         <div class="settings-group">
             <label>Daging</label>
-            <input type="number" id="priceBanana" step="0.01" min="0" value="1.50">
+            <input type="number" id="priceBanana" step="0.01" min="0" value="1.60">
         </div>
         <div class="settings-group">
             <label>Lontong</label>
@@ -192,8 +192,8 @@
     <script>
          // ---------- Pricing ----------
         let prices = {
-            apple: 1.20,
-            banana: 1.50,
+            apple: 1.30,
+            banana: 1.60,
             egg: 3.00,
             carrot: 2.00
         };
@@ -258,7 +258,7 @@
         
 
         function resetToDefaultPrices() {
-            prices = { apple: 1.20, banana: 1.50, egg: 3.00, carrot: 2.00 };
+            prices = { apple: 1.30, banana: 1.60, egg: 3.00, carrot: 2.00 };
             localStorage.setItem('prices', JSON.stringify(prices));
             document.getElementById('priceApple').value = prices.apple;
             document.getElementById('priceBanana').value = prices.banana;
@@ -367,7 +367,7 @@
             const carrotCost = carrots * prices.carrot;
             const totalCost = appleCost + bananaCost + eggCost + carrotCost;
             const appleBananaQty = apples + bananas;
-            const fruitScoops = Math.floor(apples/10) + Math.floor(bananas/10) + Math.floor((apples+bananas)/10);
+            const fruitScoops = (apples/10) + (bananas/10);
             const vegScoops = eggs * 2 + carrots * 2;
             const scoops = fruitScoops + vegScoops;
             return { appleCost, bananaCost, eggCost, carrotCost, totalCost, appleBananaQty, scoops };
