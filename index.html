@@ -82,13 +82,13 @@
     <!-- HOME PANEL -->
     <div id="homePanel" class="panel active">
         <h2>New Order</h2>
-        <label>Ayam (<label>Ayam (<span class="order-id">#${safeOrder.apples}</span>)</label>)</label>
+        <label id="appleLabel">Ayam</label>
         <input type="number" id="apples" step="1" placeholder="0">
-        <label>Daging (RM1.50 each)</label>
+        <label id="bananaLebel">Daging</label>
         <input type="number" id="bananas" min="0" step="1" placeholder="0">
-        <label>Lontong (RM3.00 each)</label>
+        <label id="eggLebel">Lontong</label>
         <input type="number" id="eggs" min="0" step="1" placeholder="0">
-        <label>Shortong (RM2.00 each)</label>
+        <label id="carrotLebel">Shortong</label>
         <input type="number" id="carrots" min="0" step="1" placeholder="0">
         <label>📝 Order Description (optional)</label>
         <textarea id="orderDescription" placeholder="Write any notes about this order..."></textarea>
@@ -210,11 +210,24 @@
                     if (parsed.carrot) prices.carrot = parsed.carrot;
                 } catch(e) { console.warn('Failed to parse prices'); }
             }
+
+            
+
+            
             // Update input fields in settings panel
             document.getElementById('priceApple').value = prices.apple;
             document.getElementById('priceBanana').value = prices.banana;
             document.getElementById('priceEgg').value = prices.egg;
             document.getElementById('priceCarrot').value = prices.carrot;
+
+            updatePriceLabels();
+        }
+
+        function updatePriceLabels(){
+            document.getElementById('appleLabel').innerHTML = `Ayam (RM${prices.apple.toFixed(2)})`;
+            document.getElementById('bananaLebel').innerHTML = `Daging (RM${prices.banana.toFixed(2)})`;
+            document.getElementById('eggLebel').innerHTML = `Lontong (RM${prices.egg.toFixed(2)})`;
+            document.getElementById('carrotLebel').innerHTML = `Shortong (RM${prices.carrot.toFixed(2)})`;
         }
 
         function savePrices() {
@@ -228,6 +241,9 @@
             }
             prices = { apple, banana, egg, carrot };
             localStorage.setItem('prices', JSON.stringify(prices));
+
+            updatePriceLabels();
+
             alert('Prices updated! New orders will use these prices.');
             // If currently on home tab and calculation is visible, recalc
             if (document.getElementById('results').style.display === 'block') {
@@ -239,6 +255,8 @@
             }
         }
 
+        
+
         function resetToDefaultPrices() {
             prices = { apple: 1.20, banana: 1.50, egg: 3.00, carrot: 2.00 };
             localStorage.setItem('prices', JSON.stringify(prices));
@@ -246,10 +264,16 @@
             document.getElementById('priceBanana').value = prices.banana;
             document.getElementById('priceEgg').value = prices.egg;
             document.getElementById('priceCarrot').value = prices.carrot;
+
+            updatePriceLabels();
+
             alert('Prices reset to default.');
             if (document.getElementById('results').style.display === 'block') calculate();
             if (document.getElementById('ratioPanel').classList.contains('active')) calculateRatio();
         }
+
+        
+        
 
         // ---------- Database setup (IndexedDB) with error handling ----------
         const DB_NAME = 'OrdersDB';
@@ -421,6 +445,8 @@
                 console.error(error);
             }
         }
+
+        
 
        
 
