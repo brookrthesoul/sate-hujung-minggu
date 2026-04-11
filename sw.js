@@ -1,5 +1,5 @@
 const CACHE_NAME = 'order-pwa-v1';
-const urlsToCache = ['/', '/manifest.json'];
+const urlsToCache = ['/', './manifest.json'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
