@@ -1,75 +1,56 @@
-const CACHE_NAME = 'order-pwa-v2';
+const CACHE_NAME = 'order-pwa-v3';
+
 const urlsToCache = [
-  './',
-  './index.html',
-  './manifest.json',
-  './icon-192.png',
-  './icon-512.png'
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  'https://cdn.jsdelivr.net/npm/@point-of-sale/webbluetooth-receipt-printer@2.0.0/dist/webbluetooth-receipt-printer.umd.js',
+  'https://cdn.jsdelivr.net/npm/@point-of-sale/receipt-printer-encoder@2.0.0/dist/receipt-printer-encoder.umd.js'
 ];
 
-// Install event - cache files
+// Install
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        // Try to add each URL, but don't fail if one doesn't exist
-        return Promise.allSettled(
-          urlsToCache.map(url => 
-            cache.add(url).catch(err => {
-              console.warn(`Failed to cache ${url}:`, err);
-            })
-          )
-        );
-      })
-      .then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
   );
+  self.skipWaiting();
 });
 
-// Activate event - clean up old caches
+// Activate
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
+    caches.keys().then(names =>
+      Promise.all(
+        names.map(name => {
+          if (name !== CACHE_NAME) return caches.delete(name);
         })
-      );
-    }).then(() => self.clients.claim())
+      )
+    )
   );
+  self.clients.claim();
 });
 
-// Fetch event - serve from cache, fall back to network
+// Fetch
 self.addEventListener('fetch', event => {
+  const req = event.request;
+
+  if (req.method !== 'GET') return;
+  if (!req.url.startsWith(self.location.origin)) return;
+
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-        
-        // Clone the request because it can only be used once
-        const fetchRequest = event.request.clone();
-        
-        return fetch(fetchRequest).then(response => {
-          // Check if we received a valid response
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response;
-          }
-          
-          // Clone the response because it can only be used once
-          const responseToCache = response.clone();
-          
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              cache.put(event.request, responseToCache);
-            });
-          
-          return response;
+    caches.match(req)
+      .then(res => {
+        return res || fetch(req).then(fetchRes => {
+          if (!fetchRes || fetchRes.status !== 200) return fetchRes;
+
+          const clone = fetchRes.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
+
+          return fetchRes;
         });
       })
+      .catch(() => caches.match('/index.html'))
   );
 });
