@@ -7,10 +7,7 @@
     <meta name="theme-color" content="#007bff">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<!-- Use jsDelivr with correct CORS headers -->
-	<script src="https://cdn.jsdelivr.net/npm/@point-of-sale/receipt-printer-encoder@2.0.0/dist/receipt-printer-encoder.umd.js"></script>
-	<script src="https://unpkg.com/@point-of-sale/webbluetooth-receipt-printer@2.0.0/dist/webbluetooth-receipt-printer.umd.js" crossorigin="anonymous"></script>
-	<script src="https://unpkg.com/@point-of-sale/receipt-printer-encoder@2.0.0/dist/receipt-printer-encoder.umd.js" crossorigin="anonymous"></script>
+	<script src="https://cdn.jsdelivr.net/npm/esc-pos-encoder@1.3.0/dist/esc-pos-encoder.umd.js"></script>
     <title>Sate-Hujung-Minggu</title>
     <style>
         /* (same styles as before) */
@@ -772,84 +769,72 @@ async function printOrder(orderId) {
             return;
         }
         
-        // Create printer instance
-        const receiptPrinter = new WebBluetoothReceiptPrinter();
-        
-        // Try to reconnect to a previously connected printer
-        if (lastUsedDevice) {
-            receiptPrinter.reconnect(lastUsedDevice);
-        }
-        
-        // Handle successful connection
-        receiptPrinter.addEventListener('connected', async (device) => {
-            console.log(`Connected to ${device.name}`);
-            
-            // Store device info for future reconnection
-            lastUsedDevice = device;
-            
-            // Create encoder with correct printer language
-            const encoder = new ReceiptPrinterEncoder({
-                language: device.language || 'esc-pos'
-            });
-            
-            // Build receipt
-            const formattedDate = new Date(order.createdAt).toLocaleString();
-            
-            const receiptData = encoder
-                .initialize()
-                .setAlignment('center')
-                .textLine('='.repeat(32))
-                .textLine('🍎 FRUIT & VEG ORDER 🥕')
-                .textLine('='.repeat(32))
-                .setAlignment('left')
-                .textLine(`Order #: ${order.id}`)
-                .textLine(`Date: ${formattedDate}`)
-                .newline()
-                .setStyle('b', true)
-                .textLine('ITEMS:')
-                .setStyle('b', false)
-                .textLine(`Apples: ${order.apples} x $${prices.apple.toFixed(2)} = $${(order.apples * prices.apple).toFixed(2)}`)
-                .textLine(`Bananas: ${order.bananas} x $${prices.banana.toFixed(2)} = $${(order.bananas * prices.banana).toFixed(2)}`)
-                .textLine(`Eggs: ${order.eggs} x $${prices.egg.toFixed(2)} = $${(order.eggs * prices.egg).toFixed(2)}`)
-                .textLine(`Carrots: ${order.carrots} x $${prices.carrot.toFixed(2)} = $${(order.carrots * prices.carrot).toFixed(2)}`)
-                .newline()
-                .setStyle('b', true)
-                .textLine(`TOTAL: $${order.totalCost.toFixed(2)}`)
-                .setStyle('b', false)
-                .newline()
-                .textLine(`Ice Cream Scoops: ${order.scoops}`)
-                .newline()
-                .textLine(`Paid: ${order.paid ? '✓ YES' : '✗ NO'}`)
-                .textLine(`Picked Up: ${order.pickedUp ? '✓ YES' : '✗ NO'}`)
-                .newline()
-                .textLine(`Notes: ${order.description || 'None'}`)
-                .newline()
-                .setAlignment('center')
-                .textLine('-'.repeat(32))
-                .textLine('THANK YOU!')
-                .textLine('='.repeat(32))
-                .newline()
-                .cut('full')
-                .encode();
-            
-            // Send to printer
-            await receiptPrinter.print(receiptData);
-            alert('✅ Receipt printed successfully!');
+        // Request Bluetooth device
+        const device = await navigator.bluetooth.requestDevice({
+            filters: [
+                { services: ['000018f0-0000-1000-8000-00805f9b34fb'] }, // Standard printer service
+                { namePrefix: 'JK' }, // Match your JK-5802P
+                { namePrefix: '58' }  // Many 58mm printers
+            ],
+            optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
         });
         
-        receiptPrinter.addEventListener('disconnected', () => {
-            console.log('Printer disconnected');
-        });
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+        const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
         
-        // This line must be triggered by user action (click)
-        await receiptPrinter.connect();
+        // Create receipt using ESC/POS encoder
+        const encoder = new EscPosEncoder();
+        
+        const formattedDate = new Date(order.createdAt).toLocaleString();
+        const paidStatus = order.paid ? 'PAID' : 'NOT PAID';
+        const pickupStatus = order.pickedUp ? 'PICKED UP' : 'NOT PICKED';
+        
+        const receipt = encoder
+            .initialize()
+            .align('center')
+            .line('='.repeat(32))
+            .line('🍎 FRUIT & VEG ORDER 🥕')
+            .line('='.repeat(32))
+            .align('left')
+            .line(`Order #: ${order.id}`)
+            .line(`Date: ${formattedDate}`)
+            .newline()
+            .bold(true)
+            .line('ITEMS:')
+            .bold(false)
+            .line(`Apples: ${order.apples} x $${prices.apple.toFixed(2)} = $${(order.apples * prices.apple).toFixed(2)}`)
+            .line(`Bananas: ${order.bananas} x $${prices.banana.toFixed(2)} = $${(order.bananas * prices.banana).toFixed(2)}`)
+            .line(`Eggs: ${order.eggs} x $${prices.egg.toFixed(2)} = $${(order.eggs * prices.egg).toFixed(2)}`)
+            .line(`Carrots: ${order.carrots} x $${prices.carrot.toFixed(2)} = $${(order.carrots * prices.carrot).toFixed(2)}`)
+            .newline()
+            .bold(true)
+            .line(`TOTAL: $${order.totalCost.toFixed(2)}`)
+            .bold(false)
+            .newline()
+            .line(`Ice Cream Scoops: ${order.scoops}`)
+            .newline()
+            .line(`Paid: ${paidStatus}`)
+            .line(`Pickup: ${pickupStatus}`)
+            .newline()
+            .line(`Notes: ${order.description || 'None'}`)
+            .newline()
+            .align('center')
+            .line('-'.repeat(32))
+            .line('THANK YOU!')
+            .line('='.repeat(32))
+            .newline()
+            .cut()
+            .encode();
+        
+        await characteristic.writeValue(receipt);
+        alert('✅ Receipt printed successfully!');
         
     } catch (error) {
         console.error('Print error:', error);
         alert('❌ Failed to print: ' + error.message);
     }
 }
-
     </script>
 
     <!-- PWA manifest and service worker --> 
