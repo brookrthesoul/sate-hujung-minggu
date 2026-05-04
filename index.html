@@ -856,7 +856,7 @@ async function printOrder(orderId) {
     <!-- PWA manifest and service worker --> 
     <script>
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed', err));
+            navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW registration failed', err));
         }
 
     window.addEventListener('beforeinstallprompt', (e) => {
