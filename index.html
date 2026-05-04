@@ -761,78 +761,45 @@
 
 async function printOrder(orderId) {
     try {
-        const allOrders = await getAllOrders();
-        const order = allOrders.find(o => o.id === orderId);
-        
-        if (!order) {
-            alert('Order not found!');
-            return;
-        }
-        
-        // Request Bluetooth device
-        const device = await navigator.bluetooth.requestDevice({
-            filters: [
-                { services: ['000018f0-0000-1000-8000-00805f9b34fb'] }, // Standard printer service
-                { namePrefix: 'JK' }, // Match your JK-5802P
-                { namePrefix: '58' }  // Many 58mm printers
-            ],
-            optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+        const receiptPrinter = new WebBluetoothReceiptPrinter({
+		    deviceFilters: [{}] // allow all BLE devices
+		});
+
+        receiptPrinter.addEventListener('connected', async (device) => {
+            console.log('Connected:', device.name);
+
+            const encoder = new ReceiptPrinterEncoder({
+                language: 'esc-pos',
+                codepage: 'cp437'
+            });
+
+            const data = encoder
+                .initialize()
+                .setAlignment('center')
+                .textLine('================')
+                .textLine('TEST PRINT')
+                .textLine('JK-5802P')
+                .textLine('================')
+                .newline()
+                .cut()
+                .encode();
+
+            await receiptPrinter.print(data);
+
+            alert('✅ Test print success');
         });
-        
-        const server = await device.gatt.connect();
-        const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-        const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-        
-        // Create receipt using ESC/POS encoder
-        const encoder = new EscPosEncoder();
-        
-        const formattedDate = new Date(order.createdAt).toLocaleString();
-        const paidStatus = order.paid ? 'PAID' : 'NOT PAID';
-        const pickupStatus = order.pickedUp ? 'PICKED UP' : 'NOT PICKED';
-        
-        const receipt = encoder
-            .initialize()
-            .align('center')
-            .line('='.repeat(32))
-            .line('🍎 FRUIT & VEG ORDER 🥕')
-            .line('='.repeat(32))
-            .align('left')
-            .line(`Order #: ${order.id}`)
-            .line(`Date: ${formattedDate}`)
-            .newline()
-            .bold(true)
-            .line('ITEMS:')
-            .bold(false)
-            .line(`Apples: ${order.apples} x $${prices.apple.toFixed(2)} = $${(order.apples * prices.apple).toFixed(2)}`)
-            .line(`Bananas: ${order.bananas} x $${prices.banana.toFixed(2)} = $${(order.bananas * prices.banana).toFixed(2)}`)
-            .line(`Eggs: ${order.eggs} x $${prices.egg.toFixed(2)} = $${(order.eggs * prices.egg).toFixed(2)}`)
-            .line(`Carrots: ${order.carrots} x $${prices.carrot.toFixed(2)} = $${(order.carrots * prices.carrot).toFixed(2)}`)
-            .newline()
-            .bold(true)
-            .line(`TOTAL: $${order.totalCost.toFixed(2)}`)
-            .bold(false)
-            .newline()
-            .line(`Ice Cream Scoops: ${order.scoops}`)
-            .newline()
-            .line(`Paid: ${paidStatus}`)
-            .line(`Pickup: ${pickupStatus}`)
-            .newline()
-            .line(`Notes: ${order.description || 'None'}`)
-            .newline()
-            .align('center')
-            .line('-'.repeat(32))
-            .line('THANK YOU!')
-            .line('='.repeat(32))
-            .newline()
-            .cut()
-            .encode();
-        
-        await characteristic.writeValue(receipt);
-        alert('✅ Receipt printed successfully!');
-        
-    } catch (error) {
-        console.error('Print error:', error);
-        alert('❌ Failed to print: ' + error.message);
+
+        receiptPrinter.addEventListener('disconnected', () => {
+            console.log('Disconnected');
+        });
+
+        await receiptPrinter.connect({
+            reconnect: false
+        });
+
+    } catch (err) {
+        console.error(err);
+        alert('❌ ' + err.message);
     }
 }
     </script>
