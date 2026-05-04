@@ -34,32 +34,42 @@ self.addEventListener('activate', event => {
 
 // Fetch
 self.addEventListener('fetch', event => {
-  // ✅ Ignore non-HTTP requests (fixes your error)
-  if (!event.request.url.startsWith('http')) {
+  const url = new URL(event.request.url);
+
+  // ✅ Ignore non-http/https (fixes your error)
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return;
+  }
+
+  // ✅ Ignore non-GET requests (important)
+  if (event.request.method !== 'GET') {
     return;
   }
 
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        if (response) return response;
+    caches.match(event.request).then(response => {
+      if (response) return response;
 
-        const fetchRequest = event.request.clone();
+      return fetch(event.request).then(networkResponse => {
+        // Only cache valid responses
+        if (
+          !networkResponse ||
+          networkResponse.status !== 200 ||
+          networkResponse.type !== 'basic'
+        ) {
+          return networkResponse;
+        }
 
-        return fetch(fetchRequest).then(response => {
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response;
-          }
+        const responseClone = networkResponse.clone();
 
-          const responseToCache = response.clone();
-
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              cache.put(event.request, responseToCache);
-            });
-
-          return response;
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(event.request, responseClone).catch(err => {
+            console.warn('Cache put failed:', err);
+          });
         });
-      })
+
+        return networkResponse;
+      });
+    })
   );
 });
