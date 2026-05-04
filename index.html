@@ -757,19 +757,18 @@
             loadPrices();
         };
 
-		let lastUsedDevice = null;
+		let receiptPrinter = null;
 
-async function printOrder(orderId) {
-    try {
-        const receiptPrinter = new WebBluetoothReceiptPrinter({
-		    deviceFilters: [{}] // allow all BLE devices
-		});
+function setupPrinter() {
+    receiptPrinter = new WebBluetoothReceiptPrinter({
+        deviceFilters: [{}]
+    });
 
-        receiptPrinter.addEventListener('connected', async (device) => {
-            console.log('Connected:', device.name);
+    receiptPrinter.addEventListener('connected', async (device) => {
+        console.log('Connected:', device.name);
+        alert('CONNECTED!');
 
-			alert('CONNECTED!');
-
+        try {
             const encoder = new ReceiptPrinterEncoder({
                 language: 'esc-pos',
                 codepage: 'cp437'
@@ -780,7 +779,7 @@ async function printOrder(orderId) {
                 .setAlignment('center')
                 .textLine('================')
                 .textLine('TEST PRINT')
-                .textLine('JK-5802P')
+                .textLine('MPT-II')
                 .textLine('================')
                 .newline()
                 .cut()
@@ -788,22 +787,23 @@ async function printOrder(orderId) {
 
             await receiptPrinter.print(data);
 
-            alert('✅ Test print success');
-        });
+            alert('✅ Print success');
 
-        receiptPrinter.addEventListener('disconnected', () => {
-            console.log('Disconnected');
-        });
+        } catch (e) {
+            alert('❌ Print failed: ' + e.message);
+        }
+    });
 
-        await receiptPrinter.connect({
-            reconnect: false
-        });
-
-    } catch (err) {
-        console.error(err);
-        alert('❌ ' + err.message);
-    }
+    receiptPrinter.addEventListener('disconnected', () => {
+        console.log('Disconnected');
+    });
 }
+
+// Call once on load
+window.onload = () => {
+    loadPrices();
+    setupPrinter(); // 👈 ADD THIS
+};
     </script>
 
     <!-- PWA manifest and service worker --> 
