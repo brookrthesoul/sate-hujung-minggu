@@ -6,8 +6,6 @@ const urlsToCache = [
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  'https://cdn.jsdelivr.net/npm/@point-of-sale/webbluetooth-receipt-printer@2.0.0/dist/webbluetooth-receipt-printer.umd.js',
-  'https://cdn.jsdelivr.net/npm/@point-of-sale/receipt-printer-encoder@2.0.0/dist/receipt-printer-encoder.umd.js'
 ];
 
 // Install
