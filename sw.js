@@ -34,23 +34,32 @@ self.addEventListener('activate', event => {
 
 // Fetch
 self.addEventListener('fetch', event => {
-  const req = event.request;
-
-  if (req.method !== 'GET') return;
-  if (!req.url.startsWith(self.location.origin)) return;
+  // ✅ Ignore non-HTTP requests (fixes your error)
+  if (!event.request.url.startsWith('http')) {
+    return;
+  }
 
   event.respondWith(
-    caches.match(req)
-      .then(res => {
-        return res || fetch(req).then(fetchRes => {
-          if (!fetchRes || fetchRes.status !== 200) return fetchRes;
+    caches.match(event.request)
+      .then(response => {
+        if (response) return response;
 
-          const clone = fetchRes.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
+        const fetchRequest = event.request.clone();
 
-          return fetchRes;
+        return fetch(fetchRequest).then(response => {
+          if (!response || response.status !== 200 || response.type !== 'basic') {
+            return response;
+          }
+
+          const responseToCache = response.clone();
+
+          caches.open(CACHE_NAME)
+            .then(cache => {
+              cache.put(event.request, responseToCache);
+            });
+
+          return response;
         });
       })
-      .catch(() => caches.match('./index.html'))
   );
 });
