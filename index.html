@@ -7,6 +7,11 @@
     <meta name="theme-color" content="#007bff">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<!-- Web Bluetooth Printer Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@point-of-sale/webbluetooth-receipt-printer@2.0.0/dist/webbluetooth-receipt-printer.umd.js"></script>
+
+    <!-- Receipt Printer Encoder Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@point-of-sale/receipt-printer-encoder@2.0.0/dist/receipt-printer-encoder.umd.js"></script>
     <title>Sate-Hujung-Minggu</title>
     <style>
         /* (same styles as before) */
@@ -69,6 +74,9 @@
         .settings-group label { display: inline-block; width: 120px; font-weight: bold; }
         .settings-group input { width: calc(100% - 130px); display: inline-block; margin-left: 10px; }
         button.small { width: auto; padding: 8px 16px; margin-top: 0; margin-right: 10px; display: inline-block; }
+
+		/* print css */
+        .print-btn { background: #28a745}
     </style>
 </head>
 <body style="margin-top: 20px;">
@@ -495,6 +503,7 @@
                     <div class="action-buttons">
                         <button class="edit-btn" onclick="startEdit(${safeOrder.id})">✏️ Edit</button>
                         <button class="delete-btn" onclick="deleteOrderConfirm(${safeOrder.id})">🗑️ Delete</button>
+						<buttton class="print-btn" onclick="printOrder(${safeOrder.id})">Print</button>
                     </div>
                 `;
             } else {
@@ -751,6 +760,96 @@
         window.onload = () => {
             loadPrices();
         };
+
+		let lastUsedDevice = null;
+
+async function printOrder(orderId) {
+    try {
+        const allOrders = await getAllOrders();
+        const order = allOrders.find(o => o.id === orderId);
+        
+        if (!order) {
+            alert('Order not found!');
+            return;
+        }
+        
+        // Create printer instance
+        const receiptPrinter = new WebBluetoothReceiptPrinter();
+        
+        // Try to reconnect to a previously connected printer
+        if (lastUsedDevice) {
+            receiptPrinter.reconnect(lastUsedDevice);
+        }
+        
+        // Handle successful connection
+        receiptPrinter.addEventListener('connected', async (device) => {
+            console.log(`Connected to ${device.name}`);
+            
+            // Store device info for future reconnection
+            lastUsedDevice = device;
+            
+            // Create encoder with correct printer language
+            const encoder = new ReceiptPrinterEncoder({
+                language: device.language || 'esc-pos'
+            });
+            
+            // Build receipt
+            const formattedDate = new Date(order.createdAt).toLocaleString();
+            
+            const receiptData = encoder
+                .initialize()
+                .setAlignment('center')
+                .textLine('='.repeat(32))
+                .textLine('🍎 FRUIT & VEG ORDER 🥕')
+                .textLine('='.repeat(32))
+                .setAlignment('left')
+                .textLine(`Order #: ${order.id}`)
+                .textLine(`Date: ${formattedDate}`)
+                .newline()
+                .setStyle('b', true)
+                .textLine('ITEMS:')
+                .setStyle('b', false)
+                .textLine(`Apples: ${order.apples} x $${prices.apple.toFixed(2)} = $${(order.apples * prices.apple).toFixed(2)}`)
+                .textLine(`Bananas: ${order.bananas} x $${prices.banana.toFixed(2)} = $${(order.bananas * prices.banana).toFixed(2)}`)
+                .textLine(`Eggs: ${order.eggs} x $${prices.egg.toFixed(2)} = $${(order.eggs * prices.egg).toFixed(2)}`)
+                .textLine(`Carrots: ${order.carrots} x $${prices.carrot.toFixed(2)} = $${(order.carrots * prices.carrot).toFixed(2)}`)
+                .newline()
+                .setStyle('b', true)
+                .textLine(`TOTAL: $${order.totalCost.toFixed(2)}`)
+                .setStyle('b', false)
+                .newline()
+                .textLine(`Ice Cream Scoops: ${order.scoops}`)
+                .newline()
+                .textLine(`Paid: ${order.paid ? '✓ YES' : '✗ NO'}`)
+                .textLine(`Picked Up: ${order.pickedUp ? '✓ YES' : '✗ NO'}`)
+                .newline()
+                .textLine(`Notes: ${order.description || 'None'}`)
+                .newline()
+                .setAlignment('center')
+                .textLine('-'.repeat(32))
+                .textLine('THANK YOU!')
+                .textLine('='.repeat(32))
+                .newline()
+                .cut('full')
+                .encode();
+            
+            // Send to printer
+            await receiptPrinter.print(receiptData);
+            alert('✅ Receipt printed successfully!');
+        });
+        
+        receiptPrinter.addEventListener('disconnected', () => {
+            console.log('Printer disconnected');
+        });
+        
+        // This line must be triggered by user action (click)
+        await receiptPrinter.connect();
+        
+    } catch (error) {
+        console.error('Print error:', error);
+        alert('❌ Failed to print: ' + error.message);
+    }
+}
 
     </script>
 
