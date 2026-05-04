@@ -41,12 +41,12 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // ✅ Ignore non-http/https (fixes your error)
+  // ✅ VERY IMPORTANT (fix your error)
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     return;
   }
 
-  // ✅ Ignore non-GET requests (important)
+  // ✅ Also recommended
   if (event.request.method !== 'GET') {
     return;
   }
@@ -56,21 +56,14 @@ self.addEventListener('fetch', event => {
       if (response) return response;
 
       return fetch(event.request).then(networkResponse => {
-        // Only cache valid responses
-        if (
-          !networkResponse ||
-          networkResponse.status !== 200 ||
-          networkResponse.type !== 'basic'
-        ) {
+        if (!networkResponse || networkResponse.status !== 200) {
           return networkResponse;
         }
 
-        const responseClone = networkResponse.clone();
+        const clone = networkResponse.clone();
 
         caches.open(CACHE_NAME).then(cache => {
-          cache.put(event.request, responseClone).catch(err => {
-            console.warn('Cache put failed:', err);
-          });
+          cache.put(event.request, clone).catch(() => {});
         });
 
         return networkResponse;
