@@ -768,6 +768,8 @@ async function printOrder(orderId) {
         receiptPrinter.addEventListener('connected', async (device) => {
             console.log('Connected:', device.name);
 
+			alert('CONNECTED!');
+
             const encoder = new ReceiptPrinterEncoder({
                 language: 'esc-pos',
                 codepage: 'cp437'
