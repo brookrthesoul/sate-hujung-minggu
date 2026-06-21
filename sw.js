@@ -1,8 +1,16 @@
-const CACHE_NAME = 'order-pwa-v3';
+const CACHE_NAME = 'order-pwa-v6';
 
 const urlsToCache = [
   './',
   './index.html',
+  './style.css',
+  './menu.js',
+  './db.js',
+  './orders.js',
+  './ratio.js',
+  './printer.js',
+  './app.js',
+  './sw-register.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',

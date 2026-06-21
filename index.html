@@ -8,72 +8,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<script src="https://cdn.jsdelivr.net/npm/@point-of-sale/receipt-printer-encoder/dist/receipt-printer-encoder.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@point-of-sale/webbluetooth-receipt-printer/dist/webbluetooth-receipt-printer.umd.js"></script>
     <title>Sate-Hujung-Minggu</title>
-    <style>
-        /* (same styles as before) */
-         * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
-        body { background: #f8f9fa; margin: 0; padding: 10px; max-width: 600px; margin: auto; }
-        .tab-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-        .tab { flex: 1; text-align: center; padding: 12px; background: #e9ecef; border-radius: 30px; cursor: pointer; font-weight: bold; min-width: 80px; }
-        .tab.active { background: #007bff; color: white; }
-        .panel { display: none; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .panel.active { display: block; }
-        label { display: block; margin: 15px 0 5px; font-weight: 500; }
-        input[type=number], textarea, input[type=range] { width: 100%; padding: 12px; border: 1px solid #ced4da; border-radius: 12px; font-size: 16px; }
-        input[type=range] { padding: 0; }
-        textarea { min-height: 80px; resize: vertical; }
-        button { background: #007bff; color: white; border: none; padding: 14px 20px; border-radius: 30px; font-size: 16px; font-weight: bold; width: 100%; margin-top: 15px; cursor: pointer; }
-        button.secondary { background: #6c757d; }
-        .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
-        .result-item { background: #f1f3f5; padding: 10px; border-radius: 12px; text-align: center; }
-        .result-item .label { font-size: 14px; color: #495057; }
-        .result-item .value { font-size: 22px; font-weight: bold; }
-        .order-card { background: #f8f9fa; border-radius: 16px; padding: 15px; margin-bottom: 15px; border-left: 5px solid #007bff; }
-        .order-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .order-id { font-weight: bold; background: #007bff; color: white; padding: 4px 12px; border-radius: 20px; font-size: 14px; }
-        .order-date { color: #6c757d; font-size: 14px; }
-        .order-details { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 10px 0; }
-        .detail-badge { background: white; padding: 6px 10px; border-radius: 20px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .edit-input { width: 100%; padding: 6px; border-radius: 20px; border: 1px solid #ced4da; text-align: center; }
-        .status-row { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
-        .status-btn { flex: 1; padding: 8px; border-radius: 30px; border: 1px solid #ced4da; background: white; font-weight: 500; cursor: pointer; }
-        .status-btn.paid { background: #28a745; color: white; border-color: #28a745; }
-        .status-btn.unpaid { background: #dc3545; color: white; border-color: #dc3545; }
-        .status-btn.picked { background: #28a745; color: white; border-color: #28a745; }
-        .status-btn.notpicked { background: #ffc107; color: black; border-color: #ffc107; }
-        .order-description { background: white; border-radius: 12px; padding: 10px; margin: 10px 0; border: 1px dashed #17a2b8; cursor: text; outline: none; }
-        .order-description:focus { border: 2px solid #17a2b8; background: #fff; }
-        .action-buttons { display: flex; gap: 8px; }
-        .action-buttons button { margin: 0; padding: 10px; font-size: 14px; }
-        .edit-btn { background: #17a2b8; }
-        .delete-btn { background: #dc3545; }
-        .save-btn { background: #28a745; }
-        .cancel-btn { background: #6c757d; }
-        .sort-dropdown { width: 100%; padding: 12px; border-radius: 30px; border: 1px solid #ced4da; margin-bottom: 20px; font-size: 16px; }
-        .day-group { margin-bottom: 25px; }
-        .day-header { font-weight: bold; font-size: 18px; padding-bottom: 5px; border-bottom: 2px solid #dee2e6; margin-bottom: 10px; color: #007bff; }
-        .ice-cream { background: #fff3cd; border-left-color: #ffc107; }
-
-	/* Ratio tab specific */
-        .ratio-container { text-align: center; margin: 20px 0; }
-        .slider-labels { display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
-        .slider-labels span:first-child { color: #d9534f; }  /* apple red */
-        .slider-labels span:last-child { color: #f0ad4e; }  /* banana yellow */
-        .percentage { font-size: 18px; margin: 10px 0; color: #007bff; }
-        .ratio-results { display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
-        .ratio-card { background: #e9ecef; border-radius: 16px; padding: 15px; min-width: 120px; flex: 1; text-align: center; }
-        .ratio-card .value { font-size: 28px; font-weight: bold; display: block; }
-        .ratio-card .label { font-size: 14px; color: #495057; }
-
-    /* Settings panel */
-        .settings-group { margin-bottom: 20px; }
-        .settings-group label { display: inline-block; width: 120px; font-weight: bold; }
-        .settings-group input { width: calc(100% - 130px); display: inline-block; margin-left: 10px; }
-        button.small { width: auto; padding: 8px 16px; margin-top: 0; margin-right: 10px; display: inline-block; }
-
-		/* print css */
-        .print-btn { background: #28a745}
-    </style>
+    <link rel="stylesheet" href="./style.css">
 </head>
 <body style="margin-top: 20px;">
     <div class="tab-bar">
@@ -86,28 +23,13 @@
     <!-- HOME PANEL -->
     <div id="homePanel" class="panel active">
         <h2>New Order</h2>
-        <label id="appleLabel">Ayam</label>
-        <input type="number" id="apples" step="1" placeholder="0">
-        <label id="bananaLebel">Daging</label>
-        <input type="number" id="bananas" min="0" step="1" placeholder="0">
-        <label id="eggLebel">Lontong</label>
-        <input type="number" id="eggs" min="0" step="1" placeholder="0">
-        <label id="carrotLebel">Shortong</label>
-        <input type="number" id="carrots" min="0" step="1" placeholder="0">
+        <div id="menuInputs"><!-- quantity inputs render here, one per menu item --></div>
         <label>📝 Order Description (optional)</label>
         <textarea id="orderDescription" placeholder="Write any notes about this order..."></textarea>
         <button onclick="calculate()">Calculate</button>
         <div id="results" style="display: none;">
             <h3>Results</h3>
-            <div class="result-grid">
-                <div class="result-item"><span class="label">Ayam <br></span><span class="value" id="resApplesCost">$0.00</span></div>
-                <div class="result-item"><span class="label">Daging <br></span><span class="value" id="resBananasCost">$0.00</span></div>
-                <div class="result-item"><span class="label">Lontong <br></span><span class="value" id="resEggsCost">$0.00</span></div>
-                <div class="result-item"><span class="label">Shortong <br></span><span class="value" id="resCarrotsCost">$0.00</span></div>
-                <div class="result-item"><span class="label">Jumlah Cucuk <br></span><span class="value" id="resAppleBananaQty">0</span></div>
-                <div class="result-item"><span class="label">Jumlah Kuah Kacang <br></span><span class="value" id="resScoops">$0.00</span></div>
-                <div class="result-item ice-cream" style="grid-column: span 2;"><span class="label">Jumlah RM <br></span><span class="value" id="resTotalCost">0</span></div>
-            </div>
+            <div class="result-grid" id="resultsGrid"><!-- per-item costs + Cucuk/Senduk/Total render here --></div>
             <button id="saveOrderBtn" onclick="saveOrder()">Save Order</button>
             <button class="secondary" onclick="clearForm()">Clear</button>
         </div>
@@ -117,11 +39,18 @@
     <!-- ORDERS PANEL -->
     <div id="ordersPanel" class="panel">
         <h2>Customer Orders</h2>
+        <div class="sub-tab-bar">
+            <div class="sub-tab active" id="subTab-prepare" onclick="switchOrderSubTab('prepare')">Prepare</div>
+            <div class="sub-tab" id="subTab-paid" onclick="switchOrderSubTab('paid')">Paid</div>
+            <div class="sub-tab" id="subTab-done" onclick="switchOrderSubTab('done')">Done</div>
+        </div>
         <select id="sortOrders" class="sort-dropdown" onchange="loadOrders()">
             <option value="desc">Newest first</option>
             <option value="asc">Oldest first</option>
         </select>
-        <div id="ordersList"></div>
+        <div id="prepareList" class="order-sublist active"></div>
+        <div id="paidList" class="order-sublist"></div>
+        <div id="doneList" class="order-sublist"></div>
     </div>
 
      <!-- RATIO PANEL (updated with Total Spent) -->
@@ -141,11 +70,11 @@
 
         <div class="ratio-results">
             <div class="ratio-card">
-                <span class="value" id="appleCount">0</span>
+                <span class="value" id="ayamCount">0</span>
                 <span class="label">Ayam</span>
             </div>
             <div class="ratio-card">
-                <span class="value" id="bananaCount">0</span>
+                <span class="value" id="dagingCount">0</span>
                 <span class="label">Daging</span>
             </div>
             <div class="ratio-card">
@@ -169,664 +98,47 @@
 
     <!-- SETTINGS PANEL -->
     <div id="settingsPanel" class="panel">
-        <h2>Update Prices</h2>
+        <h2>Menu &amp; Prices</h2>
+        <div id="menuList"><!-- existing menu items render here: name, price, save, delete --></div>
+
+        <h3 style="margin-top: 30px;">➕ Add New Menu Item</h3>
         <div class="settings-group">
-            <label>Ayam</label>
-            <input type="number" id="priceApple" step="0.01" min="0" value="1.30">
+            <label>Name</label>
+            <input type="text" id="newItemName" placeholder="e.g. Sate Kambing">
         </div>
         <div class="settings-group">
-            <label>Daging</label>
-            <input type="number" id="priceBanana" step="0.01" min="0" value="1.60">
+            <label>Price (RM)</label>
+            <input type="number" id="newItemPrice" step="0.01" min="0" placeholder="0.00">
         </div>
         <div class="settings-group">
-            <label>Lontong</label>
-            <input type="number" id="priceEgg" step="0.01" min="0" value="3.00">
+            <label>Type</label>
+            <select id="newItemType">
+                <option value="skewer">🍢 Sate (skewer)</option>
+                <option value="side">🍽️ Side dish</option>
+            </select>
         </div>
-        <div class="settings-group">
-            <label>Shortong</label>
-            <input type="number" id="priceCarrot" step="0.01" min="0" value="2.00">
-        </div>
-        <button onclick="savePrices()">Save Prices</button>
-        <button class="secondary" onclick="resetToDefaultPrices()" style="margin-top: 10px;">Reset to Default</button>
+        <button onclick="addMenuItem()">Add Item</button>
+
+        <h3 style="margin-top: 30px;">🖨️ Receipt Printer</h3>
+        <p id="printerStatus" style="font-size: 14px; color: #6c757d;">⭕ Not connected</p>
+        <button class="secondary" onclick="connectPrinter()">Connect Printer</button>
+
+        <button class="secondary" onclick="resetToDefaultMenu()" style="margin-top: 20px;">Reset to Default Menu</button>
         <p style="font-size: 14px; color: #6c757d; margin-top: 20px;">
-            Changing prices will affect all future calculations and new orders. Existing orders keep their original totals.
+            Changing prices or the menu affects future calculations and new orders. Existing orders keep their original totals.
         </p>
     </div>
     
-    <script>
-         // ---------- Pricing ----------
-        let prices = {
-            apple: 1.30,
-            banana: 1.60,
-            egg: 3.00,
-            carrot: 2.00
-        };
 
-        // Load saved prices from localStorage
-        function loadPrices() {
-            const saved = localStorage.getItem('prices');
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved);
-                    if (parsed.apple) prices.apple = parsed.apple;
-                    if (parsed.banana) prices.banana = parsed.banana;
-                    if (parsed.egg) prices.egg = parsed.egg;
-                    if (parsed.carrot) prices.carrot = parsed.carrot;
-                } catch(e) { console.warn('Failed to parse prices'); }
-            }
-
-            
-
-            
-            // Update input fields in settings panel
-            document.getElementById('priceApple').value = prices.apple;
-            document.getElementById('priceBanana').value = prices.banana;
-            document.getElementById('priceEgg').value = prices.egg;
-            document.getElementById('priceCarrot').value = prices.carrot;
-
-            updatePriceLabels();
-        }
-
-        function updatePriceLabels(){
-            document.getElementById('appleLabel').innerHTML = `Ayam (RM${prices.apple.toFixed(2)})`;
-            document.getElementById('bananaLebel').innerHTML = `Daging (RM${prices.banana.toFixed(2)})`;
-            document.getElementById('eggLebel').innerHTML = `Lontong (RM${prices.egg.toFixed(2)})`;
-            document.getElementById('carrotLebel').innerHTML = `Shortong (RM${prices.carrot.toFixed(2)})`;
-        }
-
-        function savePrices() {
-            const apple = parseFloat(document.getElementById('priceApple').value);
-            const banana = parseFloat(document.getElementById('priceBanana').value);
-            const egg = parseFloat(document.getElementById('priceEgg').value);
-            const carrot = parseFloat(document.getElementById('priceCarrot').value);
-            if (isNaN(apple) || isNaN(banana) || isNaN(egg) || isNaN(carrot)) {
-                alert('Please enter valid numbers.');
-                return;
-            }
-            prices = { apple, banana, egg, carrot };
-            localStorage.setItem('prices', JSON.stringify(prices));
-
-            updatePriceLabels();
-
-            alert('Prices updated! New orders will use these prices.');
-            // If currently on home tab and calculation is visible, recalc
-            if (document.getElementById('results').style.display === 'block') {
-                calculate();
-            }
-            // If currently on ratio tab, recalc
-            if (document.getElementById('ratioPanel').classList.contains('active')) {
-                calculateRatio();
-            }
-        }
-
-        
-
-        function resetToDefaultPrices() {
-            prices = { apple: 1.30, banana: 1.60, egg: 3.00, carrot: 2.00 };
-            localStorage.setItem('prices', JSON.stringify(prices));
-            document.getElementById('priceApple').value = prices.apple;
-            document.getElementById('priceBanana').value = prices.banana;
-            document.getElementById('priceEgg').value = prices.egg;
-            document.getElementById('priceCarrot').value = prices.carrot;
-
-            updatePriceLabels();
-
-            alert('Prices reset to default.');
-            if (document.getElementById('results').style.display === 'block') calculate();
-            if (document.getElementById('ratioPanel').classList.contains('active')) calculateRatio();
-        }
-
-        
-        
-
-        // ---------- Database setup (IndexedDB) with error handling ----------
-        const DB_NAME = 'OrdersDB';
-        const DB_VERSION = 1;
-        const STORE_NAME = 'orders';
-
-        function openDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(DB_NAME, DB_VERSION);
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve(request.result);
-                request.onupgradeneeded = (ev) => {
-                    const db = ev.target.result;
-                    if (!db.objectStoreNames.contains(STORE_NAME)) {
-                        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
-                        store.createIndex('createdAt', 'createdAt');
-                    }
-                };
-            });
-        }
-
-        // Test database on load
-        (async function testDB() {
-            try {
-                await openDB();
-                console.log('✅ Database connected');
-            } catch (e) {
-                alert('❌ IndexedDB is not available. Orders cannot be saved. Error: ' + e.message);
-            }
-        })();
-
-        async function getAllOrders() {
-            const db = await openDB();
-            return new Promise((resolve, reject) => {
-                const tx = db.transaction(STORE_NAME, 'readonly');
-                const store = tx.objectStore(STORE_NAME);
-                const request = store.getAll();
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve(request.result);
-            });
-        }
-
-        async function addOrder(order) {
-            const db = await openDB();
-            return new Promise((resolve, reject) => {
-                const tx = db.transaction(STORE_NAME, 'readwrite');
-                const store = tx.objectStore(STORE_NAME);
-                const request = store.add(order);
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve(request.result);
-            });
-        }
-
-        async function updateOrder(order) {
-            const db = await openDB();
-            return new Promise((resolve, reject) => {
-                const tx = db.transaction(STORE_NAME, 'readwrite');
-                const store = tx.objectStore(STORE_NAME);
-                const request = store.put(order);
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve(request.result);
-            });
-        }
-
-        async function deleteOrder(id) {
-            const db = await openDB();
-            return new Promise((resolve, reject) => {
-                const tx = db.transaction(STORE_NAME, 'readwrite');
-                const store = tx.objectStore(STORE_NAME);
-                const request = store.delete(id);
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve();
-            });
-        }
-
-        // ---------- Helper functions ----------
-        function formatDate(ts) {
-            const d = new Date(ts);
-            return d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-        }
-
-        function formatDay(ts) {
-            const d = new Date(ts);
-            return d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        }
-
-        function calculateTotals(apples, bananas, eggs, carrots) {
-            const appleCost = apples * prices.apple;
-            const bananaCost = bananas * prices.banana;
-            const eggCost = eggs * prices.egg;
-            const carrotCost = carrots * prices.carrot;
-            const totalCost = appleCost + bananaCost + eggCost + carrotCost;
-            const appleBananaQty = apples + bananas;
-            const fruitScoops = (apples/10) + (bananas/10);
-            const vegScoops = eggs * 2 + carrots * 2;
-            const scoops = fruitScoops + vegScoops;
-            return { appleCost, bananaCost, eggCost, carrotCost, totalCost, appleBananaQty, scoops };
-        }
-
-        // ---------- Save order from home with error handling ----------
-        async function saveOrder() {
-            const apples = parseInt(document.getElementById('apples').value) || 0;
-            const bananas = parseInt(document.getElementById('bananas').value) || 0;
-            const eggs = parseInt(document.getElementById('eggs').value) || 0;
-            const carrots = parseInt(document.getElementById('carrots').value) || 0;
-            const description = document.getElementById('orderDescription').value.trim() || '';
-
-            if (apples === 0 && bananas === 0 && eggs === 0 && carrots === 0) {
-                alert('Please enter at least one item.');
-                return;
-            }
-
-            const totals = calculateTotals(apples, bananas, eggs, carrots);
-            const order = {
-                apples, bananas, eggs, carrots,
-                ...totals,
-                paid: false,
-                pickedUp: false,
-                description: description,
-                createdAt: Date.now()
-            };
-
-            try {
-                const id = await addOrder(order);
-                console.log('✅ Order saved with id:', id);
-                clearForm();
-                // Switch to orders tab and refresh
-                switchTab('orders');
-            } catch (error) {
-                alert('❌ Failed to save order: ' + error.message);
-                console.error(error);
-            }
-        }
-
-          // ---------- Load orders ----------
-        async function loadOrders() {
-            try {
-                const orders = await getAllOrders();
-                const sortDir = document.getElementById('sortOrders').value;
-                orders.sort((a, b) => sortDir === 'asc' ? a.createdAt - b.createdAt : b.createdAt - a.createdAt);
-
-                const groups = {};
-                orders.forEach(order => {
-                    const day = formatDay(order.createdAt);
-                    if (!groups[day]) groups[day] = [];
-                    groups[day].push(order);
-                });
-
-                const container = document.getElementById('ordersList');
-                container.innerHTML = '';
-
-                for (const [day, dayOrders] of Object.entries(groups)) {
-                    const dayDiv = document.createElement('div');
-                    dayDiv.className = 'day-group';
-                    dayDiv.innerHTML = `<div class="day-header">${day}</div>`;
-
-                    dayOrders.forEach(order => {
-                        const card = document.createElement('div');
-                        card.className = 'order-card';
-                        card.id = `order-${order.id}`;
-                        renderOrderCard(card, order, 'view');
-                        dayDiv.appendChild(card);
-                    });
-                    container.appendChild(dayDiv);
-                }
-                if (orders.length === 0) container.innerHTML = '<p style="text-align:center; color:#999;">No orders yet.</p>';
-            } catch (error) {
-                alert('❌ Failed to load orders: ' + error.message);
-                console.error(error);
-            }
-        }
-
-        
-
-       
-
-        // ---------- Render order card (view/edit) ----------
-        function renderOrderCard(card, order, mode = 'view') {
-            const safeOrder = {
-                apples: order.apples || 0,
-                bananas: order.bananas || 0,
-                eggs: order.eggs || 0,
-                carrots: order.carrots || 0,
-                appleCost: order.appleCost || 0,
-                bananaCost: order.bananaCost || 0,
-                eggCost: order.eggCost || 0,
-                carrotCost: order.carrotCost || 0,
-                totalCost: order.totalCost || 0,
-                appleBananaQty: order.appleBananaQty || 0,
-                scoops: order.scoops || 0,
-                paid: !!order.paid,
-                pickedUp: !!order.pickedUp,
-                description: order.description || '',
-                id: order.id,
-                createdAt: order.createdAt || Date.now()
-            };
-        
-
-            if (mode === 'view') {
-                card.innerHTML = `
-                    <div class="order-header">
-                        <span class="order-id">#${safeOrder.id}</span>
-                        <span class="order-date">${formatDate(safeOrder.createdAt)}</span>
-                    </div>
-                    <div class="order-details">
-                        <div class="detail-badge">Ayam (${safeOrder.apples}) <br> RM${safeOrder.appleCost.toFixed(2)}</div>
-                        <div class="detail-badge">Daging (${safeOrder.bananas}) <br> RM${safeOrder.bananaCost.toFixed(2)}</div>
-                        <div class="detail-badge">Lontong (${safeOrder.eggs}) <br> RM${safeOrder.eggCost.toFixed(2)}</div>
-                        <div class="detail-badge">Shortong (${safeOrder.carrots}) <br> RM${safeOrder.carrotCost.toFixed(2)}</div>
-                        <div class="detail-badge">Cucuk: ${safeOrder.appleBananaQty}</div>
-                        <div class="detail-badge"> ${safeOrder.scoops} Senduk</div>
-                        <div class="detail-badge ice-cream" style="grid-column: span 2;">RM ${safeOrder.totalCost.toFixed(2)}</div>
-                    </div>
-                    <div class="status-row">
-                        <button class="status-btn ${safeOrder.paid ? 'paid' : 'unpaid'}" onclick="togglePaid(${safeOrder.id})">${safeOrder.paid ? 'Paid' : 'Unpaid'}</button>
-                        <button class="status-btn ${safeOrder.pickedUp ? 'picked' : 'notpicked'}" onclick="togglePicked(${safeOrder.id})">${safeOrder.pickedUp ? 'Picked up' : 'Not picked'}</button>
-                    </div>
-                    <div class="order-description" id="desc-${safeOrder.id}" contenteditable="true" onblur="updateDescription(${safeOrder.id}, this.innerText)">${safeOrder.description || ''}</div>
-                    <div class="action-buttons">
-                        <button class="edit-btn" onclick="startEdit(${safeOrder.id})">✏️ Edit</button>
-                        <button class="delete-btn" onclick="deleteOrderConfirm(${safeOrder.id})">🗑️ Delete</button>
-						<buttton class="print-btn" onclick="printOrder(${safeOrder.id})">Print</button>
-                    </div>
-                `;
-            } else {
-                card.innerHTML = `
-                    <div class="order-header">
-                        <span class="order-id">#${safeOrder.id}</span>
-                        <span class="order-date">${formatDate(safeOrder.createdAt)}</span>
-                    </div>
-                    <div class="order-details" id="edit-details-${safeOrder.id}">
-                        <div><label>Ayam</label><input type="number" id="edit-apples-${safeOrder.id}" class="edit-input" value="${safeOrder.apples}" min="0" step="1" oninput="updateEditTotals(${safeOrder.id})"></div>
-                        <div><label>Daging</label><input type="number" id="edit-bananas-${safeOrder.id}" class="edit-input" value="${safeOrder.bananas}" min="0" step="1" oninput="updateEditTotals(${safeOrder.id})"></div>
-                        <div><label>Lontong</label><input type="number" id="edit-eggs-${safeOrder.id}" class="edit-input" value="${safeOrder.eggs}" min="0" step="1" oninput="updateEditTotals(${safeOrder.id})"></div>
-                        <div><label>Shortong</label><input type="number" id="edit-carrots-${safeOrder.id}" class="edit-input" value="${safeOrder.carrots}" min="0" step="1" oninput="updateEditTotals(${safeOrder.id})"></div>
-                        <div class="detail-badge" id="edit-appleBananaQty-${safeOrder.id}">Cucuk: ${safeOrder.appleBananaQty}</div>
-                        <div class="detail-badge" id="edit-scoops-${safeOrder.id}">${safeOrder.scoops} Senduk</div>
-                        <div class="detail-badge ice-cream" style="grid-column: span 2;" id="edit-totalCost-${safeOrder.id}">RM${safeOrder.totalCost.toFixed(2)} </div>
-                    </div>
-                    <div class="status-row">
-                        <button class="status-btn ${safeOrder.paid ? 'paid' : 'unpaid'}" onclick="togglePaid(${safeOrder.id})">${safeOrder.paid ? 'Paid' : 'Unpaid'}</button>
-                        <button class="status-btn ${safeOrder.pickedUp ? 'picked' : 'notpicked'}" onclick="togglePicked(${safeOrder.id})">${safeOrder.pickedUp ? 'Picked up' : 'Not picked'}</button>
-                    </div>
-                    <div class="order-description" id="desc-${safeOrder.id}" contenteditable="true" onblur="updateDescription(${safeOrder.id}, this.innerText)">${safeOrder.description || ''}</div>
-                    <div class="action-buttons">
-                        <button class="save-btn" onclick="saveEdit(${safeOrder.id})">💾 Save</button>
-                        <button class="cancel-btn" onclick="cancelEdit(${safeOrder.id})">✖ Cancel</button>
-                    </div>
-                `;
-            }
-        }
-    
-
-        // ---------- Edit functions ----------
-        function startEdit(id) {
-            const card = document.getElementById(`order-${id}`);
-            if (!card) return;
-            getAllOrders().then(orders => {
-                const order = orders.find(o => o.id === id);
-                if (order) {
-                    renderOrderCard(card, order, 'edit');
-                }
-            });
-        }
-
-        function cancelEdit(id) {
-            const card = document.getElementById(`order-${id}`);
-            if (!card) return;
-            getAllOrders().then(orders => {
-                const order = orders.find(o => o.id === id);
-                if (order) {
-                    renderOrderCard(card, order, 'view');
-                }
-            });
-        }
-
-        function updateEditTotals(id) {
-            const apples = parseInt(document.getElementById(`edit-apples-${id}`).value) || 0;
-            const bananas = parseInt(document.getElementById(`edit-bananas-${id}`).value) || 0;
-            const eggs = parseInt(document.getElementById(`edit-eggs-${id}`).value) || 0;
-            const carrots = parseInt(document.getElementById(`edit-carrots-${id}`).value) || 0;
-            const totals = calculateTotals(apples, bananas, eggs, carrots);
-
-            document.getElementById(`edit-appleBananaQty-${id}`).innerText = ` qty: ${totals.appleBananaQty}`;
-            document.getElementById(`edit-totalCost-${id}`).innerText = `RM${totals.totalCost.toFixed(2)}`;
-            document.getElementById(`edit-scoops-${id}`).innerHTML = ` ${totals.scoops} senduk`;
-        }
-
-        async function saveEdit(id) {
-            const apples = parseInt(document.getElementById(`edit-apples-${id}`).value) || 0;
-            const bananas = parseInt(document.getElementById(`edit-bananas-${id}`).value) || 0;
-            const eggs = parseInt(document.getElementById(`edit-eggs-${id}`).value) || 0;
-            const carrots = parseInt(document.getElementById(`edit-carrots-${id}`).value) || 0;
-            const description = document.getElementById(`desc-${id}`).innerText.trim() || '';
-
-            const totals = calculateTotals(apples, bananas, eggs, carrots);
-
-            const all = await getAllOrders();
-            const existing = all.find(o => o.id === id);
-            if (!existing) return;
-
-            const updatedOrder = {
-                ...existing,
-                apples, bananas, eggs, carrots,
-                ...totals,
-                description: description,
-            };
-
-            await updateOrder(updatedOrder);
-
-            const card = document.getElementById(`order-${id}`);
-            renderOrderCard(card, updatedOrder, 'view');
-        }
-
-        async function updateDescription(id, newText) {
-            const all = await getAllOrders();
-            const order = all.find(o => o.id === id);
-            if (order) {
-                order.description = newText.trim() || '';
-                await updateOrder(order);
-            }
-        }
-
-        async function togglePaid(id) {
-            const all = await getAllOrders();
-            const order = all.find(o => o.id === id);
-            if (order) {
-                order.paid = !order.paid;
-                await updateOrder(order);
-                const card = document.getElementById(`order-${id}`);
-                const isEdit = !!card.querySelector('.save-btn');
-                if (isEdit) {
-                    renderOrderCard(card, order, 'edit');
-                } else {
-                    renderOrderCard(card, order, 'view');
-                }
-            }
-        }
-
-        async function togglePicked(id) {
-            const all = await getAllOrders();
-            const order = all.find(o => o.id === id);
-            if (order) {
-                order.pickedUp = !order.pickedUp;
-                await updateOrder(order);
-                const card = document.getElementById(`order-${id}`);
-                const isEdit = !!card.querySelector('.save-btn');
-                if (isEdit) {
-                    renderOrderCard(card, order, 'edit');
-                } else {
-                    renderOrderCard(card, order, 'view');
-                }
-            }
-        }
-
-        async function deleteOrderConfirm(id) {
-            if (confirm('Delete this order?')) {
-                await deleteOrder(id);
-                loadOrders();
-            }
-        }
-
-        // ---------- Home functions ----------
-        function clearForm() {
-            document.getElementById('apples').value = 0;
-            document.getElementById('bananas').value = 0;
-            document.getElementById('eggs').value = 0;
-            document.getElementById('carrots').value = 0;
-            document.getElementById('orderDescription').value = '';
-            document.getElementById('results').style.display = 'none';
-        }
-
-        function calculate() {
-            const apples = parseInt(document.getElementById('apples').value) || 0;
-            const bananas = parseInt(document.getElementById('bananas').value) || 0;
-            const eggs = parseInt(document.getElementById('eggs').value) || 0;
-            const carrots = parseInt(document.getElementById('carrots').value) || 0;
-            const totals = calculateTotals(apples, bananas, eggs, carrots);
-
-            document.getElementById('resApplesCost').innerText = 'RM' + totals.appleCost.toFixed(2);
-            document.getElementById('resBananasCost').innerText = 'RM' + totals.bananaCost.toFixed(2);
-            document.getElementById('resEggsCost').innerText = 'RM' + totals.eggCost.toFixed(2);
-            document.getElementById('resCarrotsCost').innerText = 'RM' + totals.carrotCost.toFixed(2);
-            document.getElementById('resAppleBananaQty').innerText = totals.appleBananaQty;
-            document.getElementById('resTotalCost').innerText = 'RM' + totals.totalCost.toFixed(2);
-            document.getElementById('resScoops').innerText = totals.scoops;
-
-            document.getElementById('results').style.display = 'block';
-        }
-
-         // ---------- Ratio Tab Functions (Corrected) ----------
-        function updateSliderLabel() {
-            const val = document.getElementById('ratioSlider').value;
-            const displayPercent = 100 - val;
-            document.getElementById('sliderPercent').innerText = displayPercent + '%';
-        }
-
-        function calculateRatio() {
-            const money = parseFloat(document.getElementById('moneyInput').value) || 0;
-            const sliderVal = parseInt(document.getElementById('ratioSlider').value) || 50;
-            const targetRatio = 1 - (sliderVal / 100); // 0 = all bananas, 1 = all apples
-
-            const applePrice = prices.apple;
-            const bananaPrice = prices.banana;
-            const minPrice = Math.min(applePrice, bananaPrice);
-
-            let remaining = money;
-            let apples = 0;
-            let bananas = 0;
-
-            while (remaining >= minPrice) {
-                const canBuyApple = remaining >= applePrice;
-                const canBuyBanana = remaining >= bananaPrice;
-
-                if (canBuyApple && canBuyBanana) {
-                    const total = apples + bananas;
-                    const currentRatio = total === 0 ? 0.0 : apples / total;
-
-                    if (currentRatio < targetRatio) {
-                        apples++;
-                        remaining -= applePrice;
-                    } else {
-                        bananas++;
-                        remaining -= bananaPrice;
-                    }
-                } else if (canBuyApple) {
-                    apples++;
-                    remaining -= applePrice;
-                } else if (canBuyBanana) {
-                    bananas++;
-                    remaining -= bananaPrice;
-                } else {
-                    break;
-                }
-            }
-
-            const totalCost = apples * applePrice + bananas * bananaPrice;
-            const balance = money - totalCost;
-
-            document.getElementById('appleCount').innerText = apples;
-            document.getElementById('bananaCount').innerText = bananas;
-            document.getElementById('totalItemsCount').innerText = apples + bananas;
-            document.getElementById('balanceAmount').innerText = 'RM' + (balance < 0 ? 0 : balance).toFixed(2);
-            document.getElementById('totalSpent').innerText = 'RM' + totalCost.toFixed(2);
-        }
-
-        // ---------- Tab switching ----------
-        function switchTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-
-            if (tab === 'home') {
-                document.getElementById('homePanel').classList.add('active');
-                document.querySelector('.tab:nth-child(1)').classList.add('active');
-            } else if (tab === 'orders') {
-                document.getElementById('ordersPanel').classList.add('active');
-                document.querySelector('.tab:nth-child(2)').classList.add('active');
-                loadOrders();
-            } else if (tab === 'ratio') {
-                document.getElementById('ratioPanel').classList.add('active');
-                document.querySelector('.tab:nth-child(3)').classList.add('active');
-                updateSliderLabel();
-                calculateRatio();
-            }else if (tab === 'settings') {
-                document.getElementById('settingsPanel').classList.add('active');
-                document.querySelector('.tab:nth-child(4)').classList.add('active');
-                // Refresh displayed prices from stored values
-                document.getElementById('priceApple').value = prices.apple;
-                document.getElementById('priceBanana').value = prices.banana;
-                document.getElementById('priceEgg').value = prices.egg;
-                document.getElementById('priceCarrot').value = prices.carrot;
-            }
-        }
-
-        // ---------- Initial load ----------
-        window.onload = () => {
-            loadPrices();
-        };
-
-		let receiptPrinter = null;
-
-function setupPrinter() {
-    receiptPrinter = new WebBluetoothReceiptPrinter({
-        deviceFilters: [{}]
-    });
-
-    receiptPrinter.addEventListener('connected', async (device) => {
-        console.log('Connected:', device.name);
-        alert('CONNECTED!');
-
-        try {
-            const encoder = new ReceiptPrinterEncoder({
-                language: 'esc-pos',
-                codepage: 'cp437'
-            });
-
-            const data = encoder
-                .initialize()
-                .setAlignment('center')
-                .textLine('================')
-                .textLine('TEST PRINT')
-                .textLine('MPT-II')
-                .textLine('================')
-                .newline()
-                .cut()
-                .encode();
-
-            await receiptPrinter.print(data);
-
-            alert('✅ Print success');
-
-        } catch (e) {
-            alert('❌ Print failed: ' + e.message);
-        }
-    });
-
-    receiptPrinter.addEventListener('disconnected', () => {
-        console.log('Disconnected');
-    });
-}
-
-// Call once on load
-window.onload = () => {
-    loadPrices();
-    setupPrinter(); // 👈 ADD THIS
-};
-    </script>
-
-    <!-- PWA manifest and service worker --> 
-    <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW registration failed', err));
-        }
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            // Create a button somewhere to prompt
-            const installBtn = document.createElement('button');
-            installBtn.innerText = 'Install App';
-            installBtn.style.position = 'fixed';
-            installBtn.style.bottom = '20px';
-            installBtn.style.right = '20px';
-            installBtn.style.zIndex = 9999;
-            document.body.appendChild(installBtn);
-            installBtn.addEventListener('click', () => {
-                e.prompt(); // Show the install dialog
-            });
-        });
-
-    </script>
+    <!-- App scripts (order matters: menu before things that read it) -->
+    <script src="./menu.js"></script>
+    <script src="./db.js"></script>
+    <script src="./orders.js"></script>
+    <script src="./ratio.js"></script>
+    <script src="./printer.js"></script>
+    <script src="./app.js"></script>
+
+    <!-- PWA manifest and service worker -->
+    <script src="./sw-register.js"></script>
 </body>
 </html>
