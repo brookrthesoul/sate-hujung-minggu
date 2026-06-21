@@ -1,4 +1,4 @@
-const CACHE_NAME = 'order-pwa-v6';
+const CACHE_NAME = 'order-pwa-v8';
 
 const urlsToCache = [
   './',
@@ -43,6 +43,14 @@ self.addEventListener('activate', event => {
     )
   );
   self.clients.claim();
+});
+
+// Lets the page tell a waiting (new) service worker to activate right away,
+// instead of waiting for every open tab/installed-app instance to fully close.
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // Fetch
