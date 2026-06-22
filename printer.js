@@ -158,16 +158,16 @@ async function printOrder(id) {
             receipt = receipt.line(formatLine(`${r.name} x${r.qty}`, `RM${r.cost.toFixed(2)}`, COLS));
         });
 
+        const totalLine = formatLine('TOTAL', `RM${(order.totalCost || 0).toFixed(2)}`, COLS);
+
         receipt = receipt
             .line(DASH)
             .line(formatLine('Cucuk', `${order.skewerQty || 0}`, COLS))
             .line(formatLine('Senduk', `${order.scoops || 0}`, COLS))
             .line(DASH)
-            .align('right')
             .bold(true)
-            .line(`TOTAL RM${(order.totalCost || 0).toFixed(2)}`)
-            .bold(false)
-            .align('left');
+            .line(totalLine)
+            .bold(false);
 
         if (order.description) {
             receipt = receipt
