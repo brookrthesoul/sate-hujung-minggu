@@ -10,17 +10,12 @@
 //   3. Paste both below and redeploy your PWA.
 // ─────────────────────────────────────────────
 
-const GITHUB_TOKEN  = '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';        // ← your GitHub PAT
-const GIST_ID       = 'https://gist.github.com/brookrthesoul/52c82390c62650ca99e807c54bc1720e';        // ← your Gist ID
+const GITHUB_TOKEN  = '';        // ← your GitHub PAT
+const GIST_ID       = '';        // ← your Gist ID
 const GIST_FILENAME = 'orders.json';
 
 // ─── Prevent re-entrant syncs ────────────────────────────────────────────────
 let _syncing = false;
-
-// ─── Raw (unpatched) db.js functions ─────────────────────────────────────────
-// We grab references BEFORE we patch them, so internal sync writes
-// don't trigger another sync cycle.
-let _rawAdd, _rawUpdate, _rawDelete;
 
 // ─── IndexedDB: sync queue store ─────────────────────────────────────────────
 const QUEUE_STORE = 'syncQueue';
@@ -200,7 +195,6 @@ async function _rawUpdate(order) {
 
 function patchDbFunctions() {
     // Capture raw originals BEFORE patching
-    _rawGetAll = _rawGetAll; // already defined above
     const origAdd    = window.addOrder;
     const origUpdate = window.updateOrder;
     const origDelete = window.deleteOrder;
