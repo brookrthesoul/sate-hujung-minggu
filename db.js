@@ -1,7 +1,7 @@
 // db.js — IndexedDB wrapper for storing/retrieving orders
         // ---------- Database setup (IndexedDB) with error handling ----------
         const DB_NAME = 'OrdersDB';
-        const DB_VERSION = 1;
+        const DB_VERSION = 2; // v2 adds syncQueue store (used by sync.js)
         const STORE_NAME = 'orders';
 
         function openDB() {
@@ -14,6 +14,10 @@
                     if (!db.objectStoreNames.contains(STORE_NAME)) {
                         const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
                         store.createIndex('createdAt', 'createdAt');
+                    }
+                    // v2: sync queue store for offline GitHub sync
+                    if (!db.objectStoreNames.contains('syncQueue')) {
+                        db.createObjectStore('syncQueue', { keyPath: 'queueId', autoIncrement: true });
                     }
                 };
             });

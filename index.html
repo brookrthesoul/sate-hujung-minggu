@@ -13,6 +13,13 @@
     <link rel="stylesheet" href="./style.css">
 </head>
 <body style="margin-top: 20px;">
+
+    <!-- Sync status bar -->
+    <div id="syncBar" style="display:flex; align-items:center; justify-content:space-between; padding:6px 14px; background:#f8f9fa; border-bottom:1px solid #dee2e6; font-size:13px;">
+        <span id="onlineBadge" class="online-badge badge-online">🌐 Online</span>
+        <span id="syncStatus" class="sync-status sync-ok">✅ Synced</span>
+        <button onclick="syncNow()" style="font-size:12px; padding:4px 10px; border:1px solid #ccc; border-radius:12px; background:white; cursor:pointer;">🔄 Sync</button>
+    </div>
     <div class="tab-bar">
         <div class="tab active" onclick="switchTab('home')">🍎 Home</div>
         <div class="tab" onclick="switchTab('orders')">📋 Orders</div>
@@ -134,6 +141,15 @@
         <p id="installAppHint" style="font-size: 14px; color: #6c757d;"></p>
         <button id="installAppBtn" class="secondary" style="display:none;" onclick="installApp()">Install App</button>
 
+        <h3 style="margin-top: 30px;">☁️ GitHub Sync</h3>
+        <p style="font-size:13px; color:#6c757d;">
+            Orders sync automatically to a GitHub Gist when online, and queue offline changes until reconnected.<br>
+            To set up: open <code>sync.js</code> and fill in your <strong>GITHUB_TOKEN</strong> and <strong>GIST_ID</strong>.
+        </p>
+        <p style="font-size:13px;">Status: <span id="syncStatusSettings"></span></p>
+        <button class="secondary" onclick="syncNow()">🔄 Sync Now</button>
+        <button class="secondary" onclick="pullFromGist()">📥 Pull from GitHub</button>
+
         <button class="secondary" onclick="resetToDefaultMenu()" style="margin-top: 20px;">Reset to Default Menu</button>
         <p style="font-size: 14px; color: #6c757d; margin-top: 20px;">
             Changing prices or the menu affects future calculations and new orders. Existing orders keep their original totals.
@@ -149,6 +165,7 @@
     <script src="./printer.js"></script>
     <script src="./app.js"></script>
 
+    <script src="./sync.js"></script>
     <!-- PWA manifest and service worker -->
     <script src="./sw-register.js"></script>
 </body>

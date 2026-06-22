@@ -1,4 +1,4 @@
-const CACHE_NAME = 'order-pwa-v8';
+const CACHE_NAME = 'order-pwa-v9';
 
 const urlsToCache = [
   './',
@@ -11,6 +11,7 @@ const urlsToCache = [
   './printer.js',
   './app.js',
   './sw-register.js',
+  './sync.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',

@@ -146,7 +146,7 @@ async function printOrder(id) {
         let receipt = encoder
             .initialize()
             .align('center')
-            .bold(true).line('SATE HUJUNG MINGGU').bold(false).align('center')
+            .bold(true).line('SATE HUJUNG MINGGU').bold(false)
             .line(`Order #${order.id}`)
             .line(formatDate(order.createdAt || Date.now()))
             .align('left')

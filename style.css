@@ -82,3 +82,41 @@
 		/* print css */
         .print-btn { background: #28a745}
 
+
+/* ─── GitHub Sync styles ────────────────────────────────────────────────── */
+.online-badge {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 12px;
+}
+.badge-online  { background: #d4edda; color: #155724; }
+.badge-offline { background: #f8d7da; color: #721c24; }
+
+.sync-status { font-size: 12px; font-weight: 500; }
+.sync-ok       { color: #28a745; }
+.sync-syncing  { color: #007bff; }
+.sync-error    { color: #dc3545; }
+.sync-offline  { color: #6c757d; }
+.sync-warn     { color: #856404; }
+
+.sync-toast {
+    position: fixed;
+    bottom: 70px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #333;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+    pointer-events: none;
+    z-index: 9999;
+    white-space: nowrap;
+}
+.sync-toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
