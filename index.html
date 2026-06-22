@@ -120,6 +120,13 @@
         <button onclick="addMenuItem()">Add Item</button>
 
         <h3 style="margin-top: 30px;">🖨️ Receipt Printer</h3>
+        <div class="settings-group">
+            <label>Paper Size</label>
+            <select id="paperSize" onchange="savePaperSize()">
+                <option value="58">58mm (~32 chars)</option>
+                <option value="80">80mm (~48 chars)</option>
+            </select>
+        </div>
         <p id="printerStatus" style="font-size: 14px; color: #6c757d;">⭕ Not connected</p>
         <button class="secondary" onclick="connectPrinter()">Connect Printer</button>
 
