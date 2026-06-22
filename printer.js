@@ -9,8 +9,8 @@ let receiptPrinter = null;
 let printerInfo = null; // set from the 'connected' event: { type, name, id, language, codepageMapping }
 
 // Adjust to match your printer's paper width in characters.
-// Common values: 32 for small 58mm printers, 42-48 for 80mm printers.
-const RECEIPT_COLUMNS = 32;
+// Set to 16 to match the actual printable characters per line.
+const RECEIPT_COLUMNS = 16;
 
 function setupPrinter() {
     if (typeof WebBluetoothReceiptPrinter === 'undefined') {
@@ -89,6 +89,9 @@ async function printOrder(id) {
             codepageMapping: printerInfo.codepageMapping || 'cp437'
         });
 
+        const DASH = '-'.repeat(RECEIPT_COLUMNS);
+        const totalStr = `TOTAL RM${(order.totalCost || 0).toFixed(2)}`;
+
         let receipt = encoder
             .initialize()
             .align('center')
@@ -96,7 +99,7 @@ async function printOrder(id) {
             .line(`Order #${order.id}`)
             .line(formatDate(order.createdAt || Date.now()))
             .align('left')
-            .rule({ style: 'single', width: RECEIPT_COLUMNS });
+            .line(DASH);
 
         const itemRows = Object.values(order.items || {})
             .filter(r => r.qty > 0)
@@ -105,29 +108,29 @@ async function printOrder(id) {
         if (itemRows.length > 0) {
             receipt = receipt.table(
                 [
-                    { width: RECEIPT_COLUMNS - 10, align: 'left' },
-                    { width: 10, align: 'right' }
+                    { width: RECEIPT_COLUMNS - 8, align: 'left' },
+                    { width: 8, align: 'right' }
                 ],
                 itemRows
             );
         }
 
         receipt = receipt
-            .rule({ style: 'single', width: RECEIPT_COLUMNS })
+            .line(DASH)
             .table(
                 [
-                    { width: RECEIPT_COLUMNS - 10, align: 'left' },
-                    { width: 10, align: 'right' }
+                    { width: RECEIPT_COLUMNS - 8, align: 'left' },
+                    { width: 8, align: 'right' }
                 ],
                 [
                     ['Cucuk', `${order.skewerQty || 0}`],
                     ['Senduk', `${order.scoops || 0}`]
                 ]
             )
-            .rule({ style: 'double', width: RECEIPT_COLUMNS })
+            .line(DASH)
             .align('right')
             .bold(true)
-            .line(`TOTAL RM${(order.totalCost || 0).toFixed(2)}`)
+            .line(totalStr)
             .bold(false)
             .align('left');
 

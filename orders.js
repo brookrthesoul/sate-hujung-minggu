@@ -311,6 +311,7 @@ function renderOrderCard(card, rawOrder, stage = 'prepare') {
         <div class="order-details">${itemBadges}${statsBadges}</div>
         ${editableDescription}
         <div class="action-buttons">
+            <button class="delete-btn" onclick="deleteOrderConfirm(${safeOrder.id})">🗑️ Cancel</button>
             <button class="edit-btn" onclick="startEdit(${safeOrder.id})">✏️ Edit</button>
             <button class="status-btn paid" onclick="markPaid(${safeOrder.id})">✅ Mark as Paid</button>
         </div>
