@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────
 
 const GITHUB_TOKEN  = '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';        // ← your GitHub PAT
-const GIST_ID       = 'https://gist.github.com/brookrthesoul/52c82390c62650ca99e807c54bc1720e#file-orders-json-L1';        // ← your Gist ID
+const GIST_ID       = '52c82390c62650ca99e807c54bc1720e';        // ← your Gist ID
 const GIST_FILENAME = 'orders.json';
 
 // ─── Prevent re-entrant syncs ────────────────────────────────────────────────
