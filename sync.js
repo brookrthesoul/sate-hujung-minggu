@@ -10,8 +10,8 @@
 //   3. Fill in GITHUB_TOKEN and GIST_ID below, then redeploy your PWA.
 // ─────────────────────────────────────────────
 
-const GITHUB_TOKEN = '';   // ← paste your GitHub PAT here
-const GIST_ID      = '';   // ← paste your Gist ID here
+const GITHUB_TOKEN = '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';   // ← paste your GitHub PAT here
+const GIST_ID      = 'https://gist.github.com/brookrthesoul/52c82390c62650ca99e807c54bc1720e';   // ← paste your Gist ID here
 const GIST_FILENAME = 'orders.json';
 
 // ─── Sync queue store in IndexedDB ───────────────────────────────────────────
