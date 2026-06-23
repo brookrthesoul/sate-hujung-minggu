@@ -31,10 +31,9 @@ async function sbFetch(path, options = {}) {
 
 // Fetch all orders from Supabase
 async function fetchOrdersFromSupabase() {
-    const rows = await sbFetch(`${TABLE}?select=id,data,updated_at&order=id.asc`);
-    // Each row: { id, data: {...orderFields}, updated_at }
-    // Flatten: merge id + updated_at into the data object
-    return rows.map(row => ({ ...row.data, id: row.id, updatedAt: row.updated_at }));
+    const rows = await sbFetch(`${TABLE}?select=id,data,updated_ms&order=id.asc`);
+    // Each row: { id, data: {...orderFields}, updated_ms }
+    return rows.map(row => ({ ...row.data, id: row.id, updatedAt: row.updated_ms }));
 }
 
 // Upsert a single order row to Supabase
@@ -43,7 +42,7 @@ async function upsertOrderToSupabase(order) {
     await sbFetch(`${TABLE}`, {
         method: 'POST',
         headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
-        body: JSON.stringify({ id, data: rest, updated_at: updatedAt || Date.now() })
+        body: JSON.stringify({ id, data: rest, updated_ms: updatedAt || Date.now() })
     });
 }
 
@@ -57,7 +56,7 @@ async function pushAllOrdersToSupabase(orders) {
     if (orders.length === 0) return;
     const rows = orders.map(o => {
         const { id, updatedAt, ...rest } = o;
-        return { id, data: rest, updated_at: updatedAt || Date.now() };
+        return { id, data: rest, updated_ms: updatedAt || Date.now() };
     });
     await sbFetch(`${TABLE}`, {
         method: 'POST',
