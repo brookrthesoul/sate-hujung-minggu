@@ -10,7 +10,7 @@
 //   3. Paste both below and redeploy your PWA.
 // ─────────────────────────────────────────────
 
-const GITHUB_TOKEN  = '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';        // ← your GitHub PAT
+const GITHUB_TOKEN  = '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';        // ← your GitHub PAT
 const GIST_ID       = '52c82390c62650ca99e807c54bc1720e#';        // ← your Gist ID
 const GIST_FILENAME = 'orders.json';
 
