@@ -77,7 +77,7 @@ function isConfigured() {
 async function fetchOrdersFromGist() {
     const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
         headers: {
-            Authorization: `Bearer ${GITHUB_TOKEN}`,
+            Authorization: `token ${GITHUB_TOKEN}`,
             Accept: 'application/vnd.github+json',
             'X-GitHub-Api-Version': '2022-11-28'
         }
