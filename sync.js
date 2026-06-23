@@ -46,13 +46,14 @@ async function _sbGetAll() {
 
 // Inserts one order into Supabase, returns the row with its new server-assigned id
 async function _sbInsert(orderData) {
-    const { id: _ignore, updatedAt, ...rest } = orderData;
+    // Explicitly strip id so Postgres serial generates a fresh one
+    const { id: _ignore, updatedAt: _ignore2, ...rest } = orderData;
     const rows = await _sbFetch(TABLE, {
         method:  'POST',
         headers: { 'Prefer': 'return=representation' },
         body:    JSON.stringify({ data: rest, updated_ms: Date.now() })
+        // NOTE: no `id` field — Postgres serial assigns it
     });
-    // rows is an array; take the first
     const row = Array.isArray(rows) ? rows[0] : rows;
     return { ...row.data, id: row.id, updatedAt: row.updated_ms };
 }
@@ -199,6 +200,7 @@ function patchDbFunctions() {
     window.addOrder = async function(order) {
         order.updatedAt = Date.now();
         order._deleted  = false;
+        delete order.id; // ensure no stale id reaches Supabase
         if (navigator.onLine) {
             const saved = await _sbInsert(order); // gets real id from server
             await _idbPut(saved);
