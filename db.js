@@ -1,7 +1,7 @@
 // db.js — IndexedDB wrapper for storing/retrieving orders
         // ---------- Database setup (IndexedDB) with error handling ----------
         const DB_NAME = 'OrdersDB';
-        const DB_VERSION = 2; // v2 adds syncQueue store (used by sync.js)
+        const DB_VERSION = 3; // v3: IDs assigned by Supabase, no autoIncrement
         const STORE_NAME = 'orders';
 
         function openDB() {
@@ -11,13 +11,16 @@
                 request.onsuccess = () => resolve(request.result);
                 request.onupgradeneeded = (ev) => {
                     const db = ev.target.result;
-                    if (!db.objectStoreNames.contains(STORE_NAME)) {
-                        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
-                        store.createIndex('createdAt', 'createdAt');
+                    // Drop old store — v1/v2 used autoIncrement which conflicts with Supabase IDs
+                    if (db.objectStoreNames.contains(STORE_NAME)) {
+                        db.deleteObjectStore(STORE_NAME);
                     }
-                    // v2: sync queue store for offline GitHub sync
-                    if (!db.objectStoreNames.contains('syncQueue')) {
-                        db.createObjectStore('syncQueue', { keyPath: 'queueId', autoIncrement: true });
+                    // Re-create without autoIncrement; IDs come from Supabase
+                    const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+                    store.createIndex('createdAt', 'createdAt');
+                    // Drop old syncQueue — no longer needed
+                    if (db.objectStoreNames.contains('syncQueue')) {
+                        db.deleteObjectStore('syncQueue');
                     }
                 };
             });
