@@ -1,4 +1,4 @@
-const CACHE_NAME = 'order-pwa-v9';
+const CACHE_NAME = 'order-pwa-v10';
 
 const urlsToCache = [
   './',
