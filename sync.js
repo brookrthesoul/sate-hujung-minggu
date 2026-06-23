@@ -1,75 +1,60 @@
-// sync.js — Supabase real-time sync with offline queue
-// ─────────────────────────────────────────────────────
-// Supabase config (anon/public key — safe for browser use)
-const SUPABASE_URL = 'https://efrwvksxttauhoxllhqu.supabase.co';
+// sync.js — Supabase real-time sync with soft-delete support
+// ──────────────────────────────────────────────────────────
+const SUPABASE_URL     = 'https://efrwvksxttauhoxllhqu.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_SOoDs65SPw_G_m-lZ6NP-w_MbbqxOUw';
 const TABLE = 'orders';
 
 // ─── Supabase REST helpers ────────────────────────────────────────────────────
 
-function sbHeaders() {
+function sbHeaders(extra = {}) {
     return {
-        'apikey': SUPABASE_ANON_KEY,
+        'apikey':        SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
+        'Content-Type':  'application/json',
+        ...extra
     };
 }
 
 async function sbFetch(path, options = {}) {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
         ...options,
-        headers: { ...sbHeaders(), ...(options.headers || {}) }
+        headers: sbHeaders(options.headers || {})
     });
     if (!res.ok) {
         const err = await res.text();
-        throw new Error(`Supabase error ${res.status}: ${err}`);
+        throw new Error(`Supabase ${res.status}: ${err}`);
     }
     const text = await res.text();
     return text ? JSON.parse(text) : [];
 }
 
-// Fetch all orders from Supabase
-async function fetchOrdersFromSupabase() {
+// Fetch ALL rows (including soft-deleted) from Supabase
+async function fetchRemoteOrders() {
     const rows = await sbFetch(`${TABLE}?select=id,data,updated_ms&order=id.asc`);
-    // Each row: { id, data: {...orderFields}, updated_ms }
     return rows.map(row => ({ ...row.data, id: row.id, updatedAt: row.updated_ms }));
 }
 
-// Upsert a single order row to Supabase
-async function upsertOrderToSupabase(order) {
-    const { id, updatedAt, ...rest } = order;
-    await sbFetch(`${TABLE}`, {
-        method: 'POST',
-        headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
-        body: JSON.stringify({ id, data: rest, updated_ms: updatedAt || Date.now() })
-    });
-}
-
-// Delete a single order row from Supabase
-async function deleteOrderFromSupabase(id) {
-    await sbFetch(`${TABLE}?id=eq.${id}`, { method: 'DELETE' });
-}
-
-// Push ALL local orders to Supabase (full upsert)
-async function pushAllOrdersToSupabase(orders) {
+// Upsert rows in bulk — includes soft-deleted ones
+async function pushToSupabase(orders) {
     if (orders.length === 0) return;
     const rows = orders.map(o => {
         const { id, updatedAt, ...rest } = o;
         return { id, data: rest, updated_ms: updatedAt || Date.now() };
     });
-    await sbFetch(`${TABLE}`, {
+    await sbFetch(TABLE, {
         method: 'POST',
         headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
         body: JSON.stringify(rows)
     });
 }
 
-// ─── Merge strategy: last-write-wins per order ───────────────────────────────
+// ─── Merge strategy: last-write-wins per order (soft-delete aware) ────────────
 
 function mergeOrders(local, remote) {
     const map = {};
-    local.forEach(o  => { map[o.id] = o; });
+    // Start with local
+    local.forEach(o => { map[o.id] = o; });
+    // Remote wins if it's newer
     remote.forEach(o => {
         const existing = map[o.id];
         if (!existing || (o.updatedAt || 0) > (existing.updatedAt || 0)) {
@@ -145,12 +130,22 @@ async function _rawGetAll() {
     });
 }
 
-async function _rawUpdate(order) {
+async function _rawPut(order) {
     const db = await openSyncDB();
     return new Promise((resolve, reject) => {
         const tx  = db.transaction('orders', 'readwrite');
         const req = tx.objectStore('orders').put(order);
         req.onsuccess = () => resolve(req.result);
+        req.onerror   = () => reject(req.error);
+    });
+}
+
+async function _rawDelete(id) {
+    const db = await openSyncDB();
+    return new Promise((resolve, reject) => {
+        const tx  = db.transaction('orders', 'readwrite');
+        const req = tx.objectStore('orders').delete(id);
+        req.onsuccess = () => resolve();
         req.onerror   = () => reject(req.error);
     });
 }
@@ -163,22 +158,27 @@ async function syncNow() {
     setSyncStatus('syncing');
 
     try {
-        const remoteOrders = await fetchOrdersFromSupabase();
-        const localOrders  = await _rawGetAll();
-        const merged       = mergeOrders(localOrders, remoteOrders);
+        const remote = await fetchRemoteOrders();
+        const local  = await _rawGetAll();
+        const merged = mergeOrders(local, remote);
 
-        // Write merged back to local IndexedDB
+        // Apply merged back to local IndexedDB
         for (const order of merged) {
-            await _rawUpdate(order);
+            if (order._deleted) {
+                // Soft-deleted: remove from local IndexedDB so UI doesn't show it
+                await _rawDelete(order.id);
+            } else {
+                await _rawPut(order);
+            }
         }
 
-        // Push merged to Supabase
-        await pushAllOrdersToSupabase(merged);
+        // Push full merged set (including soft-deletes) to Supabase
+        await pushToSupabase(merged);
         await clearQueue();
 
         setSyncStatus('ok');
         if (typeof loadOrders === 'function') loadOrders();
-        showSyncToast('✅ Synced with Supabase');
+        showSyncToast('✅ Synced');
     } catch (e) {
         console.error('Sync error:', e);
         setSyncStatus('error');
@@ -193,13 +193,17 @@ async function pullFromCloud() {
     _syncing = true;
     setSyncStatus('syncing');
     try {
-        const remoteOrders = await fetchOrdersFromSupabase();
-        for (const order of remoteOrders) {
-            await _rawUpdate(order);
+        const remote = await fetchRemoteOrders();
+        for (const order of remote) {
+            if (order._deleted) {
+                await _rawDelete(order.id);
+            } else {
+                await _rawPut(order);
+            }
         }
         setSyncStatus('ok');
         if (typeof loadOrders === 'function') loadOrders();
-        showSyncToast('📥 Pulled from Supabase');
+        showSyncToast('📥 Pulled from cloud');
     } catch (e) {
         console.error('Pull error:', e);
         setSyncStatus('error');
@@ -215,7 +219,11 @@ async function drainQueue() {
     await syncNow();
 }
 
-// ─── Patch db.js public functions (add updatedAt + trigger sync) ─────────────
+// ─── Patch db.js public functions ────────────────────────────────────────────
+// Intercepts add/update/delete to stamp updatedAt and trigger sync.
+// deleteOrder now does a SOFT DELETE — marks _deleted:true — so all devices
+// learn about the deletion on next sync instead of the dead order being
+// re-uploaded from another device's IndexedDB.
 
 function patchDbFunctions() {
     const origAdd    = window.addOrder;
@@ -223,7 +231,8 @@ function patchDbFunctions() {
     const origDelete = window.deleteOrder;
 
     window.addOrder = async function(order) {
-        order.updatedAt = Date.now();
+        order.updatedAt  = Date.now();
+        order._deleted   = false;
         const id = await origAdd(order);
         _scheduleSync();
         return id;
@@ -236,18 +245,31 @@ function patchDbFunctions() {
         return result;
     };
 
+    // Soft delete: write a tombstone row to IndexedDB, then sync it up
     window.deleteOrder = async function(id) {
-        // Best-effort delete from Supabase immediately if online
-        if (navigator.onLine) {
-            deleteOrderFromSupabase(id).catch(console.error);
+        const db = await openSyncDB();
+        // Fetch current order to build tombstone
+        const current = await new Promise((res, rej) => {
+            const tx  = db.transaction('orders', 'readonly');
+            const req = tx.objectStore('orders').get(id);
+            req.onsuccess = () => res(req.result);
+            req.onerror   = () => rej(req.error);
+        });
+
+        if (current) {
+            // Write tombstone (keeps the row so other devices can learn it's deleted)
+            const tombstone = { ...current, _deleted: true, updatedAt: Date.now() };
+            await _rawPut(tombstone);
         }
-        const result = await origDelete(id);
+
+        // Remove from IndexedDB so the UI no longer shows it
+        await origDelete(id);
+
         _scheduleSync();
-        return result;
     };
 }
 
-// Debounce sync triggers so rapid saves don't stack up
+// Debounce sync triggers
 let _syncTimer = null;
 function _scheduleSync() {
     clearTimeout(_syncTimer);
@@ -260,12 +282,16 @@ function _scheduleSync() {
     }, 500);
 }
 
-// ─── Real-time subscription (Supabase Realtime over WebSocket) ───────────────
+// ─── Real-time subscription (Supabase Realtime v2) ───────────────────────────
 
-let _realtimeWs = null;
+let _realtimeWs  = null;
+let _heartbeatId = null;
+let _ref         = 1;
 
 function connectRealtime() {
-    if (_realtimeWs) return; // already connected
+    if (_realtimeWs &&
+        (_realtimeWs.readyState === WebSocket.OPEN ||
+         _realtimeWs.readyState === WebSocket.CONNECTING)) return;
 
     const wsUrl = SUPABASE_URL.replace('https://', 'wss://') +
         `/realtime/v1/websocket?apikey=${SUPABASE_ANON_KEY}&vsn=1.0.0`;
@@ -274,54 +300,59 @@ function connectRealtime() {
 
     _realtimeWs.onopen = () => {
         console.log('✅ Supabase Realtime connected');
-        // Join the postgres_changes channel
+
+        // Supabase Realtime v2 channel join format
         _realtimeWs.send(JSON.stringify({
-            topic: `realtime:public:${TABLE}`,
-            event: 'phx_join',
+            topic:   'realtime:sync-channel',
+            event:   'phx_join',
             payload: {
                 config: {
-                    broadcast: { self: false },
+                    broadcast:        { self: false },
+                    presence:         { key: '' },
                     postgres_changes: [{ event: '*', schema: 'public', table: TABLE }]
                 }
             },
-            ref: '1'
+            ref: String(_ref++)
         }));
+
+        // Heartbeat every 25s
+        _heartbeatId = setInterval(() => {
+            if (_realtimeWs.readyState === WebSocket.OPEN) {
+                _realtimeWs.send(JSON.stringify({
+                    topic: 'phoenix', event: 'heartbeat',
+                    payload: {}, ref: String(_ref++)
+                }));
+            }
+        }, 25000);
     };
 
     _realtimeWs.onmessage = (msg) => {
         try {
-            const payload = JSON.parse(msg.data);
-            // Heartbeat reply
-            if (payload.event === 'phx_reply' && payload.ref === 'heartbeat') return;
-            // Data change event
-            if (payload.event === 'postgres_changes') {
-                console.log('🔔 Realtime change:', payload.payload?.data?.type);
-                if (!_syncing) {
-                    syncNow().catch(console.error);
-                }
+            const frame = JSON.parse(msg.data);
+            // Ignore heartbeat acks and join confirmations
+            if (frame.event === 'phx_reply') return;
+            // postgres_changes events arrive with event === 'postgres_changes'
+            // OR as insert/update/delete inside payload.data.type
+            const isChange = frame.event === 'postgres_changes' ||
+                             frame.payload?.data?.type != null;
+            if (isChange && !_syncing) {
+                console.log('🔔 Realtime change received — syncing');
+                syncNow().catch(console.error);
             }
-        } catch (e) { /* ignore parse errors */ }
+        } catch (_) {}
     };
 
-    _realtimeWs.onerror = (e) => console.warn('Realtime WS error:', e);
+    _realtimeWs.onerror = (e) => console.warn('Realtime WS error', e);
 
     _realtimeWs.onclose = () => {
-        console.warn('Realtime WS closed — reconnecting in 5s');
+        console.warn('Realtime WS closed — will retry in 5s');
+        clearInterval(_heartbeatId);
         _realtimeWs = null;
         setTimeout(() => { if (navigator.onLine) connectRealtime(); }, 5000);
     };
-
-    // Heartbeat every 30s to keep the connection alive
-    setInterval(() => {
-        if (_realtimeWs && _realtimeWs.readyState === WebSocket.OPEN) {
-            _realtimeWs.send(JSON.stringify({
-                topic: 'phoenix', event: 'heartbeat', payload: {}, ref: 'heartbeat'
-            }));
-        }
-    }, 30000);
 }
 
-// ─── Online / offline event listeners ────────────────────────────────────────
+// ─── Online / offline listeners ───────────────────────────────────────────────
 
 window.addEventListener('online', async () => {
     updateOnlineBadge(true);
