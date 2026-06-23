@@ -7,7 +7,6 @@
     <meta name="theme-color" content="#007bff">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 	<script src="https://cdn.jsdelivr.net/npm/@point-of-sale/receipt-printer-encoder/dist/receipt-printer-encoder.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@point-of-sale/webbluetooth-receipt-printer/dist/webbluetooth-receipt-printer.umd.js"></script>
     <title>Sate-Hujung-Minggu</title>
@@ -142,13 +141,14 @@
         <p id="installAppHint" style="font-size: 14px; color: #6c757d;"></p>
         <button id="installAppBtn" class="secondary" style="display:none;" onclick="installApp()">Install App</button>
 
-        <h3 style="margin-top: 30px;">☁️ GitHub Sync</h3>
+        <h3 style="margin-top: 30px;">☁️ Supabase Sync</h3>
         <p style="font-size:13px; color:#6c757d;">
-            Orders sync automatically to a GitHub Gist when online, and queue offline changes until reconnected.<br>
-            To set up: open <code>sync.js</code> and fill in your <strong>GITHUB_TOKEN</strong> and <strong>GIST_ID</strong>.
+            Orders sync automatically to Supabase when online, and queue offline changes until reconnected.<br>
+            All devices update in real-time whenever any device saves an order.
         </p>
         <p style="font-size:13px;">Status: <span id="syncStatusSettings"></span></p>
         <button class="secondary" onclick="syncNow()">🔄 Sync Now</button>
+        <button class="secondary" onclick="pullFromCloud()">📥 Pull from Cloud</button>
 
         <button class="secondary" onclick="resetToDefaultMenu()" style="margin-top: 20px;">Reset to Default Menu</button>
         <p style="font-size: 14px; color: #6c757d; margin-top: 20px;">
