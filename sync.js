@@ -196,7 +196,7 @@ window.addEventListener('offline', () => {
 
 function patchDbFunctions() {
 
-    // addOrder: insert to Supabase → get server ID → cache locally
+    // addOrder: insert to Supabase → get server ID → cache locally → re-render
     window.addOrder = async function(order) {
         order.updatedAt = Date.now();
         order._deleted  = false;
@@ -204,42 +204,63 @@ function patchDbFunctions() {
         if (navigator.onLine) {
             const saved = await _sbInsert(order); // gets real id from server
             await _idbPut(saved);
-            _scheduleSync(); // pull to make sure all devices get it
+            if (typeof loadOrders === 'function') loadOrders(); // update UI immediately
+            syncNow().catch(console.error);                     // then push to other devices
             return saved.id;
         } else {
-            // Offline: can't save without a server ID — alert user
             _pendingSync = true;
             throw new Error('You are offline. Please connect to the internet to save orders.');
         }
     };
 
-    // updateOrder: update Supabase → update local cache
+    // updateOrder: update Supabase → update local cache → re-render
     window.updateOrder = async function(order) {
         order.updatedAt = Date.now();
         if (navigator.onLine) {
             await _sbUpdate(order);
             await _idbPut(order);
-            _scheduleSync();
+            if (typeof loadOrders === 'function') loadOrders();
+            syncNow().catch(console.error);
         } else {
             await _idbPut(order);
             _pendingSync = true;
+            if (typeof loadOrders === 'function') loadOrders();
         }
         return order.id;
     };
 
-    // deleteOrder: delete from Supabase → delete from local cache
+    // deleteOrder: delete from Supabase → delete from local cache → re-render
     window.deleteOrder = async function(id) {
         if (navigator.onLine) {
             await _sbDelete(id);
         }
         await _idbDelete(id);
-        _scheduleSync();
+        if (typeof loadOrders === 'function') loadOrders(); // update UI immediately
+        if (navigator.onLine) syncNow().catch(console.error);
+        else _pendingSync = true;
     };
 
     // getAllOrders: read from local cache (already populated by syncNow)
     window.getAllOrders = async function() {
         return _idbGetAll();
     };
+}
+
+// ─── Polling fallback (every 10s) in case Realtime WebSocket silently fails ───
+let _pollInterval = null;
+
+function startPolling() {
+    if (_pollInterval) return;
+    _pollInterval = setInterval(() => {
+        if (navigator.onLine && !_syncing) {
+            syncNow().catch(console.error);
+        }
+    }, 10000);
+}
+
+function stopPolling() {
+    clearInterval(_pollInterval);
+    _pollInterval = null;
 }
 
 // ─── Realtime WebSocket ───────────────────────────────────────────────────────
@@ -349,9 +370,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (navigator.onLine) {
         await syncNow();
         connectRealtime();
+        startPolling(); // fallback in case realtime doesn't fire
     } else {
         setSyncStatus('offline');
-        // Load whatever is cached locally
         if (typeof loadOrders === 'function') loadOrders();
     }
 });
