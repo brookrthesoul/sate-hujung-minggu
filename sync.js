@@ -142,6 +142,7 @@ async function syncNow() {
         const remote = await _sbGetAll();
         // Keep offline-only orders (negative IDs not yet pushed to Supabase)
         const localOffline = (await _idbGetAll()).filter(o => o._offline === true);
+        await _checkForNewOrders(remote);
         await _idbReplaceAll(remote);
         for (const o of localOffline) await _idbPut(o);
         setSyncStatus('ok');
@@ -331,6 +332,132 @@ function connectRealtime() {
     };
 }
 
+// ─── Sync Toast Toggle ────────────────────────────────────────────────────────
+
+function isSyncToastEnabled() {
+    return localStorage.getItem('syncToastEnabled') !== 'false';
+}
+
+function setSyncToastEnabled(val) {
+    localStorage.setItem('syncToastEnabled', val ? 'true' : 'false');
+    const toggle = document.getElementById('syncToastToggle');
+    if (toggle) toggle.checked = val;
+    const hint = document.getElementById('syncToastHint');
+    if (hint) hint.textContent = val ? '🔔 Sync alerts visible' : '🔕 Sync alerts hidden';
+}
+
+// ─── New Order Notification ───────────────────────────────────────────────────
+
+function isOrderNotiEnabled() {
+    return localStorage.getItem('orderNotiEnabled') === 'true';
+}
+
+function setOrderNotiEnabled(val) {
+    localStorage.setItem('orderNotiEnabled', val ? 'true' : 'false');
+    const toggle = document.getElementById('orderNotiToggle');
+    if (toggle) toggle.checked = val;
+    const hint = document.getElementById('orderNotiHint');
+    if (val) {
+        requestNotificationPermission().then(granted => {
+            if (hint) hint.textContent = granted ? '🔔 Kitchen alerts ON' : '⚠️ Permission denied — check browser settings';
+            if (!granted) setOrderNotiEnabled(false);
+        });
+    } else {
+        if (hint) hint.textContent = '🔕 Kitchen alerts OFF';
+    }
+}
+
+async function requestNotificationPermission() {
+    if (!('Notification' in window)) return false;
+    if (Notification.permission === 'granted') return true;
+    const result = await Notification.requestPermission();
+    return result === 'granted';
+}
+
+// Beep sound using Web Audio API
+function playOrderBeep() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const times = [0, 0.18, 0.36];
+        times.forEach(t => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 880;
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.6, ctx.currentTime + t);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.15);
+            osc.start(ctx.currentTime + t);
+            osc.stop(ctx.currentTime + t + 0.15);
+        });
+    } catch(e) { console.warn('Audio error', e); }
+}
+
+// Track known order IDs so we only notify on genuinely new ones
+let _knownOrderIds = null;
+
+async function _checkForNewOrders(freshOrders) {
+    if (!isOrderNotiEnabled()) return;
+
+    // First sync: just record IDs, don't notify
+    if (_knownOrderIds === null) {
+        _knownOrderIds = new Set(freshOrders.map(o => o.id));
+        return;
+    }
+
+    const newOrders = freshOrders.filter(o => !_knownOrderIds.has(o.id));
+    if (newOrders.length === 0) return;
+
+    newOrders.forEach(o => _knownOrderIds.add(o.id));
+
+    // Build notification message listing sate quantities
+    const lines = newOrders.map(o => {
+        const items = o.items || [];
+        const parts = items
+            .filter(i => i.qty > 0)
+            .map(i => `${i.qty}× ${i.name}`);
+        const customerName = o.customerName || o.name || 'Unknown';
+        return parts.length > 0
+            ? `${customerName}: ${parts.join(', ')}`
+            : customerName;
+    });
+
+    const title = newOrders.length === 1
+        ? '🍢 New Order!'
+        : `🍢 ${newOrders.length} New Orders!`;
+    const body = lines.join('\n');
+
+    playOrderBeep();
+
+    if (Notification.permission === 'granted') {
+        new Notification(title, {
+            body,
+            icon: './icon-192.png',
+            badge: './icon-192.png',
+            tag: 'new-order-' + Date.now(),
+            requireInteraction: true
+        });
+    }
+
+    // Also show an in-app banner
+    showOrderBanner(title, body);
+}
+
+let _bannerTimer = null;
+function showOrderBanner(title, body) {
+    let b = document.getElementById('orderNotisBanner');
+    if (!b) {
+        b = document.createElement('div');
+        b.id = 'orderNotisBanner';
+        document.body.appendChild(b);
+    }
+    b.innerHTML = `<strong>${title}</strong><br><span style="white-space:pre-line">${body}</span>`;
+    b.className = 'order-banner visible';
+    clearTimeout(_bannerTimer);
+    _bannerTimer = setTimeout(() => { b.className = 'order-banner'; }, 8000);
+}
+
 // ─── UI ───────────────────────────────────────────────────────────────────────
 
 function updateOnlineBadge(online) {
@@ -356,6 +483,7 @@ function setSyncStatus(state) {
 
 let _toastTimer = null;
 function showSyncToast(msg) {
+    if (!isSyncToastEnabled()) return;
     let t = document.getElementById('syncToast');
     if (!t) { t = document.createElement('div'); t.id = 'syncToast'; document.body.appendChild(t); }
     t.textContent = msg; t.className = 'sync-toast visible';
@@ -367,6 +495,11 @@ function showSyncToast(msg) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     updateOnlineBadge(navigator.onLine);
+
+    // Restore toggle states
+    setSyncToastEnabled(isSyncToastEnabled());
+    setOrderNotiEnabled(isOrderNotiEnabled());
+
     if (navigator.onLine) {
         await syncNow();
         connectRealtime();

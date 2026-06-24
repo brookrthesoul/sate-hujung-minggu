@@ -202,6 +202,32 @@
         <button class="secondary" onclick="syncNow()">🔄 Sync Now</button>
         <button class="secondary" onclick="pullFromCloud()">📥 Pull from Cloud</button>
 
+        <div class="settings-group" style="margin-top:16px; display:flex; align-items:center; gap:12px;">
+            <label class="toggle-switch">
+                <input type="checkbox" id="syncToastToggle" onchange="setSyncToastEnabled(this.checked)">
+                <span class="toggle-slider"></span>
+            </label>
+            <div>
+                <div style="font-weight:600; font-size:14px;">Sync Alerts</div>
+                <div id="syncToastHint" style="font-size:12px; color:#6c757d;">🔔 Sync alerts visible</div>
+            </div>
+        </div>
+
+        <h3 style="margin-top: 30px;">🍢 Kitchen Notifications</h3>
+        <p style="font-size:13px; color:#6c757d;">
+            Enable this on the <strong>cooking device</strong> to get an alert + sound whenever a new order is placed from another device.
+        </p>
+        <div class="settings-group" style="display:flex; align-items:center; gap:12px;">
+            <label class="toggle-switch">
+                <input type="checkbox" id="orderNotiToggle" onchange="setOrderNotiEnabled(this.checked)">
+                <span class="toggle-slider"></span>
+            </label>
+            <div>
+                <div style="font-weight:600; font-size:14px;">New Order Alert</div>
+                <div id="orderNotiHint" style="font-size:12px; color:#6c757d;">🔕 Kitchen alerts OFF</div>
+            </div>
+        </div>
+
         <button class="secondary" onclick="resetToDefaultMenu()" style="margin-top: 20px;">Reset to Default Menu</button>
         <p style="font-size: 14px; color: #6c757d; margin-top: 20px;">
             Changing prices or the menu affects future calculations and new orders. Existing orders keep their original totals.
