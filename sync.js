@@ -1,14 +1,6 @@
-// sync.js — Supabase sync (v4)
-// ════════════════════════════════════════════════════════════════════════════
-// KEY DESIGN DECISIONS
-// 1. Supabase is the source of truth. IndexedDB is just a local cache.
-// 2. addOrder() gets its ID from Supabase (not autoIncrement) to prevent
-//    ID collisions between devices.
-// 3. deleteOrder() sends a DELETE to Supabase immediately and removes from
-//    IndexedDB — no tombstones needed because Supabase owns the record set.
-// 4. syncNow() = pull remote → write to local cache → re-render. Simple.
-// 5. Realtime WebSocket triggers syncNow() on any remote change.
-// ════════════════════════════════════════════════════════════════════════════
+// sync.js — Supabase sync (final)
+// Supabase is source of truth. IndexedDB is a local cache.
+// db.js functions delegate here via window._sb* / window._idbGetAll.
 
 const SUPABASE_URL      = 'https://efrwvksxttauhoxllhqu.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_SOoDs65SPw_G_m-lZ6NP-w_MbbqxOUw';
@@ -16,7 +8,7 @@ const TABLE = 'orders';
 
 // ─── Supabase REST ────────────────────────────────────────────────────────────
 
-function _sbHeaders(extra = {}) {
+function _h(extra = {}) {
     return {
         'apikey':        SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
@@ -27,111 +19,109 @@ function _sbHeaders(extra = {}) {
 
 async function _sbFetch(path, opts = {}) {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-        ...opts,
-        headers: _sbHeaders(opts.headers || {})
+        ...opts, headers: _h(opts.headers || {})
     });
-    if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`Supabase ${res.status}: ${body}`);
-    }
-    const text = await res.text();
-    return text ? JSON.parse(text) : null;
+    if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`);
+    const t = await res.text();
+    return t ? JSON.parse(t) : null;
 }
 
-// Returns all orders from Supabase as plain order objects
-async function _sbGetAll() {
-    const rows = await _sbFetch(`${TABLE}?select=id,data,updated_ms&order=id.asc`);
-    return (rows || []).map(r => ({ ...r.data, id: r.id, updatedAt: r.updated_ms }));
-}
-
-// Inserts one order into Supabase, returns the row with its new server-assigned id
-async function _sbInsert(orderData) {
-    // Explicitly strip id so Postgres serial generates a fresh one
-    const { id: _ignore, updatedAt: _ignore2, ...rest } = orderData;
-    const rows = await _sbFetch(TABLE, {
-        method:  'POST',
-        headers: { 'Prefer': 'return=representation' },
-        body:    JSON.stringify({ data: rest, updated_ms: Date.now() })
-        // NOTE: no `id` field — Postgres serial assigns it
-    });
-    const row = Array.isArray(rows) ? rows[0] : rows;
+function _rowToOrder(row) {
     return { ...row.data, id: row.id, updatedAt: row.updated_ms };
 }
 
-// Updates one order in Supabase
+async function _sbGetAll() {
+    const rows = await _sbFetch(`${TABLE}?select=id,data,updated_ms&order=id.asc`) || [];
+    return rows.map(_rowToOrder);
+}
+
+async function _sbInsert(order) {
+    const { id: _a, updatedAt: _b, ...data } = order;
+    const rows = await _sbFetch(TABLE, {
+        method: 'POST',
+        headers: { 'Prefer': 'return=representation' },
+        body: JSON.stringify({ data, updated_ms: Date.now() })
+    });
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    return _rowToOrder(row);
+}
+
 async function _sbUpdate(order) {
-    const { id, updatedAt, ...rest } = order;
+    const { id, updatedAt: _a, ...data } = order;
     await _sbFetch(`${TABLE}?id=eq.${id}`, {
-        method:  'PATCH',
+        method: 'PATCH',
         headers: { 'Prefer': 'return=minimal' },
-        body:    JSON.stringify({ data: rest, updated_ms: Date.now() })
+        body: JSON.stringify({ data, updated_ms: Date.now() })
     });
 }
 
-// Deletes one order from Supabase
 async function _sbDelete(id) {
     await _sbFetch(`${TABLE}?id=eq.${id}`, { method: 'DELETE' });
 }
 
-// ─── IndexedDB local cache ────────────────────────────────────────────────────
-// Pure cache — Supabase decides the IDs and the truth.
+// ─── IndexedDB cache ──────────────────────────────────────────────────────────
 
-async function _idbOpen() {
+const _IDB_NAME    = 'OrdersDB';
+const _IDB_VERSION = 3;
+const _IDB_STORE   = 'orders';
+let   _idbConn     = null; // singleton connection
+
+function _idbOpen() {
+    if (_idbConn) return Promise.resolve(_idbConn);
     return new Promise((resolve, reject) => {
-        // Bump to version 3 so we can clear old autoIncrement assumptions
-        const req = indexedDB.open('OrdersDB', 3);
-        req.onerror = () => reject(req.error);
-        req.onsuccess = () => resolve(req.result);
+        const req = indexedDB.open(_IDB_NAME, _IDB_VERSION);
+        req.onerror   = () => reject(req.error);
+        req.onsuccess = () => { _idbConn = req.result; resolve(_idbConn); };
         req.onupgradeneeded = (ev) => {
             const db = ev.target.result;
-            // Drop old store if it exists (v1/v2 used autoIncrement — incompatible)
-            if (db.objectStoreNames.contains('orders')) {
-                db.deleteObjectStore('orders');
-            }
-            // Re-create without autoIncrement; IDs always come from Supabase
-            const store = db.createObjectStore('orders', { keyPath: 'id' });
-            store.createIndex('createdAt', 'createdAt');
-
-            if (db.objectStoreNames.contains('syncQueue')) {
-                db.deleteObjectStore('syncQueue');
-            }
+            if (db.objectStoreNames.contains(_IDB_STORE)) db.deleteObjectStore(_IDB_STORE);
+            db.createObjectStore(_IDB_STORE, { keyPath: 'id' }).createIndex('createdAt','createdAt');
+            if (db.objectStoreNames.contains('syncQueue')) db.deleteObjectStore('syncQueue');
         };
     });
 }
 
 async function _idbGetAll() {
     const db = await _idbOpen();
-    return new Promise((resolve, reject) => {
-        const req = db.transaction('orders', 'readonly').objectStore('orders').getAll();
-        req.onsuccess = () => resolve(req.result);
-        req.onerror   = () => reject(req.error);
+    return new Promise((res, rej) => {
+        const req = db.transaction(_IDB_STORE,'readonly').objectStore(_IDB_STORE).getAll();
+        req.onsuccess = () => res(req.result);
+        req.onerror   = () => rej(req.error);
     });
 }
 
 async function _idbPut(order) {
     const db = await _idbOpen();
-    return new Promise((resolve, reject) => {
-        const req = db.transaction('orders', 'readwrite').objectStore('orders').put(order);
-        req.onsuccess = () => resolve();
-        req.onerror   = () => reject(req.error);
+    return new Promise((res, rej) => {
+        const req = db.transaction(_IDB_STORE,'readwrite').objectStore(_IDB_STORE).put(order);
+        req.onsuccess = () => res();
+        req.onerror   = () => rej(req.error);
     });
 }
 
 async function _idbDelete(id) {
     const db = await _idbOpen();
-    return new Promise((resolve, reject) => {
-        const req = db.transaction('orders', 'readwrite').objectStore('orders').delete(id);
-        req.onsuccess = () => resolve();
-        req.onerror   = () => reject(req.error);
+    return new Promise((res, rej) => {
+        const req = db.transaction(_IDB_STORE,'readwrite').objectStore(_IDB_STORE).delete(id);
+        req.onsuccess = () => res();
+        req.onerror   = () => rej(req.error);
     });
 }
 
-async function _idbClear() {
+// Replace local cache with remote data WITHOUT clearing first
+// (avoids empty-store race condition during loadOrders)
+async function _idbReplaceAll(orders) {
     const db = await _idbOpen();
-    return new Promise((resolve, reject) => {
-        const req = db.transaction('orders', 'readwrite').objectStore('orders').clear();
-        req.onsuccess = () => resolve();
-        req.onerror   = () => reject(req.error);
+    return new Promise((res, rej) => {
+        const tx    = db.transaction(_IDB_STORE, 'readwrite');
+        const store = tx.objectStore(_IDB_STORE);
+        tx.oncomplete = () => res();
+        tx.onerror    = () => rej(tx.error);
+        // Delete all then put all — inside ONE transaction (atomic)
+        const clearReq = store.clear();
+        clearReq.onsuccess = () => {
+            orders.forEach(o => store.put(o));
+        };
     });
 }
 
@@ -139,18 +129,19 @@ async function _idbClear() {
 
 let _syncing = false;
 
-// Pull everything from Supabase → overwrite local cache → re-render
+function _rerender() {
+    if (typeof loadOrders === 'function') loadOrders();
+}
+
 async function syncNow() {
     if (_syncing) return;
     _syncing = true;
     setSyncStatus('syncing');
     try {
         const remote = await _sbGetAll();
-        // Replace local cache entirely with what Supabase says
-        await _idbClear();
-        for (const o of remote) await _idbPut(o);
+        await _idbReplaceAll(remote);   // atomic — no gap where store is empty
         setSyncStatus('ok');
-        if (typeof loadOrders === 'function') loadOrders();
+        _rerender();
         showSyncToast('✅ Synced');
     } catch (e) {
         console.error('Sync error:', e);
@@ -161,159 +152,110 @@ async function syncNow() {
     }
 }
 
-const pullFromCloud = syncNow; // alias used by Settings button
+const pullFromCloud = syncNow;
 
-// ─── Offline queue (simple pending flag) ─────────────────────────────────────
+// ─── Public CRUD (called by db.js) ───────────────────────────────────────────
+
+window._idbGetAll = _idbGetAll;
+
+window._sbAddOrder = async function(order) {
+    const { id: _a, updatedAt: _b, _deleted: _c, ...clean } = order;
+    clean.createdAt = clean.createdAt || Date.now();
+    if (!navigator.onLine) throw new Error('You are offline. Connect to save orders.');
+    const saved = await _sbInsert(clean);
+    await _idbPut(saved);
+    _rerender();
+    // background sync so other devices get it
+    setTimeout(() => syncNow().catch(console.error), 200);
+    return saved.id;
+};
+
+window._sbUpdateOrder = async function(order) {
+    if (navigator.onLine) {
+        await _sbUpdate(order);
+        await _idbPut(order);
+        setTimeout(() => syncNow().catch(console.error), 200);
+    } else {
+        await _idbPut(order);
+    }
+    _rerender();
+    return order.id;
+};
+
+window._sbDeleteOrder = async function(id) {
+    await _idbDelete(id);   // remove locally first so UI is instant
+    _rerender();
+    if (navigator.onLine) {
+        await _sbDelete(id);
+        setTimeout(() => syncNow().catch(console.error), 200);
+    }
+};
+
+// ─── Online / offline ─────────────────────────────────────────────────────────
 
 let _pendingSync = false;
 
-function _scheduleSync() {
-    if (navigator.onLine) {
-        syncNow().catch(console.error);
-    } else {
-        _pendingSync = true;
-        showSyncToast('📴 Offline — will sync when reconnected');
-    }
-}
-
-window.addEventListener('online', async () => {
+window.addEventListener('online', () => {
     updateOnlineBadge(true);
     connectRealtime();
-    if (_pendingSync) {
-        _pendingSync = false;
-        await syncNow();
-    }
+    if (_pendingSync) { _pendingSync = false; syncNow().catch(console.error); }
 });
 
 window.addEventListener('offline', () => {
     updateOnlineBadge(false);
     setSyncStatus('offline');
+    _pendingSync = true;
 });
 
-// ─── Public CRUD API — exposed on window so db.js can delegate to these ──────
+// ─── Polling fallback every 10s ───────────────────────────────────────────────
 
-window._idbGetAll = _idbGetAll;
-
-window._sbAddOrder = async function(order) {
-    order.updatedAt = Date.now();
-    order._deleted  = false;
-    delete order.id;
-    if (!navigator.onLine) {
-        _pendingSync = true;
-        throw new Error('You are offline. Please connect to save orders.');
-    }
-    const saved = await _sbInsert(order);
-    await _idbPut(saved);
-    if (typeof loadOrders === 'function') loadOrders();
-    syncNow().catch(console.error);
-    return saved.id;
-};
-
-window._sbUpdateOrder = async function(order) {
-    order.updatedAt = Date.now();
-    if (navigator.onLine) {
-        await _sbUpdate(order);
-        await _idbPut(order);
-        syncNow().catch(console.error);
-    } else {
-        await _idbPut(order);
-        _pendingSync = true;
-    }
-    if (typeof loadOrders === 'function') loadOrders();
-    return order.id;
-};
-
-window._sbDeleteOrder = async function(id) {
-    if (navigator.onLine) {
-        await _sbDelete(id);
-    } else {
-        _pendingSync = true;
-    }
-    await _idbDelete(id);
-    if (typeof loadOrders === 'function') loadOrders();
-    if (navigator.onLine) syncNow().catch(console.error);
-};
-
-// ─── Polling fallback (every 10s) in case Realtime WebSocket silently fails ───
-let _pollInterval = null;
-
-function startPolling() {
-    if (_pollInterval) return;
-    _pollInterval = setInterval(() => {
-        if (navigator.onLine && !_syncing) {
-            syncNow().catch(console.error);
-        }
-    }, 10000);
-}
-
-function stopPolling() {
-    clearInterval(_pollInterval);
-    _pollInterval = null;
-}
+setInterval(() => {
+    if (navigator.onLine && !_syncing) syncNow().catch(console.error);
+}, 10000);
 
 // ─── Realtime WebSocket ───────────────────────────────────────────────────────
 
-let _ws = null;
-let _wsRef = 1;
-let _wsHeartbeat = null;
+let _ws = null, _wsRef = 1, _wsHB = null;
 
 function connectRealtime() {
     if (_ws && (_ws.readyState === WebSocket.OPEN || _ws.readyState === WebSocket.CONNECTING)) return;
-
-    const url = SUPABASE_URL.replace('https://', 'wss://')
+    const url = SUPABASE_URL.replace('https://','wss://')
         + `/realtime/v1/websocket?apikey=${SUPABASE_ANON_KEY}&vsn=1.0.0`;
-
     _ws = new WebSocket(url);
 
     _ws.onopen = () => {
-        console.log('✅ Realtime connected');
         _ws.send(JSON.stringify({
-            topic:   'realtime:orders-sync',
-            event:   'phx_join',
-            payload: {
-                config: {
-                    broadcast:        { self: false },
-                    presence:         { key: '' },
-                    postgres_changes: [{ event: '*', schema: 'public', table: TABLE }]
-                }
-            },
+            topic: 'realtime:orders-sync', event: 'phx_join',
+            payload: { config: {
+                broadcast: { self: false }, presence: { key: '' },
+                postgres_changes: [{ event: '*', schema: 'public', table: TABLE }]
+            }},
             ref: String(_wsRef++)
         }));
-
-        _wsHeartbeat = setInterval(() => {
-            if (_ws.readyState === WebSocket.OPEN) {
-                _ws.send(JSON.stringify({
-                    topic: 'phoenix', event: 'heartbeat',
-                    payload: {}, ref: String(_wsRef++)
-                }));
-            }
+        _wsHB = setInterval(() => {
+            if (_ws.readyState === WebSocket.OPEN)
+                _ws.send(JSON.stringify({ topic:'phoenix', event:'heartbeat', payload:{}, ref: String(_wsRef++) }));
         }, 25000);
     };
 
     _ws.onmessage = ({ data }) => {
         try {
-            const frame = JSON.parse(data);
-            // Ignore heartbeat acks and phx_reply confirmations
-            if (frame.event === 'phx_reply') return;
-            // Any postgres_changes event → pull fresh data
-            if (frame.event === 'postgres_changes' || frame.payload?.data?.type) {
-                console.log('🔔 Remote change — syncing');
+            const f = JSON.parse(data);
+            if (f.event === 'phx_reply') return;
+            if (f.event === 'postgres_changes' || f.payload?.data?.type) {
                 if (!_syncing) syncNow().catch(console.error);
             }
-        } catch (_) {}
+        } catch(_) {}
     };
 
-    _ws.onerror = e => console.warn('Realtime error', e);
-
+    _ws.onerror = e => console.warn('WS error', e);
     _ws.onclose = () => {
-        clearInterval(_wsHeartbeat);
-        _ws = null;
-        console.warn('Realtime closed — retry in 5s');
+        clearInterval(_wsHB); _ws = null;
         setTimeout(() => { if (navigator.onLine) connectRealtime(); }, 5000);
     };
 }
 
-// ─── UI helpers ───────────────────────────────────────────────────────────────
+// ─── UI ───────────────────────────────────────────────────────────────────────
 
 function updateOnlineBadge(online) {
     const el = document.getElementById('onlineBadge');
@@ -324,13 +266,13 @@ function updateOnlineBadge(online) {
 
 function setSyncStatus(state) {
     const map = {
-        ok:      { icon: '✅', text: 'Synced',     cls: 'sync-ok'      },
-        syncing: { icon: '🔄', text: 'Syncing…',   cls: 'sync-syncing' },
-        error:   { icon: '❌', text: 'Sync error', cls: 'sync-error'   },
-        offline: { icon: '📴', text: 'Offline',    cls: 'sync-offline' },
+        ok:      { icon:'✅', text:'Synced',     cls:'sync-ok'      },
+        syncing: { icon:'🔄', text:'Syncing…',   cls:'sync-syncing' },
+        error:   { icon:'❌', text:'Sync error', cls:'sync-error'   },
+        offline: { icon:'📴', text:'Offline',    cls:'sync-offline' },
     };
     const s = map[state] || map.ok;
-    ['syncStatus', 'syncStatusSettings'].forEach(id => {
+    ['syncStatus','syncStatusSettings'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.innerHTML = `${s.icon} ${s.text}`; el.className = 'sync-status ' + s.cls; }
     });
@@ -338,16 +280,11 @@ function setSyncStatus(state) {
 
 let _toastTimer = null;
 function showSyncToast(msg) {
-    let toast = document.getElementById('syncToast');
-    if (!toast) {
-        toast = document.createElement('div');
-        toast.id = 'syncToast';
-        document.body.appendChild(toast);
-    }
-    toast.textContent = msg;
-    toast.className   = 'sync-toast visible';
+    let t = document.getElementById('syncToast');
+    if (!t) { t = document.createElement('div'); t.id = 'syncToast'; document.body.appendChild(t); }
+    t.textContent = msg; t.className = 'sync-toast visible';
     clearTimeout(_toastTimer);
-    _toastTimer = setTimeout(() => { toast.className = 'sync-toast'; }, 5000);
+    _toastTimer = setTimeout(() => { t.className = 'sync-toast'; }, 4000);
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -357,9 +294,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (navigator.onLine) {
         await syncNow();
         connectRealtime();
-        startPolling(); // fallback in case realtime doesn't fire
     } else {
         setSyncStatus('offline');
-        if (typeof loadOrders === 'function') loadOrders();
+        _rerender();
     }
 });
