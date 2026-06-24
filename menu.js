@@ -181,8 +181,10 @@ function renderSettingsMenuList() {
         container.innerHTML = '<p style="text-align:center; color:#999;">No menu items yet.</p>';
         return;
     }
-    container.innerHTML = menuItems.map(item => `
-        <div class="menu-row">
+
+    container.innerHTML = menuItems.map((item, idx) => `
+        <div class="menu-row" data-id="${item.id}" data-idx="${idx}" draggable="true">
+            <span class="drag-handle" title="Drag to reorder">⠿</span>
             <div class="menu-row-name">
                 <span class="item-name">${escapeHtml(item.name)}</span>
                 <span class="item-type">${_categoryLabel(item.category)}</span>
@@ -194,6 +196,119 @@ function renderSettingsMenuList() {
             </div>
         </div>
     `).join('');
+
+    _initMenuDragDrop(container);
+}
+
+function _initMenuDragDrop(container) {
+    let dragSrcIdx = null;
+    let touchDragEl = null;
+    let touchClone  = null;
+    let touchOverIdx = null;
+
+    const rows = () => [...container.querySelectorAll('.menu-row')];
+
+    // ── Mouse drag (desktop) ──────────────────────────────────────────────────
+    container.addEventListener('dragstart', e => {
+        const row = e.target.closest('.menu-row');
+        if (!row) return;
+        dragSrcIdx = parseInt(row.dataset.idx);
+        row.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+    });
+
+    container.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const row = e.target.closest('.menu-row');
+        rows().forEach(r => r.classList.remove('drag-over'));
+        if (row) row.classList.add('drag-over');
+    });
+
+    container.addEventListener('dragleave', e => {
+        const row = e.target.closest('.menu-row');
+        if (row) row.classList.remove('drag-over');
+    });
+
+    container.addEventListener('dragend', e => {
+        rows().forEach(r => { r.classList.remove('dragging'); r.classList.remove('drag-over'); });
+    });
+
+    container.addEventListener('drop', e => {
+        e.preventDefault();
+        const row = e.target.closest('.menu-row');
+        if (!row) return;
+        const destIdx = parseInt(row.dataset.idx);
+        if (dragSrcIdx === null || dragSrcIdx === destIdx) return;
+        _reorderMenu(dragSrcIdx, destIdx);
+    });
+
+    // ── Touch drag (mobile) ───────────────────────────────────────────────────
+    container.addEventListener('touchstart', e => {
+        const handle = e.target.closest('.drag-handle');
+        if (!handle) return;
+        const row = handle.closest('.menu-row');
+        if (!row) return;
+
+        dragSrcIdx  = parseInt(row.dataset.idx);
+        touchDragEl = row;
+
+        // Create a floating clone to follow the finger
+        touchClone = row.cloneNode(true);
+        touchClone.style.cssText = `
+            position: fixed; z-index: 9999; opacity: 0.85; pointer-events: none;
+            width: ${row.offsetWidth}px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+            border-radius: 14px; background: white;
+        `;
+        document.body.appendChild(touchClone);
+        row.classList.add('dragging');
+
+        const t = e.touches[0];
+        touchClone.style.left = (t.clientX - row.offsetWidth / 2) + 'px';
+        touchClone.style.top  = (t.clientY - row.offsetHeight / 2) + 'px';
+        e.preventDefault();
+    }, { passive: false });
+
+    container.addEventListener('touchmove', e => {
+        if (!touchClone) return;
+        e.preventDefault();
+        const t = e.touches[0];
+        touchClone.style.left = (t.clientX - touchDragEl.offsetWidth / 2) + 'px';
+        touchClone.style.top  = (t.clientY - touchDragEl.offsetHeight / 2) + 'px';
+
+        // Find which row the finger is over
+        touchClone.style.display = 'none';
+        const elBelow = document.elementFromPoint(t.clientX, t.clientY);
+        touchClone.style.display = '';
+        const overRow = elBelow && elBelow.closest('.menu-row');
+        rows().forEach(r => r.classList.remove('drag-over'));
+        if (overRow && overRow !== touchDragEl) {
+            overRow.classList.add('drag-over');
+            touchOverIdx = parseInt(overRow.dataset.idx);
+        } else {
+            touchOverIdx = null;
+        }
+    }, { passive: false });
+
+    container.addEventListener('touchend', e => {
+        if (!touchClone) return;
+        touchClone.remove();
+        touchClone = null;
+        rows().forEach(r => { r.classList.remove('dragging'); r.classList.remove('drag-over'); });
+        if (touchOverIdx !== null && touchOverIdx !== dragSrcIdx) {
+            _reorderMenu(dragSrcIdx, touchOverIdx);
+        }
+        dragSrcIdx   = null;
+        touchOverIdx = null;
+    });
+}
+
+function _reorderMenu(fromIdx, toIdx) {
+    const moved = menuItems.splice(fromIdx, 1)[0];
+    menuItems.splice(toIdx, 0, moved);
+    saveMenu();
+    renderSettingsMenuList();
+    if (typeof renderHomeMenuInputs === 'function') renderHomeMenuInputs();
 }
 
 function escapeHtml(str) {
