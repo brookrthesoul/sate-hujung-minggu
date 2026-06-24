@@ -211,6 +211,21 @@ window.addEventListener('offline', () => {
 
 setInterval(() => {
     if (navigator.onLine && !_syncing) syncNow().catch(console.error);
+    // Also refresh menu so price/item changes from other devices appear
+    if (navigator.onLine && typeof _loadMenuFromSupabase === 'function') {
+        _loadMenuFromSupabase().then(remote => {
+            if (!remote) return;
+            const current = JSON.stringify(getMenuItems());
+            const incoming = JSON.stringify(remote);
+            if (current !== incoming) {
+                // Menu changed on another device — update locally
+                menuItems = remote;
+                localStorage.setItem('menuItems', JSON.stringify(menuItems));
+                if (typeof renderSettingsMenuList === 'function') renderSettingsMenuList();
+                if (typeof refreshAfterMenuChange === 'function') refreshAfterMenuChange();
+            }
+        }).catch(() => {});
+    }
 }, 10000);
 
 // ─── Realtime WebSocket ───────────────────────────────────────────────────────
