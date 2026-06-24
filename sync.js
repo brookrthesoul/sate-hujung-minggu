@@ -142,7 +142,7 @@ async function syncNow() {
         const remote = await _sbGetAll();
         // Keep offline-only orders (negative IDs not yet pushed to Supabase)
         const localOffline = (await _idbGetAll()).filter(o => o._offline === true);
-        await _checkForNewOrders(remote);
+        try { await _checkForNewOrders(remote); } catch(e) { console.warn('Order noti error:', e); }
         await _idbReplaceAll(remote);
         for (const o of localOffline) await _idbPut(o);
         setSyncStatus('ok');
@@ -412,12 +412,13 @@ async function _checkForNewOrders(freshOrders) {
     newOrders.forEach(o => _knownOrderIds.add(o.id));
 
     // Build notification message listing sate quantities
+    // items is an object: { id: { name, qty, cost, ... } }
     const lines = newOrders.map(o => {
-        const items = o.items || [];
+        const items = o.items && typeof o.items === 'object' ? Object.values(o.items) : [];
         const parts = items
             .filter(i => i.qty > 0)
             .map(i => `${i.qty}× ${i.name}`);
-        const customerName = o.customerName || o.name || 'Unknown';
+        const customerName = o.description || o.customerName || o.name || `Order #${o.id}`;
         return parts.length > 0
             ? `${customerName}: ${parts.join(', ')}`
             : customerName;
