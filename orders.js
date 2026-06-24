@@ -727,76 +727,93 @@ async function parseOrderMessage() {
 
     status.textContent = '⏳ Parsing...';
 
-    const menuList = getMenuItems().map(i => `${i.id} (${i.name})`).join(', ');
-    const prompt = `You are a helpful assistant for a Malaysian satay stall order system.
+    // Copy full message to description box
+    const descBox = document.getElementById('orderDescription');
+    if (descBox) descBox.value = msg;
 
-The customer sent this message:
-"${msg}"
+    const result = _parseMessageLocally(msg);
+    const filled = _applyParsedOrder(result);
 
-The available menu item IDs are: ${menuList}
+    if (filled > 0) {
+        status.textContent = `✅ Filled ${filled} item${filled > 1 ? 's' : ''}`;
+        calculate();
+        setTimeout(() => {
+            getMenuItems().forEach(item => {
+                const el = document.getElementById(`qty-${item.id}`);
+                if (el) el.style.background = '';
+            });
+        }, 3000);
+    } else {
+        status.textContent = '⚠️ No items recognised. Fill in manually.';
+    }
+}
 
-Extract the quantities ordered for each menu item. Return ONLY a valid JSON object like:
-{"ayam": 50, "daging": 20, "lontong": 1}
+function _parseMessageLocally(msg) {
+    const result = {};
+    const lower  = msg.toLowerCase();
 
-Rules:
-- Only include items that were actually ordered (qty > 0)
-- Match item names flexibly — "ayam", "chicken", "ayam bakar" all map to "ayam"
-- Ignore pickup time, greetings, and other non-order text
-- If an item is not mentioned, do not include it
-- Return ONLY the JSON object, nothing else`;
+    getMenuItems().forEach(item => {
+        // Build list of name variants to search for
+        const variants = _getNameVariants(item);
 
-    try {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-6',
-                max_tokens: 256,
-                messages: [{ role: 'user', content: prompt }]
-            })
-        });
+        variants.forEach(variant => {
+            if (result[item.id]) return; // already found this item
 
-        const data = await res.json();
-        const text = (data.content || []).map(b => b.text || '').join('').trim();
+            // Patterns: "50 ayam", "ayam 50", "ayam x50", "50x ayam"
+            const escaped = variant.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const patterns = [
+                new RegExp(`(\\d+)\\s*[x×]?\\s*${escaped}`, 'i'),   // 50 ayam / 50x ayam
+                new RegExp(`${escaped}\\s*[x×]?\\s*(\\d+)`, 'i'),   // ayam 50 / ayam x50
+            ];
 
-        // Parse JSON — strip any accidental markdown fences
-        const clean = text.replace(/```json|```/g, '').trim();
-        const parsed = JSON.parse(clean);
-
-        // Fill description box with original message so pickup time / notes are visible
-        const descBox = document.getElementById('orderDescription');
-        if (descBox && msg) descBox.value = msg;
-
-        // Fill in the form
-        let filled = 0;
-        getMenuItems().forEach(item => {
-            const el = document.getElementById(`qty-${item.id}`);
-            if (!el) return;
-            const qty = parsed[item.id];
-            if (qty && qty > 0) {
-                el.value = qty;
-                el.style.background = '#e8f5e9'; // green tint to show auto-filled
-                filled++;
+            for (const pat of patterns) {
+                const match = lower.match(pat);
+                if (match) {
+                    const qty = parseInt(match[1]);
+                    if (qty > 0) { result[item.id] = qty; break; }
+                }
             }
         });
+    });
 
-        if (filled > 0) {
-            status.textContent = `✅ Filled ${filled} item${filled > 1 ? 's' : ''}`;
-            // Auto-calculate
-            calculate();
-            // Reset highlights after 3s
-            setTimeout(() => {
-                getMenuItems().forEach(item => {
-                    const el = document.getElementById(`qty-${item.id}`);
-                    if (el) el.style.background = '';
-                });
-            }, 3000);
-        } else {
-            status.textContent = '⚠️ No items recognised.';
+    return result;
+}
+
+function _getNameVariants(item) {
+    const name  = item.name.toLowerCase();
+    const id    = item.id.toLowerCase();
+    const variants = new Set([name, id]);
+
+    // Common Malay/English aliases
+    const aliases = {
+        'ayam':      ['ayam', 'chicken', 'ciken', 'chiken'],
+        'daging':    ['daging', 'beef', 'lembu'],
+        'kambing':   ['kambing', 'lamb', 'mutton'],
+        'lontong':   ['lontong', 'nasi impit'],
+        'shortong':  ['shortong', 'sotong', 'ketupat'],
+        'kuah':      ['kuah', 'kuah kacang', 'sos kacang', 'peanut sauce', 'extra kuah'],
+    };
+
+    // Add known aliases if id matches
+    if (aliases[id]) aliases[id].forEach(a => variants.add(a));
+
+    // Also split multi-word name and add each word if >3 chars
+    name.split(/\s+/).forEach(w => { if (w.length > 3) variants.add(w); });
+
+    return [...variants];
+}
+
+function _applyParsedOrder(parsed) {
+    let filled = 0;
+    getMenuItems().forEach(item => {
+        const el  = document.getElementById(`qty-${item.id}`);
+        if (!el) return;
+        const qty = parsed[item.id];
+        if (qty && qty > 0) {
+            el.value = qty;
+            el.style.background = '#e8f5e9';
+            filled++;
         }
-
-    } catch (e) {
-        console.error('Parse error:', e);
-        status.textContent = '❌ Failed to parse. Try again.';
-    }
+    });
+    return filled;
 }
