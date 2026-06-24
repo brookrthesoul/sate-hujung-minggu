@@ -1,4 +1,6 @@
-// sync.js — two‑way sync with offline support
+// sync.js — Supabase sync (final)
+// Supabase is source of truth. IndexedDB is a local cache.
+// db.js functions delegate here via window._sb* / window._idbGetAll.
 
 const SUPABASE_URL      = 'https://efrwvksxttauhoxllhqu.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_SOoDs65SPw_G_m-lZ6NP-w_MbbqxOUw';
@@ -25,7 +27,7 @@ async function _sbFetch(path, opts = {}) {
 }
 
 function _rowToOrder(row) {
-    return { ...row.data, id: row.id, updatedAt: row.updated_ms, _synced: true };
+    return { ...row.data, id: row.id, updatedAt: row.updated_ms };
 }
 
 async function _sbGetAll() {
@@ -33,16 +35,23 @@ async function _sbGetAll() {
     return rows.map(_rowToOrder);
 }
 
-// Upsert (insert or update) by ID
-async function _sbUpsert(order) {
-    const { id, updatedAt, _synced, ...data } = order;
+async function _sbInsert(order) {
+    const { id: _a, updatedAt: _b, ...data } = order;
+    const rows = await _sbFetch(TABLE, {
+        method: 'POST',
+        headers: { 'Prefer': 'return=representation' },
+        body: JSON.stringify({ data, updated_ms: Date.now() })
+    });
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    return _rowToOrder(row);
+}
+
+async function _sbUpdate(order) {
+    const { id, updatedAt: _a, ...data } = order;
     await _sbFetch(`${TABLE}?id=eq.${id}`, {
         method: 'PATCH',
         headers: { 'Prefer': 'return=minimal' },
-        body: JSON.stringify({
-            data,
-            updated_ms: Date.now()
-        })
+        body: JSON.stringify({ data, updated_ms: Date.now() })
     });
 }
 
@@ -53,9 +62,9 @@ async function _sbDelete(id) {
 // ─── IndexedDB cache ──────────────────────────────────────────────────────────
 
 const _IDB_NAME    = 'OrdersDB';
-const _IDB_VERSION = 4;   // increment to add new index if needed
+const _IDB_VERSION = 3;
 const _IDB_STORE   = 'orders';
-let   _idbConn     = null;
+let   _idbConn     = null; // singleton connection
 
 function _idbOpen() {
     if (_idbConn) return Promise.resolve(_idbConn);
@@ -66,7 +75,8 @@ function _idbOpen() {
         req.onupgradeneeded = (ev) => {
             const db = ev.target.result;
             if (db.objectStoreNames.contains(_IDB_STORE)) db.deleteObjectStore(_IDB_STORE);
-            db.createObjectStore(_IDB_STORE, { keyPath: 'id' });
+            db.createObjectStore(_IDB_STORE, { keyPath: 'id' }).createIndex('createdAt','createdAt');
+            if (db.objectStoreNames.contains('syncQueue')) db.deleteObjectStore('syncQueue');
         };
     });
 }
@@ -98,53 +108,22 @@ async function _idbDelete(id) {
     });
 }
 
-// ─── Public CRUD ──────────────────────────────────────────────────────────────
-
-window._idbGetAll = _idbGetAll;
-
-window._sbAddOrder = async function(order) {
-    const { id: _a, updatedAt: _b, _synced: _c, ...clean } = order;
-    clean.createdAt = clean.createdAt || Date.now();
-    clean.id = clean.id || Math.floor(Date.now() * 1000 + Math.random() * 1000);   // generate unique ID
-
-    const localOrder = { ...clean, _synced: false, updatedAt: Date.now() };
-    await _idbPut(localOrder);
-    _rerender();
-
-    if (navigator.onLine) {
-        try {
-            await _sbUpsert(localOrder);
-            await _idbPut({ ...localOrder, _synced: true });
-        } catch (e) {
-            console.warn('Push failed, will retry later', e);
-        }
-    }
-    return localOrder.id;
-};
-
-window._sbUpdateOrder = async function(order) {
-    const updated = { ...order, updatedAt: Date.now(), _synced: false };
-    await _idbPut(updated);
-    _rerender();
-    if (navigator.onLine) {
-        try {
-            await _sbUpsert(updated);
-            await _idbPut({ ...updated, _synced: true });
-        } catch (e) { /* retry later */ }
-    }
-};
-
-window._sbDeleteOrder = async function(id) {
-    await _idbDelete(id);
-    _rerender();
-    if (navigator.onLine) {
-        try {
-            await _sbDelete(id);
-        } catch (e) { /* retry later */ }
-    } else {
-        // optional: store ID in a deletion queue
-    }
-};
+// Replace local cache with remote data WITHOUT clearing first
+// (avoids empty-store race condition during loadOrders)
+async function _idbReplaceAll(orders) {
+    const db = await _idbOpen();
+    return new Promise((res, rej) => {
+        const tx    = db.transaction(_IDB_STORE, 'readwrite');
+        const store = tx.objectStore(_IDB_STORE);
+        tx.oncomplete = () => res();
+        tx.onerror    = () => rej(tx.error);
+        // Delete all then put all — inside ONE transaction (atomic)
+        const clearReq = store.clear();
+        clearReq.onsuccess = () => {
+            orders.forEach(o => store.put(o));
+        };
+    });
+}
 
 // ─── Sync ─────────────────────────────────────────────────────────────────────
 
@@ -158,29 +137,13 @@ async function syncNow() {
     if (_syncing) return;
     _syncing = true;
     setSyncStatus('syncing');
-
     try {
-        // 1. Push all locally unsynced orders
-        const localOrders = await _idbGetAll();
-        const unsynced = localOrders.filter(o => o._synced === false);
-        for (const order of unsynced) {
-            try {
-                await _sbUpsert(order);
-                await _idbPut({ ...order, _synced: true });
-            } catch (e) {
-                console.warn('Failed to push order', order.id, e);
-            }
-        }
-
-        // 2. Pull remote changes (newer than local)
         const remote = await _sbGetAll();
-        for (const remoteOrder of remote) {
-            const local = localOrders.find(o => o.id === remoteOrder.id);
-            if (!local || remoteOrder.updatedAt > local.updatedAt) {
-                await _idbPut({ ...remoteOrder, _synced: true });
-            }
-        }
-
+        // Keep any offline-only orders (negative IDs) — don't overwrite them with remote
+        const localOffline = (await _idbGetAll()).filter(o => o._offline);
+        await _idbReplaceAll(remote);
+        // Re-add offline orders so they still show in the UI
+        for (const o of localOffline) await _idbPut(o);
         setSyncStatus('ok');
         _rerender();
         showSyncToast('✅ Synced');
@@ -195,14 +158,107 @@ async function syncNow() {
 
 const pullFromCloud = syncNow;
 
-// ─── Online / offline events ─────────────────────────────────────────────────
+// ─── Offline queue ────────────────────────────────────────────────────────────
+// Stores operations that couldn't reach Supabase while offline.
+// Each entry: { op: 'add'|'update'|'delete', order?, id? }
+
+const _offlineQueue = [];
+
+async function _drainOfflineQueue() {
+    if (_offlineQueue.length === 0) return;
+    const queue = [..._offlineQueue];
+    _offlineQueue.length = 0;
+
+    for (const item of queue) {
+        try {
+            if (item.op === 'add') {
+                // Order was saved with a temp negative ID — insert to Supabase, get real ID
+                const { id: tempId, updatedAt: _a, _deleted: _b, ...clean } = item.order;
+                const saved = await _sbInsert(clean);
+                // Replace temp ID with real ID in IndexedDB
+                await _idbDelete(tempId);
+                await _idbPut(saved);
+            } else if (item.op === 'update') {
+                await _sbUpdate(item.order);
+            } else if (item.op === 'delete') {
+                await _sbDelete(item.id);
+            }
+        } catch (e) {
+            console.error('Offline queue drain error:', e);
+            _offlineQueue.push(item); // put it back if still failing
+        }
+    }
+
+    await syncNow(); // full sync after draining to reconcile everything
+}
+
+// ─── Public CRUD (called by db.js) ───────────────────────────────────────────
+
+window._idbGetAll = _idbGetAll;
+
+window._sbAddOrder = async function(order) {
+    const { id: _a, updatedAt: _b, _deleted: _c, ...clean } = order;
+    clean.createdAt = clean.createdAt || Date.now();
+
+    if (!navigator.onLine) {
+        // Save locally with a temporary negative ID (won't clash with Supabase serial IDs)
+        const tempId = -Date.now();
+        const tempOrder = { ...clean, id: tempId, _offline: true };
+        await _idbPut(tempOrder);
+        _offlineQueue.push({ op: 'add', order: tempOrder });
+        _pendingSync = true;
+        _rerender();
+        showSyncToast('📴 Saved offline — will sync when connected');
+        return tempId;
+    }
+
+    const saved = await _sbInsert(clean);
+    await _idbPut(saved);
+    _rerender();
+    setTimeout(() => syncNow().catch(console.error), 200);
+    return saved.id;
+};
+
+window._sbUpdateOrder = async function(order) {
+    await _idbPut(order);
+    _rerender();
+    if (navigator.onLine) {
+        await _sbUpdate(order);
+        setTimeout(() => syncNow().catch(console.error), 200);
+    } else {
+        _offlineQueue.push({ op: 'update', order });
+        _pendingSync = true;
+        showSyncToast('📴 Saved offline — will sync when connected');
+    }
+    return order.id;
+};
+
+window._sbDeleteOrder = async function(id) {
+    await _idbDelete(id);
+    _rerender();
+    if (navigator.onLine) {
+        await _sbDelete(id);
+        setTimeout(() => syncNow().catch(console.error), 200);
+    } else {
+        // Only queue delete for real IDs (positive = Supabase), not temp offline ones
+        if (id > 0) _offlineQueue.push({ op: 'delete', id });
+        _pendingSync = true;
+        showSyncToast('📴 Deleted offline — will sync when connected');
+    }
+};
+
+// ─── Online / offline ─────────────────────────────────────────────────────────
 
 let _pendingSync = false;
 
-window.addEventListener('online', () => {
+window.addEventListener('online', async () => {
     updateOnlineBadge(true);
     connectRealtime();
-    if (_pendingSync) { _pendingSync = false; syncNow().catch(console.error); }
+    if (_pendingSync || _offlineQueue.length > 0) {
+        _pendingSync = false;
+        showSyncToast('🌐 Back online — syncing...');
+        await _drainOfflineQueue();
+    }
 });
 
 window.addEventListener('offline', () => {
@@ -211,14 +267,28 @@ window.addEventListener('offline', () => {
     _pendingSync = true;
 });
 
-// ─── Polling (every 10s) ─────────────────────────────────────────────────────
+// ─── Polling fallback every 10s ───────────────────────────────────────────────
 
 setInterval(() => {
     if (navigator.onLine && !_syncing) syncNow().catch(console.error);
-    // Also refresh menu from Supabase if needed (optional)
+    // Also refresh menu so price/item changes from other devices appear
+    if (navigator.onLine && typeof _loadMenuFromSupabase === 'function') {
+        _loadMenuFromSupabase().then(remote => {
+            if (!remote) return;
+            const current = JSON.stringify(getMenuItems());
+            const incoming = JSON.stringify(remote);
+            if (current !== incoming) {
+                // Menu changed on another device — update locally
+                menuItems = remote;
+                localStorage.setItem('menuItems', JSON.stringify(menuItems));
+                if (typeof renderSettingsMenuList === 'function') renderSettingsMenuList();
+                if (typeof refreshAfterMenuChange === 'function') refreshAfterMenuChange();
+            }
+        }).catch(() => {});
+    }
 }, 10000);
 
-// ─── Realtime WebSocket ──────────────────────────────────────────────────────
+// ─── Realtime WebSocket ───────────────────────────────────────────────────────
 
 let _ws = null, _wsRef = 1, _wsHB = null;
 
@@ -260,7 +330,7 @@ function connectRealtime() {
     };
 }
 
-// ─── UI helpers ──────────────────────────────────────────────────────────────
+// ─── UI ───────────────────────────────────────────────────────────────────────
 
 function updateOnlineBadge(online) {
     const el = document.getElementById('onlineBadge');
