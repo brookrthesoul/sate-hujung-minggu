@@ -160,6 +160,13 @@ function switchOrderSubTab(subtab) {
     document.querySelectorAll('.order-sublist').forEach(l => l.classList.remove('active'));
     document.getElementById(`subTab-${subtab}`).classList.add('active');
     document.getElementById(`${subtab}List`).classList.add('active');
+
+    // Show date filter bar only on Done tab
+    const filterBar = document.getElementById('doneFilterBar');
+    if (filterBar) filterBar.style.display = subtab === 'done' ? 'flex' : 'none';
+
+    if (subtab === 'done') _populateDoneDateFilter().then(() => loadOrders());
+    else loadOrders();
 }
 
 // ---------- Load orders into all three sub-tabs ----------
@@ -170,12 +177,25 @@ async function loadOrders() {
         orders.sort((a, b) => sortDir === 'asc' ? a.createdAt - b.createdAt : b.createdAt - a.createdAt);
 
         const prepare = orders.filter(o => !o.paid);
-        const paid = orders.filter(o => o.paid && !o.pickedUp);
-        const done = orders.filter(o => o.paid && o.pickedUp);
+        const paid    = orders.filter(o => o.paid && !o.pickedUp);
+        let   done    = orders.filter(o => o.paid && o.pickedUp);
+
+        // Apply date filter to done tab
+        const dateFilter = document.getElementById('doneDateFilter');
+        if (dateFilter && dateFilter.value && dateFilter.value !== 'all') {
+            const selectedDate = dateFilter.value; // 'today' or 'YYYY-MM-DD'
+            const targetDate = selectedDate === 'today'
+                ? new Date().toLocaleDateString('en-CA')  // YYYY-MM-DD local
+                : selectedDate;
+            done = done.filter(o => {
+                const d = new Date(o.createdAt);
+                return d.toLocaleDateString('en-CA') === targetDate;
+            });
+        }
 
         renderOrderList('prepareList', prepare, 'prepare');
-        renderOrderList('paidList', paid, 'paid');
-        renderOrderList('doneList', done, 'done');
+        renderOrderList('paidList',    paid,    'paid');
+        renderOrderList('doneList',    done,    'done');
     } catch (error) {
         alert('❌ Failed to load orders: ' + error.message);
         console.error(error);
@@ -415,4 +435,266 @@ async function deleteOrderConfirm(id) {
         await deleteOrder(id);
         loadOrders();
     }
+}
+
+// ─── Done tab date filter ─────────────────────────────────────────────────────
+
+async function _populateDoneDateFilter() {
+    const sel = document.getElementById('doneDateFilter');
+    if (!sel) return;
+
+    const orders = (await getAllOrders()).map(normalizeOrder);
+    const done   = orders.filter(o => o.paid && o.pickedUp);
+
+    // Collect unique dates (YYYY-MM-DD local)
+    const dateSet = new Set();
+    done.forEach(o => {
+        dateSet.add(new Date(o.createdAt).toLocaleDateString('en-CA'));
+    });
+
+    const today = new Date().toLocaleDateString('en-CA');
+    const dates = Array.from(dateSet).sort().reverse(); // newest first
+
+    // Rebuild options
+    const current = sel.value;
+    sel.innerHTML = `<option value="today">Today (${today})</option><option value="all">All dates</option>`;
+    dates.forEach(d => {
+        if (d !== today) {
+            const label = new Date(d + 'T00:00:00').toLocaleDateString(undefined, { weekday:'short', year:'numeric', month:'short', day:'numeric' });
+            sel.innerHTML += `<option value="${d}">${label}</option>`;
+        }
+    });
+
+    // Restore selection if still valid
+    if (current && [...sel.options].some(o => o.value === current)) sel.value = current;
+    else sel.value = 'today';
+}
+
+// ─── PDF Report ───────────────────────────────────────────────────────────────
+
+function openReportModal() {
+    const modal = document.getElementById('reportModal');
+    if (!modal) return;
+    // Set defaults
+    document.getElementById('reportDate').value  = new Date().toLocaleDateString('en-CA');
+    document.getElementById('reportMonth').value = new Date().toLocaleDateString('en-CA').substring(0, 7);
+    updateReportDateUI();
+    modal.style.display = 'flex';
+}
+
+function closeReportModal() {
+    const modal = document.getElementById('reportModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function updateReportDateUI() {
+    const type = document.getElementById('reportType').value;
+    document.getElementById('reportDatePicker').style.display  = type === 'day'   ? 'block' : 'none';
+    document.getElementById('reportMonthPicker').style.display = type === 'month' ? 'block' : 'none';
+}
+
+async function generateReport() {
+    const type = document.getElementById('reportType').value;
+    const allOrders = (await getAllOrders()).map(normalizeOrder);
+    const done = allOrders.filter(o => o.paid && o.pickedUp);
+
+    let filtered, title, subtitle;
+
+    if (type === 'day') {
+        const date = document.getElementById('reportDate').value;
+        if (!date) { alert('Please select a date.'); return; }
+        filtered = done.filter(o => new Date(o.createdAt).toLocaleDateString('en-CA') === date);
+        const dateLabel = new Date(date + 'T00:00:00').toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+        title    = 'DAILY SALES REPORT';
+        subtitle = dateLabel;
+    } else {
+        const month = document.getElementById('reportMonth').value;
+        if (!month) { alert('Please select a month.'); return; }
+        filtered = done.filter(o => new Date(o.createdAt).toLocaleDateString('en-CA').substring(0, 7) === month);
+        const [y, m] = month.split('-');
+        subtitle = new Date(y, m - 1, 1).toLocaleDateString(undefined, { year:'numeric', month:'long' });
+        title    = 'MONTHLY SALES REPORT';
+    }
+
+    if (filtered.length === 0) {
+        alert('No completed orders found for the selected period.');
+        return;
+    }
+
+    _buildPDF(title, subtitle, filtered);
+    closeReportModal();
+}
+
+function _buildPDF(title, subtitle, orders) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+    const PAGE_W  = 210;
+    const MARGIN  = 16;
+    const COL_W   = PAGE_W - MARGIN * 2;
+    let   y       = 20;
+
+    const LINE_H  = 6;
+    const HEAD_BG = [41, 128, 185];
+    const ROW_ALT = [245, 248, 252];
+    const BORDER  = [200, 210, 220];
+
+    function checkPage(needed = 10) {
+        if (y + needed > 275) {
+            doc.addPage();
+            y = 20;
+        }
+    }
+
+    // ── Header ────────────────────────────────────────────────────────────────
+    doc.setFillColor(...HEAD_BG);
+    doc.rect(0, 0, PAGE_W, 36, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+    doc.text('SATE HUJUNG MINGGU', PAGE_W / 2, 13, { align: 'center' });
+    doc.setFontSize(13); doc.setFont('helvetica', 'normal');
+    doc.text(title, PAGE_W / 2, 21, { align: 'center' });
+    doc.setFontSize(10);
+    doc.text(subtitle, PAGE_W / 2, 28, { align: 'center' });
+    doc.text(`Generated: ${new Date().toLocaleString()}`, PAGE_W / 2, 34, { align: 'center' });
+
+    y = 44;
+    doc.setTextColor(0, 0, 0);
+
+    // ── Summary totals ────────────────────────────────────────────────────────
+    const totalRevenue = orders.reduce((s, o) => s + (o.totalCost || 0), 0);
+    const totalOrders  = orders.length;
+
+    // Aggregate items sold
+    const itemTotals = {};
+    orders.forEach(o => {
+        Object.values(o.items || {}).forEach(r => {
+            if (r.qty > 0) {
+                if (!itemTotals[r.name]) itemTotals[r.name] = { qty: 0, revenue: 0, category: r.category };
+                itemTotals[r.name].qty     += r.qty;
+                itemTotals[r.name].revenue += r.cost;
+            }
+        });
+    });
+
+    // Summary cards row
+    const cards = [
+        { label: 'Total Orders', value: totalOrders },
+        { label: 'Total Revenue', value: `RM ${totalRevenue.toFixed(2)}` },
+        { label: 'Avg per Order', value: `RM ${(totalRevenue / totalOrders).toFixed(2)}` },
+    ];
+    const cardW = COL_W / 3;
+    cards.forEach((c, i) => {
+        const cx = MARGIN + i * cardW;
+        doc.setFillColor(...ROW_ALT);
+        doc.setDrawColor(...BORDER);
+        doc.roundedRect(cx, y, cardW - 2, 18, 2, 2, 'FD');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+        doc.setTextColor(...HEAD_BG);
+        doc.text(String(c.value), cx + (cardW - 2) / 2, y + 10, { align: 'center' });
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text(c.label, cx + (cardW - 2) / 2, y + 16, { align: 'center' });
+    });
+    y += 24;
+
+    // ── Items sold summary table ───────────────────────────────────────────────
+    checkPage(20);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(0);
+    doc.text('Items Sold Summary', MARGIN, y); y += 5;
+
+    const itemCols = [
+        { label: 'Item',     x: MARGIN,          w: 70, align: 'left'  },
+        { label: 'Category', x: MARGIN + 70,     w: 40, align: 'left'  },
+        { label: 'Qty Sold', x: MARGIN + 110,    w: 30, align: 'right' },
+        { label: 'Revenue',  x: MARGIN + 140,    w: 38, align: 'right' },
+    ];
+
+    // Table header
+    doc.setFillColor(...HEAD_BG);
+    doc.rect(MARGIN, y, COL_W, LINE_H + 1, 'F');
+    doc.setTextColor(255); doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+    itemCols.forEach(c => {
+        const tx = c.align === 'right' ? c.x + c.w - 2 : c.x + 2;
+        doc.text(c.label, tx, y + LINE_H - 1, { align: c.align });
+    });
+    y += LINE_H + 1;
+
+    // Table rows
+    const sortedItems = Object.entries(itemTotals).sort((a, b) => b[1].revenue - a[1].revenue);
+    sortedItems.forEach(([name, data], idx) => {
+        checkPage(LINE_H + 1);
+        if (idx % 2 === 0) { doc.setFillColor(...ROW_ALT); doc.rect(MARGIN, y, COL_W, LINE_H, 'F'); }
+        doc.setTextColor(0); doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+        const row = [name, data.category, String(data.qty), `RM ${data.revenue.toFixed(2)}`];
+        itemCols.forEach((c, ci) => {
+            const tx = c.align === 'right' ? c.x + c.w - 2 : c.x + 2;
+            doc.text(row[ci], tx, y + LINE_H - 1, { align: c.align });
+        });
+        y += LINE_H;
+    });
+
+    // Totals row
+    doc.setFillColor(220, 230, 240);
+    doc.rect(MARGIN, y, COL_W, LINE_H, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(0);
+    doc.text('TOTAL', MARGIN + 2, y + LINE_H - 1);
+    doc.text(`RM ${totalRevenue.toFixed(2)}`, MARGIN + COL_W - 2, y + LINE_H - 1, { align: 'right' });
+    y += LINE_H + 8;
+
+    // ── Per-order breakdown ───────────────────────────────────────────────────
+    checkPage(20);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(0);
+    doc.text('Order Breakdown', MARGIN, y); y += 5;
+
+    const ordCols = [
+        { label: '#',       x: MARGIN,       w: 12, align: 'left'  },
+        { label: 'Time',    x: MARGIN + 12,  w: 40, align: 'left'  },
+        { label: 'Items',   x: MARGIN + 52,  w: 80, align: 'left'  },
+        { label: 'Total',   x: MARGIN + 132, w: 46, align: 'right' },
+    ];
+
+    doc.setFillColor(...HEAD_BG);
+    doc.rect(MARGIN, y, COL_W, LINE_H + 1, 'F');
+    doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+    ordCols.forEach(c => {
+        const tx = c.align === 'right' ? c.x + c.w - 2 : c.x + 2;
+        doc.text(c.label, tx, y + LINE_H - 1, { align: c.align });
+    });
+    y += LINE_H + 1;
+
+    orders.sort((a, b) => a.createdAt - b.createdAt).forEach((order, idx) => {
+        const itemSummary = Object.values(order.items || {})
+            .filter(r => r.qty > 0)
+            .map(r => `${r.name}×${r.qty}`)
+            .join(', ');
+        const timeStr = new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const row = [`#${order.id}`, timeStr, itemSummary, `RM ${(order.totalCost||0).toFixed(2)}`];
+
+        // Estimate height needed (items text may wrap)
+        const wrappedItems = doc.splitTextToSize(itemSummary, 78);
+        const rowH = Math.max(LINE_H, wrappedItems.length * 4 + 3);
+        checkPage(rowH + 1);
+
+        if (idx % 2 === 0) { doc.setFillColor(...ROW_ALT); doc.rect(MARGIN, y, COL_W, rowH, 'F'); }
+        doc.setTextColor(0); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+        doc.text(row[0], MARGIN + 2, y + 5);
+        doc.text(row[1], MARGIN + 14, y + 5);
+        doc.text(wrappedItems, MARGIN + 54, y + 5);
+        doc.text(row[3], MARGIN + COL_W - 2, y + 5, { align: 'right' });
+        y += rowH;
+    });
+
+    // ── Footer ────────────────────────────────────────────────────────────────
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8); doc.setTextColor(150);
+        doc.text(`Sate Hujung Minggu — ${subtitle}`, MARGIN, 290);
+        doc.text(`Page ${i} of ${pageCount}`, PAGE_W - MARGIN, 290, { align: 'right' });
+    }
+
+    const filename = `SHM_${subtitle.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+    doc.save(filename);
 }

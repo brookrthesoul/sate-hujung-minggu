@@ -55,9 +55,46 @@
             <option value="desc">Newest first</option>
             <option value="asc">Oldest first</option>
         </select>
+
+        <!-- Done tab date filter (only visible on Done tab) -->
+        <div id="doneFilterBar" style="display:none; margin: 8px 0; display:none; gap:8px; align-items:center; flex-wrap:wrap;">
+            <label style="font-size:13px; font-weight:600;">📅 Filter by date:</label>
+            <select id="doneDateFilter" onchange="loadOrders()" style="flex:1; min-width:140px;">
+                <option value="today">Today</option>
+                <option value="all">All dates</option>
+            </select>
+            <button onclick="openReportModal()" style="background:#28a745; color:white; border:none; border-radius:8px; padding:7px 14px; font-size:13px; cursor:pointer;">📊 PDF Report</button>
+        </div>
+
         <div id="prepareList" class="order-sublist active"></div>
         <div id="paidList" class="order-sublist"></div>
         <div id="doneList" class="order-sublist"></div>
+    </div>
+
+    <!-- PDF REPORT MODAL -->
+    <div id="reportModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+            <h3 style="margin:0 0 16px;">📊 Generate PDF Report</h3>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Report type:</label>
+                <select id="reportType" onchange="updateReportDateUI()" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd;">
+                    <option value="day">Daily report</option>
+                    <option value="month">Monthly report</option>
+                </select>
+            </div>
+            <div id="reportDatePicker" style="margin-bottom:16px;">
+                <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Select date:</label>
+                <input type="date" id="reportDate" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box;">
+            </div>
+            <div id="reportMonthPicker" style="display:none; margin-bottom:16px;">
+                <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Select month:</label>
+                <input type="month" id="reportMonth" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box;">
+            </div>
+            <div style="display:flex; gap:8px;">
+                <button onclick="generateReport()" style="flex:1; background:#007bff; color:white; border:none; border-radius:8px; padding:10px; font-size:14px; cursor:pointer;">📄 Generate PDF</button>
+                <button onclick="closeReportModal()" style="background:#6c757d; color:white; border:none; border-radius:8px; padding:10px 16px; font-size:14px; cursor:pointer;">Cancel</button>
+            </div>
+        </div>
     </div>
 
      <!-- RATIO PANEL (updated with Total Spent) -->
@@ -158,6 +195,7 @@
     
 
     <!-- App scripts (order matters: menu before things that read it) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="./sync.js"></script>
     <script src="./menu.js"></script>
     <script src="./db.js"></script>
