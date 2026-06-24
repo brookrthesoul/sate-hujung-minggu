@@ -432,13 +432,22 @@ async function _checkForNewOrders(freshOrders) {
     playOrderBeep();
 
     if (Notification.permission === 'granted') {
-        new Notification(title, {
+        // Use SW showNotification — works on Android even when app is foregrounded
+        const notiOpts = {
             body,
             icon: './icon-192.png',
             badge: './icon-192.png',
             tag: 'new-order-' + Date.now(),
-            requireInteraction: true
-        });
+            requireInteraction: true,
+            vibrate: [200, 100, 200, 100, 200]
+        };
+        if (navigator.serviceWorker) {
+            navigator.serviceWorker.ready
+                .then(reg => reg.showNotification(title, notiOpts))
+                .catch(() => new Notification(title, notiOpts));
+        } else {
+            new Notification(title, notiOpts);
+        }
     }
 
     // Also show an in-app banner
