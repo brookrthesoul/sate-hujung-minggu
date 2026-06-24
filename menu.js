@@ -2,10 +2,12 @@
 // Each item: { id, name, price, category }
 
 const DEFAULT_MENU = [
-    { id: 'ayam',     name: 'Ayam',     price: 1.30, category: 'skewer' },
-    { id: 'daging',   name: 'Daging',   price: 1.60, category: 'skewer' },
-    { id: 'lontong',  name: 'Lontong',  price: 3.00, category: 'side'   },
-    { id: 'shortong', name: 'Shortong', price: 2.00, category: 'side'   },
+    { id: 'ayam',     name: 'Ayam',         price: 1.30, category: 'skewer'    },
+    { id: 'daging',   name: 'Daging',        price: 1.60, category: 'skewer'    },
+    { id: 'kambing',  name: 'Kambing',       price: 2.00, category: 'no-kuah'  },
+    { id: 'lontong',  name: 'Lontong',       price: 3.00, category: 'side'     },
+    { id: 'shortong', name: 'Shortong',      price: 2.00, category: 'side'     },
+    { id: 'kuah',     name: 'Kuah Kacang',   price: 1.00, category: 'kuah-only'},
 ];
 
 let menuItems = [];
@@ -107,7 +109,7 @@ function addMenuItem() {
 
     const name     = nameInput.value.trim();
     const price    = parseFloat(priceInput.value);
-    const category = typeInput.value === 'side' ? 'side' : 'skewer';
+    const category = ['skewer','no-kuah','side','kuah-only'].includes(typeInput.value) ? typeInput.value : 'skewer';
 
     if (!name)                    { alert('Please enter a menu item name.'); return; }
     if (isNaN(price) || price < 0){ alert('Please enter a valid price.'); return; }
@@ -163,6 +165,15 @@ function resetToDefaultMenu() {
     alert('Menu reset to default.');
 }
 
+function _categoryLabel(cat) {
+    return {
+        'skewer':    '🍢 Sate (+ kuah kacang)',
+        'side':      '🍽️ Side dish (+ 2 kuah)',
+        'no-kuah':   '🍖 Sate (tiada kuah kacang)',
+        'kuah-only': '🥜 Kuah kacang sahaja',
+    }[cat] || cat;
+}
+
 function renderSettingsMenuList() {
     const container = document.getElementById('menuList');
     if (!container) return;
@@ -174,7 +185,7 @@ function renderSettingsMenuList() {
         <div class="menu-row">
             <div class="menu-row-name">
                 <span class="item-name">${escapeHtml(item.name)}</span>
-                <span class="item-type">${item.category === 'skewer' ? '🍢 Sate (skewer)' : '🍽️ Side dish'}</span>
+                <span class="item-type">${_categoryLabel(item.category)}</span>
             </div>
             <input type="number" id="price-${item.id}" step="0.01" min="0" value="${item.price}">
             <div class="menu-row-actions">

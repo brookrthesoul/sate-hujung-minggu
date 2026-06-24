@@ -65,24 +65,42 @@ function getQuantitiesFromHome() {
 
 // ---------- Totals (generalized for any number of menu items) ----------
 // quantities: { itemId: qty }
+//
+// Category kuah kacang rules:
+//   skewer    → 1 kuah per 10 sticks, minimum 1 if any sticks ordered (ceiling)
+//   side      → 2 kuah per item
+//   no-kuah   → 0 kuah (e.g. Sate Kambing — uses different sauce)
+//   kuah-only → 1 kuah per item (standalone kuah kacang purchase)
 function calculateTotals(quantities) {
     const items = {};
-    let totalCost = 0;
-    let skewerQty = 0;
-    let scoops = 0;
+    let totalCost  = 0;
+    let skewerQty  = 0;
+    let skewerWithKuah = 0; // only sticks that contribute to kuah kacang
+    let scoops     = 0;
 
     getMenuItems().forEach(item => {
-        const qty = quantities[item.id] || 0;
+        const qty  = quantities[item.id] || 0;
         const cost = qty * item.price;
         items[item.id] = { name: item.name, category: item.category, price: item.price, qty, cost };
         totalCost += cost;
+
         if (item.category === 'skewer') {
-            skewerQty += qty;
-            scoops += qty / 10;
-        } else {
+            skewerQty       += qty;
+            skewerWithKuah  += qty;
+        } else if (item.category === 'no-kuah') {
+            skewerQty += qty; // counts as sticks but no kuah
+        } else if (item.category === 'side') {
             scoops += qty * 2;
+        } else if (item.category === 'kuah-only') {
+            scoops += qty * 1;
         }
+        // no-kuah and unknown categories contribute 0 kuah
     });
+
+    // Skewer kuah: 1 per 10 sticks, minimum 1 if any skewer-with-kuah ordered
+    if (skewerWithKuah > 0) {
+        scoops += Math.ceil(skewerWithKuah / 10);
+    }
 
     return { items, totalCost, skewerQty, scoops };
 }
