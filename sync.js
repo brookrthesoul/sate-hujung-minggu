@@ -190,61 +190,49 @@ window.addEventListener('offline', () => {
     setSyncStatus('offline');
 });
 
-// ─── Patch db.js functions ────────────────────────────────────────────────────
-// Replace IndexedDB-only functions with versions that hit Supabase first,
-// then update the local cache to match.
+// ─── Public CRUD API — exposed on window so db.js can delegate to these ──────
 
-function patchDbFunctions() {
+window._idbGetAll = _idbGetAll;
 
-    // addOrder: insert to Supabase → get server ID → cache locally → re-render
-    window.addOrder = async function(order) {
-        order.updatedAt = Date.now();
-        order._deleted  = false;
-        delete order.id; // ensure no stale id reaches Supabase
-        if (navigator.onLine) {
-            const saved = await _sbInsert(order); // gets real id from server
-            await _idbPut(saved);
-            if (typeof loadOrders === 'function') loadOrders(); // update UI immediately
-            syncNow().catch(console.error);                     // then push to other devices
-            return saved.id;
-        } else {
-            _pendingSync = true;
-            throw new Error('You are offline. Please connect to the internet to save orders.');
-        }
-    };
+window._sbAddOrder = async function(order) {
+    order.updatedAt = Date.now();
+    order._deleted  = false;
+    delete order.id;
+    if (!navigator.onLine) {
+        _pendingSync = true;
+        throw new Error('You are offline. Please connect to save orders.');
+    }
+    const saved = await _sbInsert(order);
+    await _idbPut(saved);
+    if (typeof loadOrders === 'function') loadOrders();
+    syncNow().catch(console.error);
+    return saved.id;
+};
 
-    // updateOrder: update Supabase → update local cache → re-render
-    window.updateOrder = async function(order) {
-        order.updatedAt = Date.now();
-        if (navigator.onLine) {
-            await _sbUpdate(order);
-            await _idbPut(order);
-            if (typeof loadOrders === 'function') loadOrders();
-            syncNow().catch(console.error);
-        } else {
-            await _idbPut(order);
-            _pendingSync = true;
-            if (typeof loadOrders === 'function') loadOrders();
-        }
-        return order.id;
-    };
+window._sbUpdateOrder = async function(order) {
+    order.updatedAt = Date.now();
+    if (navigator.onLine) {
+        await _sbUpdate(order);
+        await _idbPut(order);
+        syncNow().catch(console.error);
+    } else {
+        await _idbPut(order);
+        _pendingSync = true;
+    }
+    if (typeof loadOrders === 'function') loadOrders();
+    return order.id;
+};
 
-    // deleteOrder: delete from Supabase → delete from local cache → re-render
-    window.deleteOrder = async function(id) {
-        if (navigator.onLine) {
-            await _sbDelete(id);
-        }
-        await _idbDelete(id);
-        if (typeof loadOrders === 'function') loadOrders(); // update UI immediately
-        if (navigator.onLine) syncNow().catch(console.error);
-        else _pendingSync = true;
-    };
-
-    // getAllOrders: read from local cache (already populated by syncNow)
-    window.getAllOrders = async function() {
-        return _idbGetAll();
-    };
-}
+window._sbDeleteOrder = async function(id) {
+    if (navigator.onLine) {
+        await _sbDelete(id);
+    } else {
+        _pendingSync = true;
+    }
+    await _idbDelete(id);
+    if (typeof loadOrders === 'function') loadOrders();
+    if (navigator.onLine) syncNow().catch(console.error);
+};
 
 // ─── Polling fallback (every 10s) in case Realtime WebSocket silently fails ───
 let _pollInterval = null;
@@ -365,7 +353,6 @@ function showSyncToast(msg) {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
-    patchDbFunctions();
     updateOnlineBadge(navigator.onLine);
     if (navigator.onLine) {
         await syncNow();

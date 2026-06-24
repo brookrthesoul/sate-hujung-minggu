@@ -1,81 +1,61 @@
-// db.js — IndexedDB wrapper for storing/retrieving orders
-        // ---------- Database setup (IndexedDB) with error handling ----------
-        const DB_NAME = 'OrdersDB';
-        const DB_VERSION = 3; // v3: IDs assigned by Supabase, no autoIncrement
-        const STORE_NAME = 'orders';
+// db.js — delegates all operations to sync.js (Supabase + IndexedDB cache)
+// IndexedDB is managed entirely by sync.js. These functions are the public
+// API called by orders.js, app.js etc. — they forward to sync.js internals.
 
-        function openDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(DB_NAME, DB_VERSION);
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve(request.result);
-                request.onupgradeneeded = (ev) => {
-                    const db = ev.target.result;
-                    // Drop old store — v1/v2 used autoIncrement which conflicts with Supabase IDs
-                    if (db.objectStoreNames.contains(STORE_NAME)) {
-                        db.deleteObjectStore(STORE_NAME);
-                    }
-                    // Re-create without autoIncrement; IDs come from Supabase
-                    const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-                    store.createIndex('createdAt', 'createdAt');
-                    // Drop old syncQueue — no longer needed
-                    if (db.objectStoreNames.contains('syncQueue')) {
-                        db.deleteObjectStore('syncQueue');
-                    }
-                };
-            });
-        }
+const DB_NAME    = 'OrdersDB';
+const DB_VERSION = 3;
+const STORE_NAME = 'orders';
 
-        // Test database on load
-        (async function testDB() {
-            try {
-                await openDB();
-                console.log('✅ Database connected');
-            } catch (e) {
-                alert('❌ IndexedDB is not available. Orders cannot be saved. Error: ' + e.message);
+// openDB used by sync.js _idbOpen — keep it here so both files share one def
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onerror   = () => reject(req.error);
+        req.onsuccess = () => resolve(req.result);
+        req.onupgradeneeded = (ev) => {
+            const db = ev.target.result;
+            if (db.objectStoreNames.contains(STORE_NAME)) {
+                db.deleteObjectStore(STORE_NAME);
             }
-        })();
+            const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            store.createIndex('createdAt', 'createdAt');
+            if (db.objectStoreNames.contains('syncQueue')) {
+                db.deleteObjectStore('syncQueue');
+            }
+        };
+    });
+}
 
-        async function getAllOrders() {
-            const db = await openDB();
-            return new Promise((resolve, reject) => {
-                const tx = db.transaction(STORE_NAME, 'readonly');
-                const store = tx.objectStore(STORE_NAME);
-                const request = store.getAll();
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve(request.result);
-            });
-        }
+// Test DB on load
+(async function testDB() {
+    try {
+        await openDB();
+        console.log('✅ Database ready');
+    } catch (e) {
+        alert('❌ IndexedDB error: ' + e.message);
+    }
+})();
 
-        async function addOrder(order) {
-            const db = await openDB();
-            return new Promise((resolve, reject) => {
-                const tx = db.transaction(STORE_NAME, 'readwrite');
-                const store = tx.objectStore(STORE_NAME);
-                const request = store.add(order);
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve(request.result);
-            });
-        }
+// ─── Public API (called by orders.js / app.js) ────────────────────────────────
+// These all delegate to sync.js functions which are defined on window.
+// sync.js loads before db.js so they are always available.
 
-        async function updateOrder(order) {
-            const db = await openDB();
-            return new Promise((resolve, reject) => {
-                const tx = db.transaction(STORE_NAME, 'readwrite');
-                const store = tx.objectStore(STORE_NAME);
-                const request = store.put(order);
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve(request.result);
-            });
-        }
+async function getAllOrders() {
+    // Read directly from local IndexedDB cache (populated by syncNow)
+    return _idbGetAll();
+}
 
-        async function deleteOrder(id) {
-            const db = await openDB();
-            return new Promise((resolve, reject) => {
-                const tx = db.transaction(STORE_NAME, 'readwrite');
-                const store = tx.objectStore(STORE_NAME);
-                const request = store.delete(id);
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve();
-            });
-        }
+async function addOrder(order) {
+    // Insert to Supabase → cache locally → re-render
+    return _sbAddOrder(order);
+}
+
+async function updateOrder(order) {
+    // Update Supabase → update cache → re-render
+    return _sbUpdateOrder(order);
+}
+
+async function deleteOrder(id) {
+    // Delete from Supabase → delete from cache → re-render
+    return _sbDeleteOrder(id);
+}
