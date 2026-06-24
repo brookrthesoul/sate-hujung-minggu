@@ -105,7 +105,7 @@ window._idbGetAll = _idbGetAll;
 window._sbAddOrder = async function(order) {
     const { id: _a, updatedAt: _b, _synced: _c, ...clean } = order;
     clean.createdAt = clean.createdAt || Date.now();
-    clean.id = clean.id || crypto.randomUUID();   // generate unique ID
+    clean.id = clean.id || Math.floor(Date.now() * 1000 + Math.random() * 1000);   // generate unique ID
 
     const localOrder = { ...clean, _synced: false, updatedAt: Date.now() };
     await _idbPut(localOrder);
