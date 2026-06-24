@@ -716,3 +716,87 @@ function _buildPDF(title, subtitle, orders) {
     const filename = `SHM_${subtitle.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
     doc.save(filename);
 }
+
+// ─── Paste-to-parse: auto-fill order from customer message ───────────────────
+
+async function parseOrderMessage() {
+    const input  = document.getElementById('pasteOrderInput');
+    const status = document.getElementById('parseStatus');
+    const msg    = input.value.trim();
+    if (!msg) { status.textContent = '⚠️ Paste a message first.'; return; }
+
+    status.textContent = '⏳ Parsing...';
+
+    const menuList = getMenuItems().map(i => `${i.id} (${i.name})`).join(', ');
+    const prompt = `You are a helpful assistant for a Malaysian satay stall order system.
+
+The customer sent this message:
+"${msg}"
+
+The available menu item IDs are: ${menuList}
+
+Extract the quantities ordered for each menu item. Return ONLY a valid JSON object like:
+{"ayam": 50, "daging": 20, "lontong": 1}
+
+Rules:
+- Only include items that were actually ordered (qty > 0)
+- Match item names flexibly — "ayam", "chicken", "ayam bakar" all map to "ayam"
+- Ignore pickup time, greetings, and other non-order text
+- If an item is not mentioned, do not include it
+- Return ONLY the JSON object, nothing else`;
+
+    try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'claude-sonnet-4-6',
+                max_tokens: 256,
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+
+        const data = await res.json();
+        const text = (data.content || []).map(b => b.text || '').join('').trim();
+
+        // Parse JSON — strip any accidental markdown fences
+        const clean = text.replace(/```json|```/g, '').trim();
+        const parsed = JSON.parse(clean);
+
+        // Fill description box with original message so pickup time / notes are visible
+        const descBox = document.getElementById('orderDescription');
+        if (descBox && msg) descBox.value = msg;
+
+        // Fill in the form
+        let filled = 0;
+        getMenuItems().forEach(item => {
+            const el = document.getElementById(`qty-${item.id}`);
+            if (!el) return;
+            const qty = parsed[item.id];
+            if (qty && qty > 0) {
+                el.value = qty;
+                el.style.background = '#e8f5e9'; // green tint to show auto-filled
+                filled++;
+            }
+        });
+
+        if (filled > 0) {
+            status.textContent = `✅ Filled ${filled} item${filled > 1 ? 's' : ''}`;
+            // Auto-calculate
+            calculate();
+            // Reset highlights after 3s
+            setTimeout(() => {
+                getMenuItems().forEach(item => {
+                    const el = document.getElementById(`qty-${item.id}`);
+                    if (el) el.style.background = '';
+                });
+            }, 3000);
+        } else {
+            status.textContent = '⚠️ No items recognised.';
+        }
+
+    } catch (e) {
+        console.error('Parse error:', e);
+        status.textContent = '❌ Failed to parse. Try again.';
+    }
+}
