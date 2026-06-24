@@ -127,22 +127,22 @@ async function _idbReplaceAll(orders) {
 
 // ─── Sync ─────────────────────────────────────────────────────────────────────
 
-let _syncing = false;
+let _syncing  = false;
+let _draining = false;
 
 function _rerender() {
     if (typeof loadOrders === 'function') loadOrders();
 }
 
 async function syncNow() {
-    if (_syncing) return;
+    if (_syncing || _draining) return; // don't sync while draining queue
     _syncing = true;
     setSyncStatus('syncing');
     try {
         const remote = await _sbGetAll();
-        // Keep any offline-only orders (negative IDs) — don't overwrite them with remote
-        const localOffline = (await _idbGetAll()).filter(o => o._offline);
+        // Keep offline-only orders (negative IDs not yet pushed to Supabase)
+        const localOffline = (await _idbGetAll()).filter(o => o._offline === true);
         await _idbReplaceAll(remote);
-        // Re-add offline orders so they still show in the UI
         for (const o of localOffline) await _idbPut(o);
         setSyncStatus('ok');
         _rerender();
@@ -159,23 +159,23 @@ async function syncNow() {
 const pullFromCloud = syncNow;
 
 // ─── Offline queue ────────────────────────────────────────────────────────────
-// Stores operations that couldn't reach Supabase while offline.
-// Each entry: { op: 'add'|'update'|'delete', order?, id? }
 
 const _offlineQueue = [];
 
 async function _drainOfflineQueue() {
-    if (_offlineQueue.length === 0) return;
+    if (_offlineQueue.length === 0) { await syncNow(); return; }
+    _draining = true;
+    showSyncToast('🔄 Uploading offline orders...');
+
     const queue = [..._offlineQueue];
     _offlineQueue.length = 0;
 
     for (const item of queue) {
         try {
             if (item.op === 'add') {
-                // Order was saved with a temp negative ID — insert to Supabase, get real ID
-                const { id: tempId, updatedAt: _a, _deleted: _b, ...clean } = item.order;
+                const { id: tempId, updatedAt: _a, _deleted: _b, _offline: _c, ...clean } = item.order;
                 const saved = await _sbInsert(clean);
-                // Replace temp ID with real ID in IndexedDB
+                // Swap temp ID for real Supabase ID in IndexedDB
                 await _idbDelete(tempId);
                 await _idbPut(saved);
             } else if (item.op === 'update') {
@@ -184,12 +184,13 @@ async function _drainOfflineQueue() {
                 await _sbDelete(item.id);
             }
         } catch (e) {
-            console.error('Offline queue drain error:', e);
-            _offlineQueue.push(item); // put it back if still failing
+            console.error('Queue drain error:', e);
+            _offlineQueue.push(item); // retry next time
         }
     }
 
-    await syncNow(); // full sync after draining to reconcile everything
+    _draining = false;
+    await syncNow(); // full sync to reconcile all devices
 }
 
 // ─── Public CRUD (called by db.js) ───────────────────────────────────────────
@@ -270,7 +271,7 @@ window.addEventListener('offline', () => {
 // ─── Polling fallback every 10s ───────────────────────────────────────────────
 
 setInterval(() => {
-    if (navigator.onLine && !_syncing) syncNow().catch(console.error);
+    if (navigator.onLine && !_syncing && !_draining) syncNow().catch(console.error);
     // Also refresh menu so price/item changes from other devices appear
     if (navigator.onLine && typeof _loadMenuFromSupabase === 'function') {
         _loadMenuFromSupabase().then(remote => {
