@@ -1,4 +1,4 @@
-const CACHE_NAME = 'order-pwa-v15';
+const CACHE_NAME = 'order-pwa-v17';
 
 const STATIC_CACHE = [
   './manifest.json',
@@ -15,6 +15,7 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('activate', event => {
+  console.log('[SW] activating version:', CACHE_NAME);
   event.waitUntil(
     caches.keys()
       .then(names => Promise.all(names.map(n => n !== CACHE_NAME && caches.delete(n))))
@@ -62,27 +63,34 @@ self.addEventListener('fetch', event => {
 // ─── Web Push (real background notifications) ─────────────────────────────────
 
 self.addEventListener('push', event => {
+  console.log('[SW] push event fired!', event.data ? 'has data' : 'no data');
   if (!event.data) return;
   let payload;
   try { payload = event.data.json(); } catch(e) { payload = { title: '🍢 New Order!', body: event.data.text() }; }
 
   const title = payload.title || '🍢 New Order!';
+  const body  = payload.body  || '';
   const opts = {
-    body:            payload.body  || '',
+    body,
     icon:            './icon-192.png',
     badge:           './icon-192.png',
-    tag:             payload.tag   || 'new-order',
+    tag:             payload.tag || 'new-order',
     requireInteraction: true,
     vibrate:         [200, 100, 200, 100, 200],
     data:            { url: self.registration.scope }
   };
 
   event.waitUntil(
-    self.registration.showNotification(title, opts).then(() => {
-      // Wake any open clients to play beep + banner
-      return self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
-        .then(clients => clients.forEach(c => c.postMessage({ type: 'NEW_ORDER', body: opts.body })));
-    })
+    Promise.all([
+      // Show system notification (works when app closed)
+      self.registration.showNotification(title, opts),
+      // Notify open tabs to play beep + banner
+      self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
+        .then(clients => {
+          console.log('[SW] push received, open clients:', clients.length);
+          clients.forEach(c => c.postMessage({ type: 'NEW_ORDER', body }));
+        })
+    ])
   );
 });
 

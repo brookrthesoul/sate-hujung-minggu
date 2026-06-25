@@ -591,6 +591,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Listen for NEW_ORDER messages from the service worker (background detection)
     if (navigator.serviceWorker) {
         navigator.serviceWorker.addEventListener('message', event => {
+            console.log('[Page] SW message received:', event.data);
             if (event.data && event.data.type === 'NEW_ORDER') {
                 playOrderBeep();
                 showOrderBanner('🍢 New Order!', event.data.body);
