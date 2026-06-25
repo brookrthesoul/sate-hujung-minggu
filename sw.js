@@ -1,4 +1,4 @@
-const CACHE_NAME = 'order-pwa-v18';
+const CACHE_NAME = 'order-pwa-v19';
 
 const STATIC_CACHE = [
   './manifest.json',
@@ -63,34 +63,36 @@ self.addEventListener('fetch', event => {
 // ─── Web Push (real background notifications) ─────────────────────────────────
 
 self.addEventListener('push', event => {
-  console.log('[SW] push event fired!', event.data ? 'has data' : 'no data');
-  if (!event.data) return;
-  let payload;
-  try { payload = event.data.json(); } catch(e) { payload = { title: '🍢 New Order!', body: event.data.text() }; }
+  console.log('[SW] *** PUSH EVENT FIRED ***');
 
-  const title = payload.title || '🍢 New Order!';
-  const body  = payload.body  || '';
-  const opts = {
-    body,
-    icon:            './icon-192.png',
-    badge:           './icon-192.png',
-    tag:             payload.tag || 'new-order',
-    requireInteraction: true,
-    vibrate:         [200, 100, 200, 100, 200],
-    data:            { url: self.registration.scope }
-  };
+  // Always show a notification - required for push events
+  const title = '🍢 New Order!';
+  let body = 'A new order has been placed';
+
+  if (event.data) {
+    try {
+      const payload = event.data.json();
+      body = payload.body || body;
+    } catch(e) {
+      try { body = event.data.text() || body; } catch(_) {}
+    }
+  }
 
   event.waitUntil(
-    Promise.all([
-      // Show system notification (works when app closed)
-      self.registration.showNotification(title, opts),
-      // Notify open tabs to play beep + banner
-      self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
-        .then(clients => {
-          console.log('[SW] push received, open clients:', clients.length);
-          clients.forEach(c => c.postMessage({ type: 'NEW_ORDER', body }));
-        })
-    ])
+    self.registration.showNotification(title, {
+      body,
+      icon:  '/sate-hujung-minggu/icon-192.png',
+      badge: '/sate-hujung-minggu/icon-192.png',
+      tag:   'new-order-' + Date.now(),
+      requireInteraction: true,
+      vibrate: [200, 100, 200, 100, 200],
+    }).then(() => {
+      console.log('[SW] notification shown');
+      return self.clients.matchAll({ includeUncontrolled: true, type: 'window' });
+    }).then(clients => {
+      console.log('[SW] notifying', clients.length, 'open clients');
+      clients.forEach(c => c.postMessage({ type: 'NEW_ORDER', body }));
+    }).catch(e => console.error('[SW] push handler error:', e))
   );
 });
 
