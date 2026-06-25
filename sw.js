@@ -1,4 +1,4 @@
-const CACHE_NAME = 'order-pwa-v16';
+const CACHE_NAME = 'order-pwa-v14';
 
 const STATIC_CACHE = [
   './manifest.json',
@@ -67,28 +67,22 @@ self.addEventListener('push', event => {
   try { payload = event.data.json(); } catch(e) { payload = { title: '🍢 New Order!', body: event.data.text() }; }
 
   const title = payload.title || '🍢 New Order!';
-  const body  = payload.body  || '';
   const opts = {
-    body,
+    body:            payload.body  || '',
     icon:            './icon-192.png',
     badge:           './icon-192.png',
-    tag:             payload.tag || 'new-order',
+    tag:             payload.tag   || 'new-order',
     requireInteraction: true,
     vibrate:         [200, 100, 200, 100, 200],
     data:            { url: self.registration.scope }
   };
 
   event.waitUntil(
-    Promise.all([
-      // Show system notification (works when app closed)
-      self.registration.showNotification(title, opts),
-      // Notify open tabs to play beep + banner
-      self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
-        .then(clients => {
-          console.log('[SW] push received, open clients:', clients.length);
-          clients.forEach(c => c.postMessage({ type: 'NEW_ORDER', body }));
-        })
-    ])
+    self.registration.showNotification(title, opts).then(() => {
+      // Wake any open clients to play beep + banner
+      return self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
+        .then(clients => clients.forEach(c => c.postMessage({ type: 'NEW_ORDER', body: opts.body })));
+    })
   );
 });
 
