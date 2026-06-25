@@ -351,7 +351,7 @@ function isOrderNotiEnabled() {
     return localStorage.getItem('orderNotiEnabled') === 'true';
 }
 
-const VAPID_PUBLIC_KEY = 'BA0chhJSJEf1dx_hgn1ktNYQEJRZyQxPKWDXPk0Cp-t090ZYbPAfPgxS9aFhwGeFpPMngJqOEaa_ez810uvduWg';
+const VAPID_PUBLIC_KEY = 'BFtZOppJvX5JN9_jEMDYLhr8VLMaOxeOY6w8hFXwLRD0aZ0Jl4bvhCDvUwOQapHKU9E_FZpJXuI74G10W12_Z_E';
 
 function _urlB64ToUint8(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
