@@ -142,7 +142,6 @@ async function syncNow() {
         const remote = await _sbGetAll();
         // Keep offline-only orders (negative IDs not yet pushed to Supabase)
         const localOffline = (await _idbGetAll()).filter(o => o._offline === true);
-        try { await _checkForNewOrders(remote); } catch(e) { console.warn('Order noti error:', e); }
         await _idbReplaceAll(remote);
         for (const o of localOffline) await _idbPut(o);
         setSyncStatus('ok');
@@ -352,26 +351,77 @@ function isOrderNotiEnabled() {
     return localStorage.getItem('orderNotiEnabled') === 'true';
 }
 
-function setOrderNotiEnabled(val) {
-    localStorage.setItem('orderNotiEnabled', val ? 'true' : 'false');
-    const toggle = document.getElementById('orderNotiToggle');
-    if (toggle) toggle.checked = val;
-    const hint = document.getElementById('orderNotiHint');
-    if (val) {
-        requestNotificationPermission().then(granted => {
-            if (hint) hint.textContent = granted ? '🔔 Kitchen alerts ON' : '⚠️ Permission denied — check browser settings';
-            if (!granted) { setOrderNotiEnabled(false); return; }
-            _postSettingToSW(true);
-        });
-    } else {
-        if (hint) hint.textContent = '🔕 Kitchen alerts OFF';
-        _postSettingToSW(false);
+const VAPID_PUBLIC_KEY = 'BA0chhJSJEf1dx_hgn1ktNYQEJRZyQxPKWDXPk0Cp-t090ZYbPAfPgxS9aFhwGeFpPMngJqOEaa_ez810uvduWg';
+
+function _urlB64ToUint8(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function _getPushSubscription() {
+    if (!navigator.serviceWorker) return null;
+    const reg = await navigator.serviceWorker.ready;
+    return reg.pushManager.getSubscription();
+}
+
+async function _subscribePush() {
+    const reg = await navigator.serviceWorker.ready;
+    return reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: _urlB64ToUint8(VAPID_PUBLIC_KEY)
+    });
+}
+
+async function _saveSubscriptionToSupabase(sub) {
+    const body = JSON.stringify({ endpoint: sub.endpoint, keys: { p256dh: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))), auth: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth')))) } });
+    await fetch(`${SUPABASE_URL}/rest/v1/push_subscriptions`, {
+        method: 'POST',
+        headers: { ..._h(), 'Prefer': 'resolution=merge-duplicates' },
+        body
+    }).catch(e => console.warn('save sub error', e));
+}
+
+async function _unsubscribePush() {
+    const sub = await _getPushSubscription();
+    if (sub) {
+        const endpoint = sub.endpoint;
+        await sub.unsubscribe();
+        await fetch(`${SUPABASE_URL}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}`, {
+            method: 'DELETE', headers: _h()
+        }).catch(e => console.warn('delete sub error', e));
     }
 }
 
-function _postSettingToSW(enabled) {
-    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ type: 'ORDER_NOTI_SETTING', enabled });
+async function setOrderNotiEnabled(val) {
+    const hint = document.getElementById('orderNotiHint');
+    const toggle = document.getElementById('orderNotiToggle');
+    if (val) {
+        const granted = await requestNotificationPermission();
+        if (!granted) {
+            if (hint) hint.textContent = '⚠️ Permission denied — check browser settings';
+            if (toggle) toggle.checked = false;
+            localStorage.setItem('orderNotiEnabled', 'false');
+            return;
+        }
+        try {
+            const sub = await _subscribePush();
+            await _saveSubscriptionToSupabase(sub);
+            localStorage.setItem('orderNotiEnabled', 'true');
+            if (toggle) toggle.checked = true;
+            if (hint) hint.textContent = '🔔 Kitchen alerts ON (works when closed)';
+        } catch(e) {
+            console.error('Push subscribe failed', e);
+            if (hint) hint.textContent = '❌ Push subscribe failed: ' + e.message;
+            if (toggle) toggle.checked = false;
+            localStorage.setItem('orderNotiEnabled', 'false');
+        }
+    } else {
+        await _unsubscribePush().catch(console.warn);
+        localStorage.setItem('orderNotiEnabled', 'false');
+        if (toggle) toggle.checked = false;
+        if (hint) hint.textContent = '🔕 Kitchen alerts OFF';
     }
 }
 
