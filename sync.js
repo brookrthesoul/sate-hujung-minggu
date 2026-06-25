@@ -360,10 +360,18 @@ function setOrderNotiEnabled(val) {
     if (val) {
         requestNotificationPermission().then(granted => {
             if (hint) hint.textContent = granted ? '🔔 Kitchen alerts ON' : '⚠️ Permission denied — check browser settings';
-            if (!granted) setOrderNotiEnabled(false);
+            if (!granted) { setOrderNotiEnabled(false); return; }
+            _postSettingToSW(true);
         });
     } else {
         if (hint) hint.textContent = '🔕 Kitchen alerts OFF';
+        _postSettingToSW(false);
+    }
+}
+
+function _postSettingToSW(enabled) {
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'ORDER_NOTI_SETTING', enabled });
     }
 }
 
@@ -505,6 +513,16 @@ function showSyncToast(msg) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     updateOnlineBadge(navigator.onLine);
+
+    // Listen for NEW_ORDER messages from the service worker (background detection)
+    if (navigator.serviceWorker) {
+        navigator.serviceWorker.addEventListener('message', event => {
+            if (event.data && event.data.type === 'NEW_ORDER') {
+                playOrderBeep();
+                showOrderBanner('🍢 New Order!', event.data.body);
+            }
+        });
+    }
 
     // Restore toggle states
     setSyncToastEnabled(isSyncToastEnabled());
