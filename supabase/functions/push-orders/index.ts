@@ -148,13 +148,15 @@ serve(async (req) => {
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
   });
   const subs: any[] = await subRes.json();
+  console.log(`[push-orders] found ${subs.length} subscription(s), sending: ${msgBody}`);
 
   const gone: string[] = [];
   await Promise.allSettled(subs.map(async (s) => {
     try {
       const result = await sendPush({ endpoint: s.endpoint, keys: s.keys }, notification);
+      console.log(`[push-orders] sent to ${s.endpoint.slice(0,50)}... result: ${result}`);
       if (result === "gone") gone.push(s.endpoint);
-    } catch(e) { console.error("push error", e); }
+    } catch(e) { console.error("[push-orders] push error:", e); }
   }));
 
   // Clean up expired subscriptions

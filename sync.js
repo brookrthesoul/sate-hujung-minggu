@@ -375,12 +375,20 @@ async function _subscribePush() {
 }
 
 async function _saveSubscriptionToSupabase(sub) {
-    const body = JSON.stringify({ endpoint: sub.endpoint, keys: { p256dh: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))), auth: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth')))) } });
-    await fetch(`${SUPABASE_URL}/rest/v1/push_subscriptions`, {
+    const p256dh = btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh'))));
+    const auth   = btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth'))));
+    const body   = JSON.stringify({ endpoint: sub.endpoint, keys: { p256dh, auth } });
+    console.log('[Push] saving subscription to Supabase...', sub.endpoint.slice(0, 60));
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/push_subscriptions`, {
         method: 'POST',
         headers: { ..._h(), 'Prefer': 'resolution=merge-duplicates' },
         body
-    }).catch(e => console.warn('save sub error', e));
+    });
+    if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`save sub failed ${res.status}: ${txt}`);
+    }
+    console.log('[Push] subscription saved OK');
 }
 
 async function _unsubscribePush() {
@@ -395,25 +403,41 @@ async function _unsubscribePush() {
 }
 
 async function setOrderNotiEnabled(val) {
-    const hint = document.getElementById('orderNotiHint');
+    const hint   = document.getElementById('orderNotiHint');
     const toggle = document.getElementById('orderNotiToggle');
     if (val) {
+        if (hint) hint.textContent = '⏳ Setting up...';
         const granted = await requestNotificationPermission();
         if (!granted) {
-            if (hint) hint.textContent = '⚠️ Permission denied — check browser settings';
+            if (hint) hint.textContent = '⚠️ Permission denied — go to Android Settings → Apps → Chrome → Notifications and allow';
             if (toggle) toggle.checked = false;
             localStorage.setItem('orderNotiEnabled', 'false');
             return;
         }
         try {
-            const sub = await _subscribePush();
+            // Make sure SW is ready before subscribing
+            if (!navigator.serviceWorker) throw new Error('Service Worker not supported');
+            const reg = await navigator.serviceWorker.ready;
+            console.log('[Push] SW ready, subscribing...');
+
+            // Check if already subscribed
+            let sub = await reg.pushManager.getSubscription();
+            if (sub) {
+                console.log('[Push] already have subscription, re-saving...');
+            } else {
+                sub = await reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: _urlB64ToUint8(VAPID_PUBLIC_KEY)
+                });
+                console.log('[Push] new subscription created');
+            }
             await _saveSubscriptionToSupabase(sub);
             localStorage.setItem('orderNotiEnabled', 'true');
             if (toggle) toggle.checked = true;
             if (hint) hint.textContent = '🔔 Kitchen alerts ON (works when closed)';
         } catch(e) {
-            console.error('Push subscribe failed', e);
-            if (hint) hint.textContent = '❌ Push subscribe failed: ' + e.message;
+            console.error('[Push] subscribe failed', e);
+            if (hint) hint.textContent = '❌ Failed: ' + e.message;
             if (toggle) toggle.checked = false;
             localStorage.setItem('orderNotiEnabled', 'false');
         }
@@ -576,7 +600,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Restore toggle states
     setSyncToastEnabled(isSyncToastEnabled());
-    setOrderNotiEnabled(isOrderNotiEnabled());
+
+    // Restore order noti toggle UI — but only re-subscribe if was enabled
+    const _wasEnabled = isOrderNotiEnabled();
+    const _notiToggle = document.getElementById('orderNotiToggle');
+    const _notiHint   = document.getElementById('orderNotiHint');
+    if (_notiToggle) _notiToggle.checked = _wasEnabled;
+    if (_wasEnabled) {
+        if (_notiHint) _notiHint.textContent = '🔔 Kitchen alerts ON (works when closed)';
+        // Silently ensure subscription is still valid
+        navigator.serviceWorker && navigator.serviceWorker.ready.then(async reg => {
+            const sub = await reg.pushManager.getSubscription();
+            if (!sub) {
+                console.log('[Push] subscription lost, re-subscribing...');
+                setOrderNotiEnabled(true);
+            } else {
+                console.log('[Push] subscription still active');
+            }
+        }).catch(console.warn);
+    } else {
+        if (_notiHint) _notiHint.textContent = '🔕 Kitchen alerts OFF';
+    }
 
     if (navigator.onLine) {
         await syncNow();
