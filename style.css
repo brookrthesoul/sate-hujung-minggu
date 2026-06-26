@@ -21,9 +21,8 @@
             transition: none;
         }
         .panel {
-            /* JS sets --panel-w on .panels-track; panels are exactly that wide */
-            flex: 0 0 var(--panel-w, 100vw);
-            width: var(--panel-w, 100vw);
+            /* width is set directly by JS via measureAndStamp() */
+            flex: 0 0 auto;
             box-sizing: border-box;
             background: white;
             padding: 20px;

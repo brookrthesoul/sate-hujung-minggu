@@ -2,22 +2,27 @@
 
 const TABS = ['home', 'orders', 'ratio', 'settings'];
 let currentTabIndex = 0;
+let panelW = 0; // panel width in px, set on load and resize
 
-function getTrack() { return document.getElementById('panelsTrack'); }
+function getTrack()    { return document.getElementById('panelsTrack'); }
+function getViewport() { return document.getElementById('panelsTrack').parentElement; }
 
-// Set --panel-w CSS var so each panel is exactly the viewport width
-function updatePanelWidth() {
-    const track = getTrack();
-    const w = track.parentElement.offsetWidth; // panels-viewport width in px
-    track.style.setProperty('--panel-w', w + 'px');
-    return w;
+// Measure panel width and stamp it directly on every panel element
+function measureAndStamp() {
+    panelW = getViewport().getBoundingClientRect().width;
+    document.querySelectorAll('.panel').forEach(p => {
+        p.style.width = panelW + 'px';
+        p.style.minWidth = panelW + 'px';
+        p.style.maxWidth = panelW + 'px';
+        p.style.flexShrink = '0';
+    });
+    return panelW;
 }
 
 // ── Slide to a tab index ──────────────────────────────────────────────────
 function slideTo(index) {
-    const track = getTrack();
-    const w = updatePanelWidth();
-    track.style.transform = `translateX(${-index * w}px)`;
+    measureAndStamp();
+    getTrack().style.transform = `translateX(${-index * panelW}px)`;
 
     document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === index));
     document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', i === index));
@@ -68,13 +73,12 @@ window.addEventListener('resize', () => slideTo(currentTabIndex));
         }
 
         deltaX = dx;
-        const w = track.parentElement.offsetWidth;
         let offset = deltaX;
         // Rubber-band at edges
         if ((currentTabIndex === 0 && deltaX > 0) || (currentTabIndex === TABS.length - 1 && deltaX < 0)) {
             offset = deltaX / 3;
         }
-        track.style.transform = `translateX(${-(currentTabIndex * w) + offset}px)`;
+        track.style.transform = `translateX(${-(currentTabIndex * panelW) + offset}px)`;
     }
 
     function onEnd() {
@@ -88,7 +92,6 @@ window.addEventListener('resize', () => slideTo(currentTabIndex));
 
         slideTo(next);
 
-        // Trigger side effects on new tab
         const tab = TABS[next];
         if (tab === 'orders') loadOrders();
         if (tab === 'ratio') { updateSliderLabel(); calculateRatio(); }
@@ -117,8 +120,12 @@ window.addEventListener('resize', () => slideTo(currentTabIndex));
 
 // ── Initial load ──────────────────────────────────────────────────────────
 window.onload = () => {
-    slideTo(0);
-    loadMenu();
-    renderHomeMenuInputs();
-    setupPrinter();
+    // Use rAF to ensure layout is complete before measuring
+    requestAnimationFrame(() => {
+        measureAndStamp();
+        slideTo(0);
+        loadMenu();
+        renderHomeMenuInputs();
+        setupPrinter();
+    });
 };
