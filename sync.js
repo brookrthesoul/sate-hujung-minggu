@@ -575,8 +575,15 @@ async function _checkForNewOrders(freshOrders) {
 }
 
 function _gotoOrdersTab() {
-    if (typeof switchTab === 'function') switchTab('orders');
-    if (typeof switchOrderSubTab === 'function') switchOrderSubTab('prepare');
+    const attempt = (tries) => {
+        if (typeof switchTab === 'function' && typeof switchOrderSubTab === 'function') {
+            switchTab('orders');
+            switchOrderSubTab('prepare');
+        } else if (tries > 0) {
+            setTimeout(() => attempt(tries - 1), 200);
+        }
+    };
+    attempt(20); // retry up to 20x × 200ms = 4 seconds
 }
 
 let _bannerTimer = null;
@@ -646,7 +653,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // If opened via notification click (?tab=orders), navigate there
     if (new URLSearchParams(window.location.search).get('tab') === 'orders') {
-        window.addEventListener('load', () => setTimeout(_gotoOrdersTab, 500));
+        // Delay to allow all scripts and DOM to fully initialize
+        setTimeout(_gotoOrdersTab, 800);
     }
     }
 
