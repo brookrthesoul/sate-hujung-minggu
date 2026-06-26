@@ -141,7 +141,7 @@ async function sendLegacyFCM(endpoint: string, keys: {p256dh: string, auth: stri
   const body2 = concat(salt,rs,new Uint8Array([serverPub.length]),serverPub,ciphertext);
 
   // VAPID public key for legacy endpoint
-  const VAPID_PUB = "BFtZOppJvX5JN9_jEMDYLhr8VLMaOxeOY6w8hFXwLRD0aZ0Jl4bvhCDvUwOQapHKU9E_FZpJXuI74G10W12_Z_E";
+  const VAPID_PUB = "BGhAz7NFT1wIyiBhqqCvl5hv1QCqjYjyaYZy5r0x-1MH58kVb8Q3QaZE6wlG3pff_qqROB44NfTECGNmAciJU1E";
   const VAPID_PRIV = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg08EzcXzvbclKz95ZUTZM6sth0bCTDiEUiNTZSmuHm9KhRANCAARbWTqaSb1-STff4xDA2C4a_FSzGjsXjmOsPIRV8C0Q9GmdCZeG74Qg71MDkGqRylPRPxWaSV7iO-BtdFtdv2fx";
 
   const url2 = new URL(endpoint);

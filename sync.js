@@ -351,7 +351,7 @@ function isOrderNotiEnabled() {
     return localStorage.getItem('orderNotiEnabled') === 'true';
 }
 
-const VAPID_PUBLIC_KEY = 'BFtZOppJvX5JN9_jEMDYLhr8VLMaOxeOY6w8hFXwLRD0aZ0Jl4bvhCDvUwOQapHKU9E_FZpJXuI74G10W12_Z_E';
+const VAPID_PUBLIC_KEY = 'BGhAz7NFT1wIyiBhqqCvl5hv1QCqjYjyaYZy5r0x-1MH58kVb8Q3QaZE6wlG3pff_qqROB44NfTECGNmAciJU1E';
 
 function _urlB64ToUint8(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -385,7 +385,7 @@ async function _getFirebaseToken() {
     // Tell Firebase to use our existing SW instead of looking for firebase-messaging-sw.js
     const swReg = await navigator.serviceWorker.ready;
     const messaging = firebase.messaging();
-    const VAPID_KEY = 'BFtZOppJvX5JN9_jEMDYLhr8VLMaOxeOY6w8hFXwLRD0aZ0Jl4bvhCDvUwOQapHKU9E_FZpJXuI74G10W12_Z_E';
+    const VAPID_KEY = 'BGhAz7NFT1wIyiBhqqCvl5hv1QCqjYjyaYZy5r0x-1MH58kVb8Q3QaZE6wlG3pff_qqROB44NfTECGNmAciJU1E';
     const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
     console.log('[Push] Firebase token:', token.slice(0, 30) + '...');
     return token;
