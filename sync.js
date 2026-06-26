@@ -464,22 +464,9 @@ async function setOrderNotiEnabled(val) {
             return;
         }
         try {
-            // Make sure SW is ready before subscribing
             if (!navigator.serviceWorker) throw new Error('Service Worker not supported');
-            const reg = await navigator.serviceWorker.ready;
-            console.log('[Push] SW ready, subscribing...');
-
-            // Check if already subscribed
-            let sub = await reg.pushManager.getSubscription();
-            if (sub) {
-                console.log('[Push] already have subscription, re-saving...');
-            } else {
-                sub = await reg.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: _urlB64ToUint8(VAPID_PUBLIC_KEY)
-                });
-                console.log('[Push] new subscription created');
-            }
+            console.log('[Push] getting Firebase token...');
+            const sub = await _subscribePush();
             await _saveSubscriptionToSupabase(sub);
             localStorage.setItem('orderNotiEnabled', 'true');
             if (toggle) toggle.checked = true;
