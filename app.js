@@ -3,13 +3,12 @@
 const TABS = ['home', 'orders', 'ratio', 'settings'];
 let currentTabIndex = 0;
 
-function getViewport() { return document.querySelector('.panels-viewport'); }
+function getVP() { return document.getElementById('panelsTrack'); }
 
 // ── Slide to tab by index ─────────────────────────────────────────────────
-function slideTo(index, smooth = true) {
-    const vp = getViewport();
-    const panelW = vp.offsetWidth;
-    vp.scrollTo({ left: index * panelW, behavior: smooth ? 'smooth' : 'instant' });
+function slideTo(index, smooth) {
+    const vp = getVP();
+    vp.scrollTo({ left: index * vp.offsetWidth, behavior: smooth ? 'smooth' : 'instant' });
 
     document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === index));
     document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', i === index));
@@ -21,7 +20,7 @@ function slideTo(index, smooth = true) {
 function switchTab(tab) {
     const index = TABS.indexOf(tab);
     if (index === -1) return;
-    slideTo(index);
+    slideTo(index, true);
 
     if (tab === 'orders') loadOrders();
     if (tab === 'ratio') { updateSliderLabel(); calculateRatio(); }
@@ -31,16 +30,15 @@ function switchTab(tab) {
 // ── Sync tab highlight when user swipes natively ──────────────────────────
 (function setupScrollSync() {
     let scrollTimer;
-    getViewport().addEventListener('scroll', () => {
+    getVP().addEventListener('scroll', () => {
         clearTimeout(scrollTimer);
         scrollTimer = setTimeout(() => {
-            const vp = getViewport();
+            const vp = getVP();
             const index = Math.round(vp.scrollLeft / vp.offsetWidth);
             if (index !== currentTabIndex) {
                 currentTabIndex = index;
                 document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === index));
                 document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', i === index));
-
                 const tab = TABS[index];
                 if (tab === 'orders') loadOrders();
                 if (tab === 'ratio') { updateSliderLabel(); calculateRatio(); }
@@ -55,8 +53,10 @@ window.addEventListener('resize', () => slideTo(currentTabIndex, false));
 
 // ── Initial load ──────────────────────────────────────────────────────────
 window.onload = () => {
-    slideTo(0, false);
-    loadMenu();
-    renderHomeMenuInputs();
-    setupPrinter();
+    requestAnimationFrame(() => {
+        slideTo(0, false);
+        loadMenu();
+        renderHomeMenuInputs();
+        setupPrinter();
+    });
 };
