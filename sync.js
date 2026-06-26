@@ -574,6 +574,11 @@ async function _checkForNewOrders(freshOrders) {
     showOrderBanner(title, body);
 }
 
+function _gotoOrdersTab() {
+    if (typeof switchTab === 'function') switchTab('orders');
+    if (typeof switchOrderSubTab === 'function') switchOrderSubTab('prepare');
+}
+
 let _bannerTimer = null;
 function showOrderBanner(title, body) {
     let b = document.getElementById('orderNotisBanner');
@@ -634,7 +639,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 playOrderBeep();
                 showOrderBanner('🍢 New Order!', event.data.body);
             }
+            if (event.data && event.data.type === 'GOTO_ORDERS') {
+                _gotoOrdersTab();
+            }
         });
+
+    // If opened via notification click (?tab=orders), navigate there
+    if (new URLSearchParams(window.location.search).get('tab') === 'orders') {
+        window.addEventListener('load', () => setTimeout(_gotoOrdersTab, 500));
+    }
     }
 
     // Restore toggle states

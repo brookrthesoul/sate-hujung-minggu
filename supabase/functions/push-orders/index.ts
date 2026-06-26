@@ -74,7 +74,7 @@ async function sendFCMv1(token: string, title: string, body: string, tag: string
           requireInteraction: true,
           vibrate: [200, 100, 200],
         },
-        fcm_options: { link: "https://brookrthesoul.github.io/sate-hujung-minggu/" }
+        fcm_options: { link: "https://brookrthesoul.github.io/sate-hujung-minggu/?tab=orders" }
       },
       data: { title, body, tag }
     }

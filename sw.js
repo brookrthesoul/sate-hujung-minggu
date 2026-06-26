@@ -32,7 +32,7 @@ messaging.onBackgroundMessage(payload => {
   });
 });
 
-const CACHE_NAME = 'order-pwa-v24';
+const CACHE_NAME = 'order-pwa-v25';
 
 const STATIC_CACHE = [
   './manifest.json',
@@ -132,11 +132,18 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const target = event.notification.data?.url || self.registration.scope;
+  const scope = self.registration.scope;
+  const target = scope + '?tab=orders';
+
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
-      const match = clients.find(c => c.url.startsWith(self.registration.scope) && 'focus' in c);
-      if (match) return match.focus();
+      const match = clients.find(c => c.url.startsWith(scope) && 'focus' in c);
+      if (match) {
+        // App is open — focus it and tell it to go to orders tab
+        match.postMessage({ type: 'GOTO_ORDERS' });
+        return match.focus();
+      }
+      // App is closed — open it with ?tab=orders so it can navigate on load
       if (self.clients.openWindow) return self.clients.openWindow(target);
     })
   );
