@@ -84,33 +84,7 @@
         <div id="doneList" class="order-sublist"></div>
     </div>
 
-    <!-- PDF REPORT MODAL -->
-    <div id="reportModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
-        <div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
-            <h3 style="margin:0 0 16px;">📊 Generate PDF Report</h3>
-            <div style="margin-bottom:12px;">
-                <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Report type:</label>
-                <select id="reportType" onchange="updateReportDateUI()" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd;">
-                    <option value="day">Daily report</option>
-                    <option value="month">Monthly report</option>
-                </select>
-            </div>
-            <div id="reportDatePicker" style="margin-bottom:16px;">
-                <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Select date:</label>
-                <input type="date" id="reportDate" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box;">
-            </div>
-            <div id="reportMonthPicker" style="display:none; margin-bottom:16px;">
-                <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Select month:</label>
-                <input type="month" id="reportMonth" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box;">
-            </div>
-            <div style="display:flex; gap:8px;">
-                <button onclick="generateReport()" style="flex:1; background:#007bff; color:white; border:none; border-radius:8px; padding:10px; font-size:14px; cursor:pointer;">📄 Generate PDF</button>
-                <button onclick="closeReportModal()" style="background:#6c757d; color:white; border:none; border-radius:8px; padding:10px 16px; font-size:14px; cursor:pointer;">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-     <!-- RATIO PANEL (updated with Total Spent) -->
+    <!-- RATIO PANEL (updated with Total Spent) -->
     <div id="ratioPanel" class="panel">
         <h2>Allocator</h2>
         <label>RM</label>
@@ -237,6 +211,33 @@
     
 
     </div></div><!-- end panels-track / panels-viewport -->
+
+    <!-- PDF REPORT MODAL -->
+    <div id="reportModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+            <h3 style="margin:0 0 16px;">📊 Generate PDF Report</h3>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Report type:</label>
+                <select id="reportType" onchange="updateReportDateUI()" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd;">
+                    <option value="day">Daily report</option>
+                    <option value="month">Monthly report</option>
+                </select>
+            </div>
+            <div id="reportDatePicker" style="margin-bottom:16px;">
+                <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Select date:</label>
+                <input type="date" id="reportDate" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box;">
+            </div>
+            <div id="reportMonthPicker" style="display:none; margin-bottom:16px;">
+                <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Select month:</label>
+                <input type="month" id="reportMonth" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box;">
+            </div>
+            <div style="display:flex; gap:8px;">
+                <button onclick="generateReport()" style="flex:1; background:#007bff; color:white; border:none; border-radius:8px; padding:10px; font-size:14px; cursor:pointer;">📄 Generate PDF</button>
+                <button onclick="closeReportModal()" style="background:#6c757d; color:white; border:none; border-radius:8px; padding:10px 16px; font-size:14px; cursor:pointer;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
 
     <!-- App scripts (order matters: menu before things that read it) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>

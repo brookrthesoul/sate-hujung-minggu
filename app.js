@@ -6,8 +6,8 @@ let currentTabIndex = 0;
 // ── Slide to a tab index ──────────────────────────────────────────────────
 function slideTo(index) {
     const track = document.getElementById('panelsTrack');
-    const panelWidth = track.parentElement.offsetWidth; // viewport width in px
-    track.style.transform = `translateX(${-index * panelWidth}px)`;
+    // Track is 400% wide; each panel is 25%. Shift by 25% per tab.
+    track.style.transform = `translateX(${-index * 25}%)`;
 
     document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === index));
     document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', i === index));
@@ -26,9 +26,6 @@ function switchTab(tab) {
     if (tab === 'settings') renderSettingsMenuList();
 }
 
-// ── Re-snap on resize (orientation change, etc.) ──────────────────────────
-window.addEventListener('resize', () => slideTo(currentTabIndex));
-
 // ── Swipe / drag support ──────────────────────────────────────────────────
 (function setupSwipe() {
     const track = document.getElementById('panelsTrack');
@@ -37,7 +34,8 @@ window.addEventListener('resize', () => slideTo(currentTabIndex));
     let isVertical = null;
     const THRESHOLD = 50; // px to commit a swipe
 
-    function panelWidth() {
+    // One panel width in px (viewport width = panels-viewport width)
+    function panelPx() {
         return track.parentElement.offsetWidth;
     }
 
@@ -52,6 +50,7 @@ window.addEventListener('resize', () => slideTo(currentTabIndex));
         const dx = x - startX;
         const dy = y - startY;
 
+        // Resolve axis on first meaningful movement
         if (isVertical === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
             isVertical = Math.abs(dy) > Math.abs(dx);
         }
@@ -62,13 +61,14 @@ window.addEventListener('resize', () => slideTo(currentTabIndex));
         }
 
         deltaX = dx;
-        const base = currentTabIndex * panelWidth();
         // Rubber-band at edges
         let offset = deltaX;
         if ((currentTabIndex === 0 && deltaX > 0) || (currentTabIndex === TABS.length - 1 && deltaX < 0)) {
             offset = deltaX / 3;
         }
-        track.style.transform = `translateX(${-base + offset}px)`;
+        // Base position in px, then add finger offset
+        const basePx = currentTabIndex * panelPx();
+        track.style.transform = `translateX(${-basePx + offset}px)`;
     }
 
     function onEnd() {
@@ -80,16 +80,19 @@ window.addEventListener('resize', () => slideTo(currentTabIndex));
         if (deltaX < -THRESHOLD && currentTabIndex < TABS.length - 1) next = currentTabIndex + 1;
         else if (deltaX > THRESHOLD && currentTabIndex > 0) next = currentTabIndex - 1;
 
+        // After snap, restore % transform
         slideTo(next);
 
-        // Side effects when swiping (not tapping tab)
-        const newTab = TABS[next];
-        if (newTab === 'orders') loadOrders();
-        if (newTab === 'ratio') { updateSliderLabel(); calculateRatio(); }
-        if (newTab === 'settings') renderSettingsMenuList();
+        // Side effects when swiping to a new tab
+        if (next !== currentTabIndex || true) {
+            const newTab = TABS[next];
+            if (newTab === 'orders') loadOrders();
+            if (newTab === 'ratio') { updateSliderLabel(); calculateRatio(); }
+            if (newTab === 'settings') renderSettingsMenuList();
+        }
     }
 
-    // Touch
+    // Touch events
     track.addEventListener('touchstart', e => {
         const t = e.touches[0];
         onStart(t.clientX, t.clientY);
@@ -101,7 +104,7 @@ window.addEventListener('resize', () => slideTo(currentTabIndex));
     track.addEventListener('touchend', onEnd);
     track.addEventListener('touchcancel', onEnd);
 
-    // Mouse (desktop)
+    // Mouse events (desktop)
     track.addEventListener('mousedown', e => {
         if (['INPUT','BUTTON','SELECT','TEXTAREA','A'].includes(e.target.tagName)) return;
         onStart(e.clientX, e.clientY);
@@ -110,6 +113,9 @@ window.addEventListener('resize', () => slideTo(currentTabIndex));
     window.addEventListener('mousemove', e => { if (isSwiping) onMove(e.clientX, e.clientY); });
     window.addEventListener('mouseup', () => { if (isSwiping) onEnd(); });
 })();
+
+// ── Re-snap on resize / orientation change ────────────────────────────────
+window.addEventListener('resize', () => slideTo(currentTabIndex));
 
 // ── Initial load ──────────────────────────────────────────────────────────
 window.onload = () => {
