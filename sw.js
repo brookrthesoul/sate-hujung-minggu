@@ -1,4 +1,38 @@
-const CACHE_NAME = 'order-pwa-v20';
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
+
+firebase.initializeApp({
+  apiKey: "AIzaSyBp4lTpf7tZrJOJOjv6olB0RgdVd8INOlI",
+  authDomain: "sate-hujung-minggu.firebaseapp.com",
+  projectId: "sate-hujung-minggu",
+  storageBucket: "sate-hujung-minggu.firebasestorage.app",
+  messagingSenderId: "1027593948630",
+  appId: "1:1027593948630:web:2783052925848ec35f2877"
+});
+
+const messaging = firebase.messaging();
+
+// Handle background messages via Firebase
+messaging.onBackgroundMessage(payload => {
+  console.log('[SW] Firebase background message:', payload);
+  const title = payload.notification?.title || payload.data?.title || '🍢 New Order!';
+  const body  = payload.notification?.body  || payload.data?.body  || '';
+  const tag   = payload.data?.tag || 'new-order';
+  return self.registration.showNotification(title, {
+    body,
+    icon:  '/sate-hujung-minggu/icon-192.png',
+    badge: '/sate-hujung-minggu/icon-192.png',
+    tag,
+    requireInteraction: true,
+    vibrate: [200, 100, 200, 100, 200],
+    data: { url: self.registration.scope }
+  }).then(() => {
+    return self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
+      .then(clients => clients.forEach(c => c.postMessage({ type: 'NEW_ORDER', body })));
+  });
+});
+
+const CACHE_NAME = 'order-pwa-v21';
 
 const STATIC_CACHE = [
   './manifest.json',

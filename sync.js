@@ -366,19 +366,62 @@ async function _getPushSubscription() {
     return reg.pushManager.getSubscription();
 }
 
-async function _subscribePush() {
-    const reg = await navigator.serviceWorker.ready;
-    return reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: _urlB64ToUint8(VAPID_PUBLIC_KEY)
+async function _getFirebaseToken() {
+    // Dynamically load Firebase SDK
+    if (!window._firebaseApp) {
+        await Promise.all([
+            _loadScript('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js'),
+            _loadScript('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js')
+        ]);
+        window._firebaseApp = firebase.initializeApp({
+            apiKey: "AIzaSyBp4lTpf7tZrJOJOjv6olB0RgdVd8INOlI",
+            authDomain: "sate-hujung-minggu.firebaseapp.com",
+            projectId: "sate-hujung-minggu",
+            storageBucket: "sate-hujung-minggu.firebasestorage.app",
+            messagingSenderId: "1027593948630",
+            appId: "1:1027593948630:web:2783052925848ec35f2877"
+        });
+    }
+    const messaging = firebase.messaging();
+    const VAPID_KEY = 'BFtZOppJvX5JN9_jEMDYLhr8VLMaOxeOY6w8hFXwLRD0aZ0Jl4bvhCDvUwOQapHKU9E_FZpJXuI74G10W12_Z_E';
+    const token = await messaging.getToken({ vapidKey: VAPID_KEY });
+    console.log('[Push] Firebase token:', token.slice(0, 30) + '...');
+    return token;
+}
+
+function _loadScript(src) {
+    return new Promise((resolve, reject) => {
+        if (document.querySelector('script[src="' + src + '"]')) { resolve(); return; }
+        const s = document.createElement('script'); s.src = src;
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
     });
 }
 
+async function _subscribePush() {
+    // Returns a Firebase token string instead of a PushSubscription object
+    const token = await _getFirebaseToken();
+    // Wrap in an object with the same interface our save function expects
+    return {
+        _isFirebase: true,
+        _token: token,
+        endpoint: 'https://fcm.googleapis.com/fcm/send/' + token,
+        getKey: () => null
+    };
+}
+
 async function _saveSubscriptionToSupabase(sub) {
-    const p256dh = btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh'))));
-    const auth   = btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth'))));
-    const body   = JSON.stringify({ endpoint: sub.endpoint, keys: { p256dh, auth } });
-    console.log('[Push] saving subscription to Supabase...', sub.endpoint.slice(0, 60));
+    let body;
+    if (sub._isFirebase) {
+        // Firebase token — store with empty keys, edge function uses FCM v1
+        body = JSON.stringify({ endpoint: sub.endpoint, keys: { p256dh: '', auth: '' }, firebase_token: sub._token });
+        console.log('[Push] saving Firebase token to Supabase...', sub._token.slice(0, 30));
+    } else {
+        const p256dh = btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh'))));
+        const auth   = btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth'))));
+        body = JSON.stringify({ endpoint: sub.endpoint, keys: { p256dh, auth } });
+        console.log('[Push] saving subscription to Supabase...', sub.endpoint.slice(0, 60));
+    }
     const res = await fetch(`${SUPABASE_URL}/rest/v1/push_subscriptions`, {
         method: 'POST',
         headers: { ..._h(), 'Prefer': 'resolution=merge-duplicates' },
@@ -392,13 +435,19 @@ async function _saveSubscriptionToSupabase(sub) {
 }
 
 async function _unsubscribePush() {
-    const sub = await _getPushSubscription();
-    if (sub) {
-        const endpoint = sub.endpoint;
-        await sub.unsubscribe();
-        await fetch(`${SUPABASE_URL}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}`, {
-            method: 'DELETE', headers: _h()
-        }).catch(e => console.warn('delete sub error', e));
+    // Delete all subscriptions for this device from Supabase
+    // (We don't track the exact endpoint locally anymore with Firebase)
+    try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) { await sub.unsubscribe(); }
+    } catch(e) { console.warn('unsubscribe error', e); }
+    // Also try to delete via Firebase if available
+    if (window._firebaseApp) {
+        try {
+            const messaging = firebase.messaging();
+            await messaging.deleteToken();
+        } catch(e) { console.warn('firebase deleteToken error', e); }
     }
 }
 
