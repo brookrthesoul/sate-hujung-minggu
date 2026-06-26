@@ -382,9 +382,11 @@ async function _getFirebaseToken() {
             appId: "1:1027593948630:web:2783052925848ec35f2877"
         });
     }
+    // Tell Firebase to use our existing SW instead of looking for firebase-messaging-sw.js
+    const swReg = await navigator.serviceWorker.ready;
     const messaging = firebase.messaging();
     const VAPID_KEY = 'BFtZOppJvX5JN9_jEMDYLhr8VLMaOxeOY6w8hFXwLRD0aZ0Jl4bvhCDvUwOQapHKU9E_FZpJXuI74G10W12_Z_E';
-    const token = await messaging.getToken({ vapidKey: VAPID_KEY });
+    const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
     console.log('[Push] Firebase token:', token.slice(0, 30) + '...');
     return token;
 }

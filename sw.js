@@ -32,7 +32,7 @@ messaging.onBackgroundMessage(payload => {
   });
 });
 
-const CACHE_NAME = 'order-pwa-v22';
+const CACHE_NAME = 'order-pwa-v23';
 
 const STATIC_CACHE = [
   './manifest.json',
