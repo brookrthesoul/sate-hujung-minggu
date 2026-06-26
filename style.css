@@ -13,7 +13,7 @@
         }
         .panels-track {
             display: flex;
-            width: 400%;          /* 4 panels side-by-side; translateX shifts in viewport units */
+            align-items: flex-start;
             transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
             will-change: transform;
         }
@@ -21,7 +21,9 @@
             transition: none;
         }
         .panel {
-            flex: 0 0 25%;        /* 25% of 400% track = 1 viewport width each */
+            /* JS sets --panel-w on .panels-track; panels are exactly that wide */
+            flex: 0 0 var(--panel-w, 100vw);
+            width: var(--panel-w, 100vw);
             box-sizing: border-box;
             background: white;
             padding: 20px;
