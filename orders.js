@@ -137,6 +137,10 @@ async function saveOrder() {
     }
 }
 
+// ---------- Edit state tracking ----------
+// Tracks which order IDs are currently in edit mode so _rerender doesn't wipe them
+const _editingIds = new Set();
+
 // ---------- Sub-tabs ----------
 let currentOrderSubTab = 'prepare';
 
@@ -206,6 +210,11 @@ function renderOrderList(containerId, orderList, stage) {
         dayDiv.className = 'day-group';
         dayDiv.innerHTML = `<div class="day-header">${day}</div>`;
         dayOrders.forEach(order => {
+            // If this card is in edit mode, skip re-rendering it
+            if (_editingIds.has(order.id)) {
+                const existing = document.getElementById(`order-${order.id}`);
+                if (existing) { dayDiv.appendChild(existing); return; }
+            }
             const card = document.createElement('div');
             card.className = 'order-card';
             card.id = `order-${order.id}`;
@@ -391,10 +400,14 @@ function startEditTo(id, fromStage) {
     if (!card) return;
     getAllOrders().then(orders => {
         const o = orders.find(o => o.id === id);
-        if (o) renderOrderCard(card, o, fromStage + '-edit');
+        if (o) {
+            _editingIds.add(id);
+            renderOrderCard(card, o, fromStage + '-edit');
+        }
     });
 }
 function cancelEditTo(id, returnStage) {
+    _editingIds.delete(id);
     const card = document.getElementById(`order-${id}`);
     if (!card) return;
     getAllOrders().then(orders => {
@@ -433,6 +446,7 @@ async function saveEdit(id, returnStage = 'prepare') {
     });
     delete updated.ayamDagingQty;
     await updateOrder(updated);
+    _editingIds.delete(id);
     const card = document.getElementById(`order-${id}`);
     renderOrderCard(card, updated, returnStage);
 }
