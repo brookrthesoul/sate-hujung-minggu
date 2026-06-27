@@ -492,7 +492,8 @@ function closePaymentModal() {
 }
 
 function onPayMethodChange() {
-    _renderPayInputs(document.getElementById('payMethodSelect').value, null);
+    const selected = document.querySelector('input[name="payMethod"]:checked');
+    if (selected) _renderPayInputs(selected.value, null);
 }
 
 function _renderPayInputs(method, existingOrder) {
@@ -537,7 +538,9 @@ function _autoFillOnline() {
 }
 
 async function confirmPayment() {
-    const method   = document.getElementById('payMethodSelect').value;
+    const selected = document.querySelector('input[name="payMethod"]:checked');
+    if (!selected) { alert('Please select a payment method.'); return; }
+    const method   = selected.value;
     const onlineEl = document.getElementById('payOnlineInput');
     const cashEl   = document.getElementById('payCashInput');
     const onlineAmt = onlineEl ? (parseFloat(onlineEl.value)||0) : 0;
