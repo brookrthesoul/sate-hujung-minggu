@@ -273,6 +273,33 @@ function switchOrderSubTab(subtab) {
     else loadOrders();
 }
 
+// ── Sate summary bar (Prepare tab) ────────────────────────────────────────
+// Tallies qty of skewer-category items across all Prepare-stage orders
+function updateSateSummaryBar(prepareOrders) {
+    const bar = document.getElementById('sateSummaryBar');
+    if (!bar) return;
+
+    const totals = {};
+    prepareOrders.forEach(order => {
+        Object.values(order.items || {}).forEach(item => {
+            if (item.category === 'skewer' || item.category === 'no-kuah') {
+                if (item.qty > 0) {
+                    totals[item.name] = (totals[item.name] || 0) + item.qty;
+                }
+            }
+        });
+    });
+
+    const entries = Object.entries(totals);
+    if (entries.length === 0) {
+        bar.innerHTML = '<span style="color:#999;font-size:13px;">No sate orders</span>';
+    } else {
+        bar.innerHTML = entries.map(([name, qty]) =>
+            `<span class="sate-summary-chip"><strong>${qty}</strong> ${escapeHtml(name)}</span>`
+        ).join('');
+    }
+}
+
 async function loadOrders() {
     // Don't re-render while any card is in edit mode — sync will catch up after save/cancel
     if (_editingIds.size > 0) return;
@@ -299,6 +326,7 @@ async function loadOrders() {
             done = done.filter(o => new Date(o.createdAt).toLocaleDateString('en-CA') === target);
         }
 
+        updateSateSummaryBar(prepare);
         renderOrderList('prepareList',  prepare,  'prepare');
         renderOrderList('preparedList', prepared, 'prepared');
         renderOrderList('paidList',     paid,     'paid');
@@ -440,6 +468,9 @@ function renderOrderCard(card, rawOrder, stage) {
         const markPaidBtn = hasPayment
             ? `<button class="status-btn paid" onclick="markPaidDirect(${o.id})">✅ Mark as Paid</button>` : '';
 
+        const printReceiptBtnPrepare = hasPayment
+            ? `<button class="print-btn" style="margin-top:8px;width:100%;" onclick="printOrderReceipt(${o.id})">🖨️ Print Receipt</button>` : '';
+
         card.innerHTML = `
             ${header}
             <div class="order-details">${itemBadges}${statsBadges}</div>
@@ -451,6 +482,7 @@ function renderOrderCard(card, rawOrder, stage) {
                 <button class="pay-method-btn" onclick="openPaymentModal(${o.id}, ${o.totalCost}, 'prepare')">💳 Payment</button>
             </div>
             ${markPaidBtn}
+            ${printReceiptBtnPrepare}
             <button class="status-btn done-btn" onclick="markPrepared(${o.id})" style="margin-top:8px;">✅ Done</button>`;
         return;
     }
@@ -460,6 +492,9 @@ function renderOrderCard(card, rawOrder, stage) {
         const hasPayment = !!o.paymentMethod;
         const payBadge   = hasPayment
             ? `<div style="margin:8px 0;">${paymentBadgeHTML(o)}</div>` : '';
+
+        const printReceiptBtnPrepared = hasPayment
+            ? `<button class="print-btn" style="margin-top:8px;width:100%;" onclick="printOrderReceipt(${o.id})">🖨️ Print Receipt</button>` : '';
 
         card.innerHTML = `
             ${header}
@@ -472,6 +507,7 @@ function renderOrderCard(card, rawOrder, stage) {
                 <button class="edit-btn"   onclick="startEditTo(${o.id}, 'prepared')">✏️ Edit</button>
                 <button class="pay-method-btn" onclick="openPaymentModal(${o.id}, ${o.totalCost}, 'prepared')">💳 Payment</button>
             </div>
+            ${printReceiptBtnPrepared}
             <button class="status-btn paid" onclick="markPaid(${o.id})" style="margin-top:8px;">✅ Mark as Paid</button>`;
         return;
     }

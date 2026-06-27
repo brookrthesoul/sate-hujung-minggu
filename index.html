@@ -65,10 +65,13 @@
             <div class="sub-tab" id="subTab-paid" onclick="switchOrderSubTab('paid')">Paid</div>
             <div class="sub-tab" id="subTab-done" onclick="switchOrderSubTab('done')">Done</div>
         </div>
-        <select id="sortOrders" class="sort-dropdown" onchange="loadOrders()">
-            <option value="desc">Newest first</option>
-            <option value="asc">Oldest first</option>
-        </select>
+        <div class="sort-and-summary">
+            <select id="sortOrders" class="sort-dropdown" onchange="loadOrders()">
+                <option value="desc">Newest first</option>
+                <option value="asc">Oldest first</option>
+            </select>
+            <div id="sateSummaryBar" class="sate-summary-bar"></div>
+        </div>
 
         <!-- Done tab date filter (only visible on Done tab) -->
         <div id="doneFilterBar" style="display:none; margin: 8px 0; display:none; gap:8px; align-items:center; flex-wrap:wrap;">

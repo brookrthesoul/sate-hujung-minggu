@@ -187,3 +187,118 @@ async function printOrder(id) {
         console.error(e);
     }
 }
+
+// ---------- Print receipt for Prepare / Prepared stage ----------
+// Only called when customer has made a deposit or full payment.
+async function printOrderReceipt(id) {
+    if (!receiptPrinter) {
+        alert('Printer is not available in this browser.');
+        return;
+    }
+    if (!printerInfo) {
+        alert('No printer connected. Go to Settings and tap "Connect Printer" first.');
+        return;
+    }
+
+    const all = await getAllOrders();
+    const rawOrder = all.find(o => o.id === id);
+    if (!rawOrder) return;
+    const order = normalizeOrder(rawOrder);
+
+    // Safety guard — no receipt if no payment
+    if (!order.paymentMethod) {
+        alert('No payment recorded yet. Please set payment before printing a receipt.');
+        return;
+    }
+
+    try {
+        const COLS = getPaperColumns();
+        const DASH = '-'.repeat(COLS);
+
+        const encoder = new ReceiptPrinterEncoder({
+            language: printerInfo.language || 'esc-pos',
+            codepageMapping: printerInfo.codepageMapping || 'cp437'
+        });
+
+        let receipt = encoder
+            .initialize()
+            .align('center')
+            .bold(true).line('SATE HUJUNG MINGGU').bold(false)
+            .line('** RESIT / RECEIPT **')
+            .line(`Order #${order.id}`)
+            .line(formatDate(order.createdAt || Date.now()))
+            .align('left')
+            .line(DASH);
+
+        // Item lines
+        const items = Object.values(order.items || {}).filter(r => r.qty > 0);
+        items.forEach(r => {
+            receipt = receipt.line(formatLine(`${r.name} x${r.qty}`, `RM${r.cost.toFixed(2)}`, COLS));
+        });
+
+        receipt = receipt
+            .line(DASH)
+            .line(formatLine('Cucuk', `${order.skewerQty || 0}`, COLS))
+            .line(formatLine('Senduk', `${order.scoops || 0}`, COLS))
+            .line(DASH)
+            .bold(true)
+            .line(formatLine('TOTAL', `RM${(order.totalCost || 0).toFixed(2)}`, COLS))
+            .bold(false)
+            .line(DASH);
+
+        // Payment section — only if deposit
+        const method  = order.paymentMethod;
+        const online  = order.paymentOnline || 0;
+        const cash    = order.paymentCash   || 0;
+        const total   = order.totalCost     || 0;
+
+        if (order.isDeposit && method === 'online') {
+            const balance = total - online;
+            receipt = receipt
+                .line(formatLine('Deposit (Online)', `RM${online.toFixed(2)}`, COLS))
+                .bold(true)
+                .line(formatLine('Balance Due', `RM${balance.toFixed(2)}`, COLS))
+                .bold(false);
+        } else if (order.isCashShort && method === 'cash') {
+            const balance = total - cash;
+            receipt = receipt
+                .line(formatLine('Paid (Cash)', `RM${cash.toFixed(2)}`, COLS))
+                .bold(true)
+                .line(formatLine('Balance Due', `RM${balance.toFixed(2)}`, COLS))
+                .bold(false);
+        } else if (method === 'both') {
+            const paidBoth = online + cash;
+            if (paidBoth < total - 0.005) {
+                const balance = total - paidBoth;
+                receipt = receipt
+                    .line(formatLine('Online', `RM${online.toFixed(2)}`, COLS))
+                    .line(formatLine('Cash', `RM${cash.toFixed(2)}`, COLS))
+                    .bold(true)
+                    .line(formatLine('Balance Due', `RM${balance.toFixed(2)}`, COLS))
+                    .bold(false);
+            }
+            // full payment via both — no extra remark needed
+        }
+        // full online or full cash — no extra remark needed
+
+        if (order.description) {
+            receipt = receipt
+                .newline()
+                .line('Note:')
+                .line(order.description);
+        }
+
+        receipt = receipt
+            .newline()
+            .align('center')
+            .line('Thank you!')
+            .line('Please keep this receipt')
+            .newline(2)
+            .cut();
+
+        await receiptPrinter.print(receipt.encode());
+    } catch (e) {
+        alert('Print failed: ' + e.message);
+        console.error(e);
+    }
+}
