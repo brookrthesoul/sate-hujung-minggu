@@ -61,6 +61,7 @@
         <h2>Customer Orders</h2>
         <div class="sub-tab-bar">
             <div class="sub-tab active" id="subTab-prepare" onclick="switchOrderSubTab('prepare')">Prepare</div>
+            <div class="sub-tab" id="subTab-prepared" onclick="switchOrderSubTab('prepared')">Prepared</div>
             <div class="sub-tab" id="subTab-paid" onclick="switchOrderSubTab('paid')">Paid</div>
             <div class="sub-tab" id="subTab-done" onclick="switchOrderSubTab('done')">Done</div>
         </div>
@@ -80,6 +81,7 @@
         </div>
 
         <div id="prepareList" class="order-sublist active"></div>
+        <div id="preparedList" class="order-sublist"></div>
         <div id="paidList" class="order-sublist"></div>
         <div id="doneList" class="order-sublist"></div>
     </div>
@@ -238,6 +240,26 @@
         </div>
     </div>
 
+
+
+    <!-- PAYMENT METHOD MODAL -->
+    <div id="paymentModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:18px; padding:24px; width:92%; max-width:380px; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+            <h3 style="margin:0 0 4px;">💳 Payment Method</h3>
+            <p id="payModalTotal" style="margin:0 0 14px; font-size:13px; color:#6c757d;"></p>
+            <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Method</label>
+            <div style="display:flex; gap:8px; margin-bottom:16px;">
+                <label class="pay-radio-label"><input type="radio" name="payMethod" value="online"  onchange="onPayMethodChange()" checked> 💳 Online</label>
+                <label class="pay-radio-label"><input type="radio" name="payMethod" value="cash"    onchange="onPayMethodChange()"> 💵 Cash</label>
+                <label class="pay-radio-label"><input type="radio" name="payMethod" value="both"    onchange="onPayMethodChange()"> 🤝 Both</label>
+            </div>
+            <div id="paymentInputsBox"></div>
+            <div style="display:flex; gap:8px; margin-top:16px;">
+                <button onclick="confirmPayment()" style="flex:1; background:#28a745; color:white; border:none; border-radius:10px; padding:12px; font-size:14px; font-weight:bold; cursor:pointer; margin:0;">✅ Confirm</button>
+                <button onclick="closePaymentModal()" style="background:#6c757d; color:white; border:none; border-radius:10px; padding:12px 16px; font-size:14px; cursor:pointer; margin:0;">Cancel</button>
+            </div>
+        </div>
+    </div>
 
     <!-- App scripts (order matters: menu before things that read it) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
