@@ -298,8 +298,9 @@ function updateSateSummaryBar(prepareOrders) {
     if (entries.length === 0) {
         bar.innerHTML = '<span style="color:#999;font-size:13px;">No sate orders</span>';
     } else {
-        bar.innerHTML = entries.map(([name, qty]) =>
-            `<span class="sate-summary-chip"><strong>${qty}</strong> ${escapeHtml(name)}</span>`
+        bar.innerHTML = entries.map(([name, qty], i, arr) =>
+            `<span class="sate-summary-chip"><strong>${qty}</strong> ${escapeHtml(name)}</span>` +
+            (i < arr.length - 1 ? '<span class="sate-dot">·</span>' : '')
         ).join('');
     }
 }
@@ -487,7 +488,7 @@ function renderOrderCard(card, rawOrder, stage) {
             </div>
             ${markPaidBtn}
             ${printReceiptBtnPrepare}
-            <button class="status-btn done-btn" onclick="markPrepared(${o.id})" style="margin-top:8px;">✅ Done</button>`;
+            <button class="status-btn done-btn" onclick="markPrepared(${o.id})" style="margin-top:8px;">Ready</button>`;
         return;
     }
 

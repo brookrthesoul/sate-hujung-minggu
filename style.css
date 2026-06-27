@@ -309,15 +309,24 @@
 .sate-summary-bar {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 12px;
+    width: 100%;
+    box-sizing: border-box;
 }
 .sate-summary-chip {
     background: #fff3cd;
     color: #856404;
     border: 1px solid #ffc107;
     border-radius: 20px;
-    padding: 4px 10px;
-    font-size: 12px;
+    padding: 5px 14px;
+    font-size: 13px;
     white-space: nowrap;
+}
+.sate-dot {
+    color: #aaa;
+    font-size: 16px;
+    padding: 0 4px;
 }
