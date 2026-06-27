@@ -689,4 +689,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         setSyncStatus('offline');
         _rerender();
     }
+
+    // Run day-close check AFTER sync so DB has fresh data from Supabase
+    if (typeof autoClosePreviousDay === 'function') {
+        autoClosePreviousDay().then(() => {
+            if (typeof loadOrders === 'function') loadOrders();
+        }).catch(console.error);
+    }
 });

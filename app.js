@@ -58,7 +58,6 @@ window.onload = () => {
         loadMenu();
         renderHomeMenuInputs();
         setupPrinter();
-        // Auto-close any orders left open from previous days -> moves them to Done
-        autoClosePreviousDay().then(() => loadOrders()).catch(console.error);
+        // Day-close runs after sync in sync.js DOMContentLoaded
     });
 };
