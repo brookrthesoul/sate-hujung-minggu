@@ -159,6 +159,8 @@ function switchOrderSubTab(subtab) {
 }
 
 async function loadOrders() {
+    // Don't re-render while any card is in edit mode — sync will catch up after save/cancel
+    if (_editingIds.size > 0) return;
     try {
         const orders  = (await getAllOrders()).map(normalizeOrder);
         const sortDir = document.getElementById('sortOrders').value;
@@ -408,12 +410,7 @@ function startEditTo(id, fromStage) {
 }
 function cancelEditTo(id, returnStage) {
     _editingIds.delete(id);
-    const card = document.getElementById(`order-${id}`);
-    if (!card) return;
-    getAllOrders().then(orders => {
-        const o = orders.find(o => o.id === id);
-        if (o) renderOrderCard(card, o, returnStage);
-    });
+    loadOrders();
 }
 // Legacy shims
 function startEdit(id)  { startEditTo(id, 'prepare'); }
@@ -447,8 +444,7 @@ async function saveEdit(id, returnStage = 'prepare') {
     delete updated.ayamDagingQty;
     await updateOrder(updated);
     _editingIds.delete(id);
-    const card = document.getElementById(`order-${id}`);
-    renderOrderCard(card, updated, returnStage);
+    loadOrders();
 }
 async function updateDescription(id, newText) {
     const all   = await getAllOrders();
