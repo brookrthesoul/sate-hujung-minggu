@@ -218,14 +218,40 @@ function renderOrderList(containerId, orderList, stage) {
 
 // ---------- Payment display helper ----------
 function paymentBadgeHTML(order) {
-    const m = order.paymentMethod;
+    const m       = order.paymentMethod;
+    const total   = order.totalCost || 0;
+    const online  = order.paymentOnline || 0;
+    const cash    = order.paymentCash   || 0;
     if (!m) return '';
-    if (m === 'online') return `<div class="payment-badge badge-online">💳 Online — RM${(order.paymentOnline||0).toFixed(2)}</div>`;
-    if (m === 'cash')   return `<div class="payment-badge badge-cash">💵 Cash — RM${(order.paymentCash||0).toFixed(2)}</div>`;
-    if (m === 'both')   return `
-        <div class="payment-badge badge-both">
-            💳 Online: RM${(order.paymentOnline||0).toFixed(2)} &nbsp;|&nbsp; 💵 Cash: RM${(order.paymentCash||0).toFixed(2)}
-        </div>`;
+
+    if (m === 'online') {
+        if (order.isDeposit) {
+            const balance = total - online;
+            return '<div class="payment-badge badge-deposit">' +
+                '💳 Deposit — RM' + online.toFixed(2) +
+                ' &nbsp;|&nbsp; Balance: <strong>RM' + balance.toFixed(2) + '</strong>' +
+                '</div>';
+        }
+        return '<div class="payment-badge badge-online">💳 Online — RM' + online.toFixed(2) + '</div>';
+    }
+
+    if (m === 'cash') {
+        if (order.isCashShort) {
+            const short = total - cash;
+            return '<div class="payment-badge badge-short">' +
+                '⚠️ Short by <strong>RM' + short.toFixed(2) + '</strong>' +
+                ' &nbsp;|&nbsp; Paid: RM' + cash.toFixed(2) +
+                '</div>';
+        }
+        return '<div class="payment-badge badge-cash">💵 Cash — RM' + cash.toFixed(2) + '</div>';
+    }
+
+    if (m === 'both') {
+        return '<div class="payment-badge badge-both">' +
+            '💳 Online: RM' + online.toFixed(2) +
+            ' &nbsp;|&nbsp; 💵 Cash: RM' + cash.toFixed(2) +
+            '</div>';
+    }
     return '';
 }
 
@@ -333,7 +359,8 @@ function renderOrderCard(card, rawOrder, stage) {
             <div style="margin:8px 0;">${paymentBadgeHTML(o)}</div>
             ${readonlyDesc}
             <div class="action-buttons">
-                <button class="edit-btn"      onclick="undoToPrepared(${o.id})">↩️ Undo</button>
+                <button class="edit-btn"       onclick="undoToPrepared(${o.id})">↩️ Undo</button>
+                <button class="pay-method-btn" onclick="openPaymentModal(${o.id}, ${o.totalCost}, 'paid')">💳 Update Payment</button>
                 <button class="status-btn picked" onclick="markPickedUp(${o.id})">📦 Picked Up</button>
             </div>`;
         return;
@@ -503,9 +530,28 @@ function _renderPayInputs(method, existingOrder) {
         const val = (existingOrder && existingOrder.paymentMethod === 'online')
             ? existingOrder.paymentOnline : total;
         box.innerHTML =
+            '<div class="pay-total-hint">Bill total: <strong>RM' + total.toFixed(2) + '</strong></div>' +
             '<label class="pay-label">💳 Online Amount (RM)</label>' +
-            '<input type="number" id="payOnlineInput" step="0.01" min="0" class="pay-input">';
+            '<input type="number" id="payOnlineInput" step="0.01" min="0" class="pay-input">' +
+            '<div id="onlineDepositHint" class="change-display" style="display:none;"></div>';
         document.getElementById('payOnlineInput').value = val.toFixed(2);
+
+        function calcOnlineDeposit() {
+            const paid    = parseFloat(document.getElementById('payOnlineInput').value) || 0;
+            const hint    = document.getElementById('onlineDepositHint');
+            const balance = total - paid;
+            if (paid <= 0) { hint.style.display = 'none'; return; }
+            hint.style.display = 'block';
+            if (balance > 0.005) {
+                hint.className = 'change-display change-short';
+                hint.innerHTML = '&#9888; Deposit — Balance: <strong>RM' + balance.toFixed(2) + '</strong>';
+            } else {
+                hint.className = 'change-display change-ok';
+                hint.innerHTML = '&#10003; Full payment — RM' + paid.toFixed(2);
+            }
+        }
+        document.getElementById('payOnlineInput').addEventListener('input', calcOnlineDeposit);
+        calcOnlineDeposit();
 
     } else if (method === 'cash') {
         const val = (existingOrder && existingOrder.paymentMethod === 'cash')
@@ -606,6 +652,20 @@ async function confirmPayment() {
     order.paymentMethod = method;
     order.paymentOnline = (method === 'cash')   ? 0 : onlineAmt;
     order.paymentCash   = (method === 'online') ? 0 : cashAmt;
+
+    // Deposit / short flags
+    if (method === 'online') {
+        order.isDeposit   = onlineAmt < (_pmTotal - 0.005);
+        order.isCashShort = false;
+    } else if (method === 'cash') {
+        const cashGiven   = parseFloat((document.getElementById('cashGivenInput') || {}).value) || cashAmt;
+        order.isCashShort = cashAmt < (_pmTotal - 0.005);
+        order.cashGiven   = cashGiven;
+        order.isDeposit   = false;
+    } else {
+        order.isDeposit   = false;
+        order.isCashShort = false;
+    }
 
     await updateOrder(order);
     closePaymentModal();

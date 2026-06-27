@@ -285,3 +285,7 @@
 }
 .change-ok    { background: #d4edda; color: #155724; border: 1.5px solid #b8dfc4; }
 .change-short { background: #f8d7da; color: #721c24; border: 1.5px solid #f1aeb5; }
+
+/* ─── Deposit & short payment badges ─────────────────────────────────────── */
+.badge-deposit { background: #fff3cd; color: #856404; border: 1.5px solid #ffc107; }
+.badge-short   { background: #f8d7da; color: #721c24; border: 1.5px solid #f1aeb5; }
