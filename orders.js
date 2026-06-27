@@ -757,7 +757,7 @@ function _buildPDF(title, subtitle, orders) {
     y += LINE_H+1;
 
     orders.sort((a,b)=>a.createdAt-b.createdAt).forEach((order,idx) => {
-        const itemSummary = Object.values(order.items||{}).filter(r=>r.qty>0).map(r=>`${r.name}×${r.qty}`).join(', ');
+        const itemSummary = Object.values(order.items||{}).filter(r=>r.qty>0).map(r=>r.name + ' x' + r.qty).join(', ');
         const timeStr     = new Date(order.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
         let payStr = '';
         if (order.paymentMethod==='online') payStr = `Online RM${(order.paymentOnline||0).toFixed(2)}`;
@@ -780,7 +780,7 @@ function _buildPDF(title, subtitle, orders) {
     // Footer
     for (let i=1; i<=doc.getNumberOfPages(); i++) {
         doc.setPage(i); doc.setFontSize(8); doc.setTextColor(150);
-        doc.text(`Sate Hujung Minggu — ${subtitle}`, MARGIN, 290);
+        doc.text(`Sate Hujung Minggu - ${subtitle}`, MARGIN, 290);
         doc.text(`Page ${i} of ${doc.getNumberOfPages()}`, PAGE_W-MARGIN, 290, {align:'right'});
     }
     doc.save(`SHM_${subtitle.replace(/[^a-zA-Z0-9]/g,'_')}.pdf`);
