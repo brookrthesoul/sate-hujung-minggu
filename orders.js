@@ -491,50 +491,51 @@ function closePaymentModal() {
     document.getElementById('paymentModal').style.display = 'none';
 }
 
-function onPayMethodChange() {
-    const selected = document.querySelector('input[name="payMethod"]:checked');
-    if (selected) _renderPayInputs(selected.value, null);
+function onPayMethodChange(el) {
+    _renderPayInputs(el.value, null);
 }
 
 function _renderPayInputs(method, existingOrder) {
-    const box = document.getElementById('paymentInputsBox');
+    const box   = document.getElementById('paymentInputsBox');
     const total = _pmTotal;
 
     if (method === 'online') {
         const val = (existingOrder && existingOrder.paymentMethod === 'online')
             ? existingOrder.paymentOnline : total;
-        box.innerHTML = `
-            <label class="pay-label">💳 Online Amount (RM)</label>
-            <input type="number" id="payOnlineInput" step="0.01" min="0" value="${val.toFixed(2)}" class="pay-input">`;
+        box.innerHTML =
+            '<label class="pay-label">💳 Online Amount (RM)</label>' +
+            '<input type="number" id="payOnlineInput" step="0.01" min="0" class="pay-input">';
+        document.getElementById('payOnlineInput').value = val.toFixed(2);
 
     } else if (method === 'cash') {
         const val = (existingOrder && existingOrder.paymentMethod === 'cash')
             ? existingOrder.paymentCash : total;
-        box.innerHTML = `
-            <label class="pay-label">💵 Cash Amount (RM)</label>
-            <input type="number" id="payCashInput" step="0.01" min="0" value="${val.toFixed(2)}" class="pay-input">`;
+        box.innerHTML =
+            '<label class="pay-label">💵 Cash Amount (RM)</label>' +
+            '<input type="number" id="payCashInput" step="0.01" min="0" class="pay-input">';
+        document.getElementById('payCashInput').value = val.toFixed(2);
 
     } else { // both
         const oVal = (existingOrder && existingOrder.paymentMethod === 'both') ? existingOrder.paymentOnline : 0;
         const cVal = (existingOrder && existingOrder.paymentMethod === 'both') ? existingOrder.paymentCash   : 0;
-        box.innerHTML = `
-            <div class="pay-total-hint">Total: <strong>RM${total.toFixed(2)}</strong> — enter either amount, the other fills automatically.</div>
-            <label class="pay-label">💳 Online Amount (RM)</label>
-            <input type="number" id="payOnlineInput" step="0.01" min="0" value="${oVal.toFixed(2)}" class="pay-input" oninput="_autoFillCash()">
-            <label class="pay-label" style="margin-top:10px;">💵 Cash Amount (RM)</label>
-            <input type="number" id="payCashInput"  step="0.01" min="0" value="${cVal.toFixed(2)}" class="pay-input" oninput="_autoFillOnline()">`;
+        box.innerHTML =
+            '<div class="pay-total-hint">Total: <strong>RM' + total.toFixed(2) + '</strong> — type one amount, the other fills automatically.</div>' +
+            '<label class="pay-label">💳 Online Amount (RM)</label>' +
+            '<input type="number" id="payOnlineInput" step="0.01" min="0" class="pay-input">' +
+            '<label class="pay-label" style="margin-top:12px;">💵 Cash Amount (RM)</label>' +
+            '<input type="number" id="payCashInput" step="0.01" min="0" class="pay-input">';
+        document.getElementById('payOnlineInput').value = oVal.toFixed(2);
+        document.getElementById('payCashInput').value   = cVal.toFixed(2);
+        // Attach autofill listeners after elements exist in DOM
+        document.getElementById('payOnlineInput').addEventListener('input', function() {
+            const online = parseFloat(this.value) || 0;
+            document.getElementById('payCashInput').value = Math.max(0, _pmTotal - online).toFixed(2);
+        });
+        document.getElementById('payCashInput').addEventListener('input', function() {
+            const cash = parseFloat(this.value) || 0;
+            document.getElementById('payOnlineInput').value = Math.max(0, _pmTotal - cash).toFixed(2);
+        });
     }
-}
-
-function _autoFillCash() {
-    const online    = parseFloat(document.getElementById('payOnlineInput').value) || 0;
-    const cashEl    = document.getElementById('payCashInput');
-    if (cashEl) cashEl.value = Math.max(0, _pmTotal - online).toFixed(2);
-}
-function _autoFillOnline() {
-    const cash     = parseFloat(document.getElementById('payCashInput').value) || 0;
-    const onlineEl = document.getElementById('payOnlineInput');
-    if (onlineEl) onlineEl.value = Math.max(0, _pmTotal - cash).toFixed(2);
 }
 
 async function confirmPayment() {
