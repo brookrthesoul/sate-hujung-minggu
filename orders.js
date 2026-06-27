@@ -269,6 +269,10 @@ function switchOrderSubTab(subtab) {
     const filterBar = document.getElementById('doneFilterBar');
     if (filterBar) filterBar.style.display = subtab === 'done' ? 'flex' : 'none';
 
+    // Only show sate summary bar on Prepare tab
+    const summaryBar = document.getElementById('sateSummaryBar');
+    if (summaryBar) summaryBar.style.display = subtab === 'prepare' ? 'flex' : 'none';
+
     if (subtab === 'done') _populateDoneDateFilter().then(() => loadOrders());
     else loadOrders();
 }
