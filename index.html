@@ -223,6 +223,7 @@
                 <select id="reportType" onchange="updateReportDateUI()" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd;">
                     <option value="day">Daily report</option>
                     <option value="month">Monthly report</option>
+                    <option value="yearly">Yearly report</option>
                 </select>
             </div>
             <div id="reportDatePicker" style="margin-bottom:16px;">
@@ -232,6 +233,17 @@
             <div id="reportMonthPicker" style="display:none; margin-bottom:16px;">
                 <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Select month:</label>
                 <input type="month" id="reportMonth" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box;">
+            </div>
+            <div id="reportYearPicker" style="display:none; margin-bottom:16px;">
+                <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Select year:</label>
+                <select id="reportYear" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box;">
+                    <option value="2026">2026</option>
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                    <option value="2023">2023</option>
+                    <option value="2022">2022</option>
+                    <option value="2021">2021</option>
+                </select>
             </div>
             <div style="display:flex; gap:8px;">
                 <button onclick="generateReport()" style="flex:1; background:#007bff; color:white; border:none; border-radius:8px; padding:10px; font-size:14px; cursor:pointer;">📄 Generate PDF</button>

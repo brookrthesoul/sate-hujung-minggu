@@ -604,8 +604,9 @@ function closeReportModal() {
 }
 function updateReportDateUI() {
     const type = document.getElementById('reportType').value;
-    document.getElementById('reportDatePicker').style.display  = type==='day'   ? 'block' : 'none';
-    document.getElementById('reportMonthPicker').style.display = type==='month' ? 'block' : 'none';
+    document.getElementById('reportDatePicker').style.display  = type==='day'    ? 'block' : 'none';
+    document.getElementById('reportMonthPicker').style.display = type==='month'  ? 'block' : 'none';
+    document.getElementById('reportYearPicker').style.display  = type==='yearly' ? 'block' : 'none';
 }
 
 async function generateReport() {
@@ -620,13 +621,19 @@ async function generateReport() {
         filtered = done.filter(o => new Date(o.createdAt).toLocaleDateString('en-CA') === date);
         subtitle = new Date(date+'T00:00:00').toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
         title    = 'DAILY SALES REPORT';
-    } else {
+    } else if (type === 'month') {
         const month = document.getElementById('reportMonth').value;
         if (!month) { alert('Please select a month.'); return; }
         filtered = done.filter(o => new Date(o.createdAt).toLocaleDateString('en-CA').substring(0,7) === month);
         const [y,m] = month.split('-');
         subtitle = new Date(y, m-1, 1).toLocaleDateString(undefined, { year:'numeric', month:'long' });
         title    = 'MONTHLY SALES REPORT';
+    } else {
+        const year = document.getElementById('reportYear').value;
+        if (!year) { alert('Please select a year.'); return; }
+        filtered = done.filter(o => new Date(o.createdAt).getFullYear() === parseInt(year));
+        subtitle = year;
+        title    = 'YEARLY SALES REPORT';
     }
 
     if (filtered.length === 0) { alert('No completed orders found for the selected period.'); return; }
@@ -698,8 +705,8 @@ function _buildPDF(title, subtitle, orders) {
     doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(0);
     doc.text('Payment Breakdown:', MARGIN+2, y+8);
     doc.setFont('helvetica','normal');
-    doc.text(`💳 Online: RM ${totalOnline.toFixed(2)}`, MARGIN+48, y+8);
-    doc.text(`💵 Cash: RM ${totalCash.toFixed(2)}`, MARGIN+110, y+8);
+    doc.text(`Online: RM ${totalOnline.toFixed(2)}`, MARGIN+52, y+8);
+    doc.text(`Cash: RM ${totalCash.toFixed(2)}`, MARGIN+115, y+8);
     y += 18;
 
     // Items sold table
