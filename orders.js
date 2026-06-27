@@ -137,6 +137,121 @@ async function saveOrder() {
     }
 }
 
+// ---------- Auto day-close ----------
+// Runs on app start:
+// 1. Paid but not picked up from previous days → silently moved to Done
+// 2. Unpaid orders from previous days → prompt user to Keep or Cancel each one
+async function autoClosePreviousDay() {
+    const today  = new Date().toLocaleDateString('en-CA');
+    const orders = (await getAllOrders()).map(normalizeOrder);
+
+    const stale  = orders.filter(o => {
+        const orderDay = new Date(o.createdAt).toLocaleDateString('en-CA');
+        return orderDay !== today && !o.pickedUp;
+    });
+
+    if (stale.length === 0) return;
+
+    // 1. Paid but not picked up → silently push to Done
+    const paidNotCollected = stale.filter(o => o.paid);
+    for (const order of paidNotCollected) {
+        order.pickedUp = true;
+        await updateOrder(order);
+    }
+
+    // 2. Unpaid → ask user one by one
+    const unpaid = stale.filter(o => !o.paid);
+    if (unpaid.length === 0) return;
+
+    // Show review modal
+    _showDayCloseModal(unpaid);
+}
+
+// ── Day-close review modal ─────────────────────────────────────────────────
+function _showDayCloseModal(unpaidOrders) {
+    // Remove existing modal if any
+    const existing = document.getElementById('dayCloseModal');
+    if (existing) existing.remove();
+
+    let currentIndex = 0;
+
+    const modal = document.createElement('div');
+    modal.id = 'dayCloseModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:99999;display:flex;align-items:center;justify-content:center;';
+
+    function renderModal() {
+        const order = unpaidOrders[currentIndex];
+        const total = currentIndex + 1;
+        const day   = formatDay(order.createdAt);
+        const time  = formatDate(order.createdAt);
+
+        const itemRows = Object.values(order.items || {})
+            .filter(r => r.qty > 0)
+            .map(r => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f0;">
+                <span>${escapeHtml(r.name)} × ${r.qty}</span>
+                <span>RM${r.cost.toFixed(2)}</span>
+            </div>`)
+            .join('');
+
+        const stage = !order.prepared ? 'Prepare' : 'Prepared';
+
+        modal.innerHTML = `
+            <div style="background:white;border-radius:18px;padding:24px;width:92%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+                <div style="background:#fff3cd;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#856404;">
+                    ⚠️ Leftover unpaid order from <strong>${day}</strong>
+                </div>
+                <div style="font-size:12px;color:#999;margin-bottom:4px;">${time} &nbsp;·&nbsp; Stage: ${stage} &nbsp;·&nbsp; #${order.id}</div>
+                <div style="margin:10px 0;">${itemRows}</div>
+                <div style="display:flex;justify-content:space-between;font-weight:bold;padding:8px 0;border-top:2px solid #eee;margin-bottom:6px;">
+                    <span>Total</span><span>RM${(order.totalCost||0).toFixed(2)}</span>
+                </div>
+                ${order.description ? `<div style="font-size:13px;color:#666;margin-bottom:12px;">📝 ${escapeHtml(order.description)}</div>` : ''}
+                <div style="font-size:13px;color:#555;margin-bottom:14px;text-align:center;">
+                    Order <strong>${currentIndex+1}</strong> of <strong>${unpaidOrders.length}</strong> — what would you like to do?
+                </div>
+                <div style="display:flex;gap:10px;">
+                    <button id="dcKeepBtn" style="flex:1;background:#28a745;color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:bold;cursor:pointer;">
+                        ✅ Keep
+                    </button>
+                    <button id="dcCancelBtn" style="flex:1;background:#dc3545;color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:bold;cursor:pointer;">
+                        🗑️ Cancel
+                    </button>
+                </div>
+            </div>`;
+
+        // Keep — leave order as-is, just move to next
+        document.getElementById('dcKeepBtn').onclick = async () => {
+            currentIndex++;
+            if (currentIndex < unpaidOrders.length) {
+                renderModal();
+            } else {
+                modal.remove();
+                loadOrders();
+            }
+        };
+
+        // Cancel — delete the order, move to next
+        document.getElementById('dcCancelBtn').onclick = async () => {
+            await deleteOrder(order.id);
+            unpaidOrders.splice(currentIndex, 1);
+            if (unpaidOrders.length === 0 || currentIndex >= unpaidOrders.length) {
+                if (unpaidOrders.length === 0) {
+                    modal.remove();
+                    loadOrders();
+                } else {
+                    currentIndex = 0;
+                    renderModal();
+                }
+            } else {
+                renderModal();
+            }
+        };
+    }
+
+    renderModal();
+    document.body.appendChild(modal);
+}
+
 // ---------- Edit state tracking ----------
 // Tracks which order IDs are currently in edit mode so _rerender doesn't wipe them
 const _editingIds = new Set();
