@@ -65,13 +65,10 @@
             <div class="sub-tab" id="subTab-paid" onclick="switchOrderSubTab('paid')">Paid</div>
             <div class="sub-tab" id="subTab-done" onclick="switchOrderSubTab('done')">Done</div>
         </div>
-        <div class="sort-and-summary">
-            <select id="sortOrders" class="sort-dropdown" onchange="loadOrders()">
-                <option value="desc">Newest first</option>
-                <option value="asc">Oldest first</option>
-            </select>
-            <div id="sateSummaryBar" class="sate-summary-bar"></div>
-        </div>
+        <select id="sortOrders" class="sort-dropdown" onchange="loadOrders()">
+            <option value="desc">Newest first</option>
+            <option value="asc">Oldest first</option>
+        </select>
 
         <!-- Done tab date filter (only visible on Done tab) -->
         <div id="doneFilterBar" style="display:none; margin: 8px 0; display:none; gap:8px; align-items:center; flex-wrap:wrap;">
@@ -83,6 +80,7 @@
             <button onclick="openReportModal()" style="background:#28a745; color:white; border:none; border-radius:8px; padding:7px 14px; font-size:13px; cursor:pointer;">📊 PDF Report</button>
         </div>
 
+        <div id="sateSummaryBar" class="sate-summary-bar"></div>
         <div id="prepareList" class="order-sublist active"></div>
         <div id="preparedList" class="order-sublist"></div>
         <div id="paidList" class="order-sublist"></div>
