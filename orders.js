@@ -267,8 +267,8 @@ function _showDayCloseModal(unpaidOrders) {
         };
     }
 
-    renderModal();
     document.body.appendChild(modal);
+    renderModal();
 }
 
 // ---------- Edit state tracking ----------
