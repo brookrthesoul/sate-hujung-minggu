@@ -210,6 +210,12 @@
         <p style="font-size: 14px; color: #6c757d; margin-top: 20px;">
             Changing prices or the menu affects future calculations and new orders. Existing orders keep their original totals.
         </p>
+
+        <h2 style="margin-top:28px;">📦 Manage Stock</h2>
+        <p style="font-size:13px;color:#666;margin-bottom:12px;">
+            Set stock levels for each item. Leave blank for no limit. Use +/- to restock mid-day.
+        </p>
+        <div id="stockManagerList"></div>
     </div>
     
 
@@ -274,6 +280,7 @@
         </div>
     </div>
 
+    <script src="stock.js"></script>
     <!-- App scripts (order matters: menu before things that read it) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="./sync.js"></script>

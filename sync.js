@@ -690,10 +690,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         _rerender();
     }
 
-    // Run day-close check AFTER sync so DB has fresh data from Supabase
-    if (typeof autoClosePreviousDay === 'function') {
-        autoClosePreviousDay().then(() => {
+    // Run day-close check AFTER sync completes — guaranteed fresh data
+    try {
+        if (typeof autoClosePreviousDay === 'function') {
+            await autoClosePreviousDay();
             if (typeof loadOrders === 'function') loadOrders();
-        }).catch(console.error);
-    }
+        }
+    } catch(e) { console.error('Day-close error:', e); }
 });

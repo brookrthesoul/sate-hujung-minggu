@@ -330,3 +330,58 @@
     font-size: 16px;
     padding: 0 4px;
 }
+
+/* ─── Stock indicators (New Order page) ──────────────────────────────────── */
+.stock-indicator {
+    font-size: 12px;
+    font-weight: 600;
+    min-height: 16px;
+    transition: color 0.2s;
+}
+.stock-ok  { color: #28a745; }
+.stock-low { color: #fd7e14; }
+.stock-out { color: #dc3545; }
+
+/* ─── Stock manager (Settings) ───────────────────────────────────────────── */
+.stock-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+    flex-wrap: wrap;
+}
+.stock-item-name {
+    font-weight: 600;
+    font-size: 14px;
+    min-width: 80px;
+    flex: 1;
+}
+.stock-input-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.stock-input-group button {
+    background: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+}
+.stock-input-group input {
+    width: 64px;
+    text-align: center;
+    padding: 6px 4px;
+    border: 1px solid #ced4da;
+    border-radius: 8px;
+    font-size: 14px;
+}
+.stock-status-label {
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 90px;
+}

@@ -23,6 +23,10 @@ function switchTab(tab) {
     slideTo(index, true);
 
     if (tab === 'orders') loadOrders();
+    if (tab === 'settings') {
+        if (typeof renderSettingsMenuList === 'function') renderSettingsMenuList();
+        if (typeof renderStockManager    === 'function') renderStockManager();
+    }
     if (tab === 'ratio') { updateSliderLabel(); calculateRatio(); }
     if (tab === 'settings') renderSettingsMenuList();
 }
@@ -41,6 +45,10 @@ function switchTab(tab) {
                 document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', i === index));
                 const tab = TABS[index];
                 if (tab === 'orders') loadOrders();
+    if (tab === 'settings') {
+        if (typeof renderSettingsMenuList === 'function') renderSettingsMenuList();
+        if (typeof renderStockManager    === 'function') renderStockManager();
+    }
                 if (tab === 'ratio') { updateSliderLabel(); calculateRatio(); }
                 if (tab === 'settings') renderSettingsMenuList();
             }

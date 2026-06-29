@@ -48,8 +48,13 @@ function renderHomeMenuInputs() {
     if (!container) return;
     container.innerHTML = getMenuItems().map(item => `
         <label id="label-${item.id}">${escapeHtml(item.name)} (RM${item.price.toFixed(2)})</label>
-        <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0">
+        <div style="display:flex;flex-direction:column;gap:4px;">
+            <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0"
+                oninput="checkStockInput('${item.id}', this.value)">
+            <span id="stock-indicator-${item.id}" class="stock-indicator"></span>
+        </div>
     `).join('');
+    if (typeof updateStockIndicators === 'function') updateStockIndicators();
 }
 
 function getQuantitiesFromHome() {
@@ -127,6 +132,20 @@ async function saveOrder() {
         paymentCash: 0,
         createdAt: Date.now()
     };
+    // Check and deduct stock before saving
+    if (typeof deductStock === 'function') {
+        const stockResult = deductStock(totals.items);
+        if (!stockResult.ok) {
+            const avail = stockResult.available;
+            if (avail === 0) {
+                alert(`❌ Out of stock: ${stockResult.name}`);
+            } else {
+                alert(`❌ Insufficient stock: ${stockResult.name}\nRequested: ${stockResult.requested}, Available: ${avail}`);
+            }
+            return;
+        }
+    }
+
     try {
         await addOrder(order);
         clearForm();
@@ -598,6 +617,20 @@ async function saveEdit(id, returnStage = 'prepare') {
         delete updated[k]; delete updated[k+'Cost'];
     });
     delete updated.ayamDagingQty;
+    // Adjust stock for the difference between old and new quantities
+    if (typeof adjustStock === 'function' && !existing.paid) {
+        const stockResult = adjustStock(existing.items || {}, totals.items);
+        if (!stockResult.ok) {
+            const avail = stockResult.available;
+            if (avail === 0) {
+                alert(`❌ Out of stock: ${stockResult.name}`);
+            } else {
+                alert(`❌ Insufficient stock: ${stockResult.name}\nAdding: ${stockResult.requested} more, Available: ${avail}`);
+            }
+            return;
+        }
+    }
+
     await updateOrder(updated);
     _editingIds.delete(id);
     loadOrders();
@@ -658,7 +691,16 @@ async function markPickedUp(id) {
 }
 
 async function deleteOrderConfirm(id) {
-    if (confirm('Delete this order?')) { await deleteOrder(id); loadOrders(); }
+    if (confirm('Delete this order?')) {
+        // Return stock if order was not yet paid (still active)
+        const all   = await getAllOrders();
+        const order = normalizeOrder(all.find(o => o.id === id) || {});
+        if (order && !order.paid && typeof returnStock === 'function') {
+            returnStock(order.items || {});
+        }
+        await deleteOrder(id);
+        loadOrders();
+    }
 }
 
 // ---------- Payment Modal ----------
