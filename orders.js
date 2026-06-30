@@ -151,6 +151,7 @@ async function saveOrder() {
         clearForm();
         switchTab('orders');
         switchOrderSubTab('prepare');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
         alert('❌ Failed to save order: ' + e.message);
     }
