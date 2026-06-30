@@ -32,13 +32,12 @@ messaging.onBackgroundMessage(payload => {
   });
 });
 
-const CACHE_NAME = 'order-pwa-v27';
+const CACHE_NAME = 'order-pwa-v28';
 
 const STATIC_CACHE = [
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  './style.css',
 ];
 
 self.addEventListener('install', event => {
@@ -70,21 +69,22 @@ self.addEventListener('fetch', event => {
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return;
   if (event.request.method !== 'GET') return;
 
-  // JS and HTML: always network-first so deploys are instant
-  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.html') || url.pathname.endsWith('/')) {
+  // JS, HTML, CSS: always network-first so deploys are instant
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.html') ||
+      url.pathname.endsWith('.css') || url.pathname.endsWith('/')) {
     event.respondWith(
       fetch(event.request).catch(() => caches.match(event.request))
     );
     return;
   }
 
-  // Static assets (icons, CSS, manifest): cache-first
+  // Static assets (icons, manifest): cache-first
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
       return fetch(event.request).then(res => {
         if (res && res.status === 200) {
-          const toCache = res.clone(); // clone BEFORE returning
+          const toCache = res.clone();
           caches.open(CACHE_NAME).then(c => c.put(event.request, toCache));
         }
         return res;
