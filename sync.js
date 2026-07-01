@@ -305,11 +305,21 @@ function connectRealtime() {
     _ws = new WebSocket(url);
 
     _ws.onopen = () => {
+        // Subscribe to orders table
         _ws.send(JSON.stringify({
             topic: 'realtime:orders-sync', event: 'phx_join',
             payload: { config: {
                 broadcast: { self: false }, presence: { key: '' },
                 postgres_changes: [{ event: '*', schema: 'public', table: TABLE }]
+            }},
+            ref: String(_wsRef++)
+        }));
+        // Subscribe to stock table
+        _ws.send(JSON.stringify({
+            topic: 'realtime:stock-sync', event: 'phx_join',
+            payload: { config: {
+                broadcast: { self: false }, presence: { key: '' },
+                postgres_changes: [{ event: '*', schema: 'public', table: 'stock' }]
             }},
             ref: String(_wsRef++)
         }));
@@ -324,7 +334,14 @@ function connectRealtime() {
             const f = JSON.parse(data);
             if (f.event === 'phx_reply') return;
             if (f.event === 'postgres_changes' || f.payload?.data?.type) {
-                if (!_syncing) syncNow().catch(console.error);
+                const table = f.payload?.data?.table || f.topic || '';
+                if (table.includes('stock')) {
+                    // Stock changed on another device — re-sync stock
+                    if (typeof window._syncStock === 'function') window._syncStock().catch(console.warn);
+                } else {
+                    // Orders changed
+                    if (!_syncing) syncNow().catch(console.error);
+                }
             }
         } catch(_) {}
     };

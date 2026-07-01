@@ -11,3 +11,6 @@ create table if not exists stock (
 alter table stock enable row level security;
 create policy "anon can manage stock" on stock
   for all using (true) with check (true);
+
+-- Enable Realtime on stock table so changes broadcast to all devices instantly
+alter publication supabase_realtime add table stock;
