@@ -24,8 +24,11 @@ function switchTab(tab) {
 
     if (tab === 'orders') loadOrders();
     if (tab === 'settings') {
-        if (typeof renderSettingsMenuList === 'function') renderSettingsMenuList();
-        if (typeof renderStockManager    === 'function') renderStockManager();
+        switchSettingsTab('menu');
+        // Restore sync bar toggle state
+        const stored = localStorage.getItem(SYNC_BAR_KEY);
+        const toggle = document.getElementById('syncBarToggle');
+        if (toggle) toggle.checked = stored === null ? true : stored === '1';
     }
     if (tab === 'ratio') { updateSliderLabel(); calculateRatio(); }
     if (tab === 'settings') renderSettingsMenuList();
@@ -46,8 +49,11 @@ function switchTab(tab) {
                 const tab = TABS[index];
                 if (tab === 'orders') loadOrders();
     if (tab === 'settings') {
-        if (typeof renderSettingsMenuList === 'function') renderSettingsMenuList();
-        if (typeof renderStockManager    === 'function') renderStockManager();
+        switchSettingsTab('menu');
+        // Restore sync bar toggle state
+        const stored = localStorage.getItem(SYNC_BAR_KEY);
+        const toggle = document.getElementById('syncBarToggle');
+        if (toggle) toggle.checked = stored === null ? true : stored === '1';
     }
                 if (tab === 'ratio') { updateSliderLabel(); calculateRatio(); }
                 if (tab === 'settings') renderSettingsMenuList();
@@ -66,6 +72,8 @@ window.onload = () => {
         loadMenu();
         renderHomeMenuInputs();
         setupPrinter();
+        // Restore sync bar visibility preference
+        initSyncBarToggle();
         // Day-close runs after sync in sync.js DOMContentLoaded
     });
 };
@@ -97,4 +105,34 @@ async function handleResetAllOrders() {
         status.textContent = '❌ Reset failed: ' + e.message;
         console.error(e);
     }
+}
+
+// ─── Settings sub-tabs ────────────────────────────────────────────────────────
+function switchSettingsTab(tab) {
+    ['menu','others','danger'].forEach(t => {
+        document.getElementById(`stab-${t}`).classList.toggle('active', t === tab);
+        document.getElementById(`stab-${t}-content`).classList.toggle('active', t === tab);
+    });
+    if (tab === 'menu') {
+        if (typeof renderSettingsMenuList === 'function') renderSettingsMenuList();
+        if (typeof renderStockManager    === 'function') renderStockManager();
+    }
+}
+
+// ─── Sync bar toggle ──────────────────────────────────────────────────────────
+const SYNC_BAR_KEY = 'shmSyncBarVisible';
+
+function setSyncBarVisible(visible) {
+    localStorage.setItem(SYNC_BAR_KEY, visible ? '1' : '0');
+    const bar = document.getElementById('syncBar');
+    if (bar) bar.style.display = visible ? 'flex' : 'none';
+    const toggle = document.getElementById('syncBarToggle');
+    if (toggle) toggle.checked = visible;
+}
+
+function initSyncBarToggle() {
+    const stored = localStorage.getItem(SYNC_BAR_KEY);
+    // Default visible (null = not set yet)
+    const visible = stored === null ? true : stored === '1';
+    setSyncBarVisible(visible);
 }

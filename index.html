@@ -132,105 +132,137 @@
 
     <!-- SETTINGS PANEL -->
     <div id="settingsPanel" class="panel">
-        <h2>Menu &amp; Prices</h2>
-        <div id="menuList"><!-- existing menu items render here: name, price, save, delete --></div>
+        <h2>Settings</h2>
 
-        <h3 style="margin-top: 30px;">➕ Add New Menu Item</h3>
-        <div class="settings-group">
-            <label>Name</label>
-            <input type="text" id="newItemName" placeholder="e.g. Sate Kambing">
+        <!-- Settings Sub-tabs -->
+        <div class="sub-tab-bar" style="margin-bottom:0;">
+            <div class="sub-tab active" id="stab-menu"   onclick="switchSettingsTab('menu')">Menu</div>
+            <div class="sub-tab"        id="stab-others" onclick="switchSettingsTab('others')">Others</div>
+            <div class="sub-tab"        id="stab-danger" onclick="switchSettingsTab('danger')" style="color:#dc3545;">Danger</div>
         </div>
-        <div class="settings-group">
-            <label>Price (RM)</label>
-            <input type="number" id="newItemPrice" step="0.01" min="0" placeholder="0.00">
+
+        <!-- Menu | Prices | Stock -->
+        <div id="stab-menu-content" class="settings-subtab-content active">
+            <h3 style="margin-top:20px;">🍽️ Menu &amp; Prices</h3>
+            <div id="menuList"></div>
+
+            <h3 style="margin-top:24px;">➕ Add New Menu Item</h3>
+            <div class="settings-group">
+                <label>Name</label>
+                <input type="text" id="newItemName" placeholder="e.g. Sate Kambing">
+            </div>
+            <div class="settings-group">
+                <label>Price (RM)</label>
+                <input type="number" id="newItemPrice" step="0.01" min="0" placeholder="0.00">
+            </div>
+            <div class="settings-group">
+                <label>Type</label>
+                <select id="newItemType">
+                    <option value="skewer">🍢 Sate (+ kuah kacang)</option>
+                    <option value="no-kuah">🍖 Sate (tiada kuah kacang)</option>
+                    <option value="side">🍽️ Side dish (+ 2 kuah)</option>
+                    <option value="kuah-only">🥜 Kuah kacang sahaja</option>
+                </select>
+            </div>
+            <button onclick="addMenuItem()">Add Item</button>
+
+            <button class="secondary" onclick="resetToDefaultMenu()" style="margin-top:16px;">Reset to Default Menu</button>
+            <p style="font-size:13px; color:#6c757d; margin-top:8px;">
+                Changing prices or the menu affects future calculations and new orders. Existing orders keep their original totals.
+            </p>
+
+            <h3 style="margin-top:24px;">📦 Manage Stock</h3>
+            <p style="font-size:13px;color:#666;margin-bottom:12px;">
+                Set stock levels for each item. Leave blank for no limit. Use +/- to restock mid-day.
+            </p>
+            <div id="stockManagerList"></div>
         </div>
-        <div class="settings-group">
-            <label>Type</label>
-            <select id="newItemType">
-                <option value="skewer">🍢 Sate (+ kuah kacang)</option>
-                <option value="no-kuah">🍖 Sate (tiada kuah kacang)</option>
-                <option value="side">🍽️ Side dish (+ 2 kuah)</option>
-                <option value="kuah-only">🥜 Kuah kacang sahaja</option>
-                <option value="side">🍽️ Side dish</option>
-            </select>
-        </div>
-        <button onclick="addMenuItem()">Add Item</button>
 
-        <h3 style="margin-top: 30px;">🖨️ Receipt Printer</h3>
-        <div class="settings-group">
-            <label>Paper Size</label>
-            <select id="paperSize" onchange="savePaperSize()">
-                <option value="58">58mm (~32 chars)</option>
-                <option value="80">80mm (~48 chars)</option>
-            </select>
-        </div>
-        <p id="printerStatus" style="font-size: 14px; color: #6c757d;">⭕ Not connected</p>
-        <button class="secondary" onclick="connectPrinter()">Connect Printer</button>
+        <!-- Others -->
+        <div id="stab-others-content" class="settings-subtab-content">
+            <h3 style="margin-top:20px;">🖨️ Receipt Printer</h3>
+            <div class="settings-group">
+                <label>Paper Size</label>
+                <select id="paperSize" onchange="savePaperSize()">
+                    <option value="58">58mm (~32 chars)</option>
+                    <option value="80">80mm (~48 chars)</option>
+                </select>
+            </div>
+            <p id="printerStatus" style="font-size:14px; color:#6c757d;">⭕ Not connected</p>
+            <button class="secondary" onclick="connectPrinter()">Connect Printer</button>
 
-        <h3 style="margin-top: 30px;">📲 Install App</h3>
-        <p id="installAppHint" style="font-size: 14px; color: #6c757d;"></p>
-        <button id="installAppBtn" class="secondary" style="display:none;" onclick="installApp()">Install App</button>
+            <h3 style="margin-top:24px;">📲 Install App</h3>
+            <p id="installAppHint" style="font-size:14px; color:#6c757d;"></p>
+            <button id="installAppBtn" class="secondary" style="display:none;" onclick="installApp()">Install App</button>
 
-        <h3 style="margin-top: 30px;">☁️ Supabase Sync</h3>
-        <p style="font-size:13px; color:#6c757d;">
-            Orders sync automatically to Supabase when online, and queue offline changes until reconnected.<br>
-            All devices update in real-time whenever any device saves an order.
-        </p>
-        <p style="font-size:13px;">Status: <span id="syncStatusSettings"></span></p>
-        <button class="secondary" onclick="syncNow()">🔄 Sync Now</button>
-        <button class="secondary" onclick="pullFromCloud()">📥 Pull from Cloud</button>
+            <h3 style="margin-top:24px;">☁️ Supabase Sync</h3>
+            <p style="font-size:13px; color:#6c757d;">
+                Orders sync automatically to Supabase when online, and queue offline changes until reconnected.<br>
+                All devices update in real-time whenever any device saves an order.
+            </p>
+            <p style="font-size:13px;">Status: <span id="syncStatusSettings"></span></p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="secondary" onclick="syncNow()">🔄 Sync Now</button>
+                <button class="secondary" onclick="pullFromCloud()">📥 Pull from Cloud</button>
+            </div>
 
-        <div class="settings-group" style="margin-top:16px; display:flex; align-items:center; gap:12px;">
-            <label class="toggle-switch">
-                <input type="checkbox" id="syncToastToggle" onchange="setSyncToastEnabled(this.checked)">
-                <span class="toggle-slider"></span>
-            </label>
-            <div>
-                <div style="font-weight:600; font-size:14px;">Sync Alerts</div>
-                <div id="syncToastHint" style="font-size:12px; color:#6c757d;">🔔 Sync alerts visible</div>
+            <div class="settings-group" style="margin-top:16px; display:flex; align-items:center; gap:12px;">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="syncToastToggle" onchange="setSyncToastEnabled(this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
+                <div>
+                    <div style="font-weight:600; font-size:14px;">Sync Alerts</div>
+                    <div id="syncToastHint" style="font-size:12px; color:#6c757d;">🔔 Sync alerts visible</div>
+                </div>
+            </div>
+
+            <div class="settings-group" style="margin-top:8px; display:flex; align-items:center; gap:12px;">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="syncBarToggle" onchange="setSyncBarVisible(this.checked)" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+                <div>
+                    <div style="font-weight:600; font-size:14px;">Show Sync Bar</div>
+                    <div style="font-size:12px; color:#6c757d;">The Online / Synced / 🔄 bar at the top</div>
+                </div>
+            </div>
+
+            <h3 style="margin-top:24px;">🍢 Kitchen Notifications</h3>
+            <p style="font-size:13px; color:#6c757d;">
+                Enable this on the <strong>cooking device</strong> to get an alert + sound whenever a new order is placed from another device.
+            </p>
+            <div class="settings-group" style="display:flex; align-items:center; gap:12px;">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="orderNotiToggle" onchange="setOrderNotiEnabled(this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
+                <div>
+                    <div style="font-weight:600; font-size:14px;">New Order Alert</div>
+                    <div id="orderNotiHint" style="font-size:12px; color:#6c757d;">🔕 Kitchen alerts OFF</div>
+                </div>
             </div>
         </div>
 
-        <h3 style="margin-top: 30px;">🍢 Kitchen Notifications</h3>
-        <p style="font-size:13px; color:#6c757d;">
-            Enable this on the <strong>cooking device</strong> to get an alert + sound whenever a new order is placed from another device.
-        </p>
-        <div class="settings-group" style="display:flex; align-items:center; gap:12px;">
-            <label class="toggle-switch">
-                <input type="checkbox" id="orderNotiToggle" onchange="setOrderNotiEnabled(this.checked)">
-                <span class="toggle-slider"></span>
-            </label>
-            <div>
-                <div style="font-weight:600; font-size:14px;">New Order Alert</div>
-                <div id="orderNotiHint" style="font-size:12px; color:#6c757d;">🔕 Kitchen alerts OFF</div>
+        <!-- Danger Zone -->
+        <div id="stab-danger-content" class="settings-subtab-content">
+            <div style="background:#fff5f5;border:1.5px solid #f5c6cb;border-radius:12px;padding:18px;margin-top:20px;">
+                <h3 style="color:#dc3545;margin:0 0 8px;">⚠️ Reset All Orders</h3>
+                <p style="font-size:13px;color:#666;margin-bottom:14px;">
+                    Wipes all order data from the database. Menu, prices and stock levels are kept.<br>
+                    Type <strong>RESET</strong> to confirm.
+                </p>
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <input type="text" id="resetConfirmInput" placeholder="Type RESET to confirm"
+                        style="flex:1;padding:10px;border-radius:10px;border:1px solid #ced4da;font-size:14px;">
+                    <button onclick="handleResetAllOrders()"
+                        style="background:#dc3545;color:white;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:bold;cursor:pointer;">
+                        Reset
+                    </button>
+                </div>
+                <p id="resetStatusMsg" style="font-size:13px;min-height:18px;"></p>
             </div>
         </div>
-
-        <button class="secondary" onclick="resetToDefaultMenu()" style="margin-top: 20px;">Reset to Default Menu</button>
-        <p style="font-size: 14px; color: #6c757d; margin-top: 20px;">
-            Changing prices or the menu affects future calculations and new orders. Existing orders keep their original totals.
-        </p>
-
-        <h2 style="margin-top:28px; color:#dc3545;">⚠️ Danger Zone</h2>
-        <p style="font-size:13px;color:#666;margin-bottom:12px;">
-            Reset all order data. Menu, prices and stock levels will be kept.
-            Type <strong>RESET</strong> to confirm.
-        </p>
-        <div style="display:flex;gap:8px;margin-bottom:8px;">
-            <input type="text" id="resetConfirmInput" placeholder="Type RESET to confirm"
-                style="flex:1;padding:10px;border-radius:10px;border:1px solid #ced4da;font-size:14px;">
-            <button onclick="handleResetAllOrders()"
-                style="background:#dc3545;color:white;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:bold;cursor:pointer;">
-                Reset
-            </button>
-        </div>
-        <p id="resetStatusMsg" style="font-size:13px;min-height:18px;"></p>
-
-        <h2 style="margin-top:28px;">📦 Manage Stock</h2>
-        <p style="font-size:13px;color:#666;margin-bottom:12px;">
-            Set stock levels for each item. Leave blank for no limit. Use +/- to restock mid-day.
-        </p>
-        <div id="stockManagerList"></div>
     </div>
     
 

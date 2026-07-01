@@ -385,3 +385,12 @@
     font-weight: 600;
     min-width: 90px;
 }
+
+/* ─── Settings sub-tab content ───────────────────────────────────────────── */
+.settings-subtab-content {
+    display: none;
+    padding-bottom: 40px;
+}
+.settings-subtab-content.active {
+    display: block;
+}
