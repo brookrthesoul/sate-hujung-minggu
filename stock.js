@@ -12,6 +12,12 @@ function getStock() {
 
 function saveStock(stock) {
     localStorage.setItem(STOCK_KEY, JSON.stringify(stock));
+    // Push each changed item to Supabase via sync layer
+    if (typeof window._writeStock === 'function') {
+        Object.entries(stock).forEach(([id, qty]) => {
+            window._writeStock(id, qty);
+        });
+    }
 }
 
 function getStockFor(id) {
@@ -19,9 +25,13 @@ function getStockFor(id) {
 }
 
 function setStockFor(id, qty) {
-    const s = getStock();
-    s[id] = Math.max(0, qty);
-    saveStock(s);
+    const s    = getStock();
+    s[id]      = Math.max(0, qty);
+    localStorage.setItem(STOCK_KEY, JSON.stringify(s));
+    // Only write this one item to Supabase
+    if (typeof window._writeStock === 'function') {
+        window._writeStock(id, Math.max(0, qty));
+    }
 }
 
 // Deduct stock for an order's items. Returns true if successful, false if insufficient.
@@ -41,7 +51,14 @@ function deductStock(items) {
             stock[id] = Math.max(0, stock[id] - item.qty);
         }
     }
-    saveStock(stock);
+    // Write each deducted item to Supabase
+    for (const [id, item] of Object.entries(items)) {
+        if (item.qty <= 0) continue;
+        if (stock[id] !== undefined && stock[id] !== null) {
+            if (typeof window._writeStock === 'function') window._writeStock(id, stock[id]);
+        }
+    }
+    localStorage.setItem(STOCK_KEY, JSON.stringify(stock));
     updateStockIndicators();
     return { ok: true };
 }
@@ -53,9 +70,10 @@ function returnStock(items) {
         if (item.qty <= 0) continue;
         if (stock[id] !== undefined && stock[id] !== null) {
             stock[id] += item.qty;
+            if (typeof window._writeStock === 'function') window._writeStock(id, stock[id]);
         }
     }
-    saveStock(stock);
+    localStorage.setItem(STOCK_KEY, JSON.stringify(stock));
     updateStockIndicators();
 }
 
@@ -83,7 +101,14 @@ function adjustStock(oldItems, newItems) {
             stock[id] = Math.max(0, stock[id] - diff);
         }
     }
-    saveStock(stock);
+    // Write each deducted item to Supabase
+    for (const [id, item] of Object.entries(items)) {
+        if (item.qty <= 0) continue;
+        if (stock[id] !== undefined && stock[id] !== null) {
+            if (typeof window._writeStock === 'function') window._writeStock(id, stock[id]);
+        }
+    }
+    localStorage.setItem(STOCK_KEY, JSON.stringify(stock));
     updateStockIndicators();
     return { ok: true };
 }

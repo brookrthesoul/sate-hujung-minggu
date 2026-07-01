@@ -690,6 +690,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         _rerender();
     }
 
+    // Sync stock from Supabase
+    try {
+        if (typeof window._syncStock === 'function') await window._syncStock();
+    } catch(e) { console.warn('Stock sync error:', e); }
+
     // Run day-close check AFTER sync completes — guaranteed fresh data
     try {
         if (typeof autoClosePreviousDay === 'function') {
@@ -698,6 +703,145 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch(e) { console.error('Day-close error:', e); }
 });
+
+
+// ─── Stock sync ───────────────────────────────────────────────────────────────
+// Stock is stored in Supabase `stock` table AND in IndexedDB `stockStore`.
+// Reads: IDB first (instant), then Supabase (fresh). Writes: both.
+// Offline: writes to IDB + queue, pushes to Supabase when back online.
+
+const _IDB_STOCK_STORE = 'stock';
+let   _stockQueue      = []; // pending offline writes { id, qty }
+
+// Upgrade IDB to add stock store (bump version)
+// Note: We patch _idbOpen below to handle this automatically.
+
+function _stockIdbOpen() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open('OrdersDB', 4); // bump to v4
+        req.onerror   = () => reject(req.error);
+        req.onsuccess = () => { _idbConn = req.result; resolve(req.result); };
+        req.onupgradeneeded = (ev) => {
+            const db = ev.target.result;
+            // Keep existing stores
+            if (!db.objectStoreNames.contains('orders')) {
+                db.createObjectStore('orders', { keyPath: 'id' }).createIndex('createdAt','createdAt');
+            }
+            if (!db.objectStoreNames.contains('syncQueue')) {
+                db.createObjectStore('syncQueue', { autoIncrement: true });
+            }
+            // New stock store
+            if (!db.objectStoreNames.contains(_IDB_STOCK_STORE)) {
+                db.createObjectStore(_IDB_STOCK_STORE, { keyPath: 'id' });
+            }
+        };
+    });
+}
+
+async function _stockIdbGetAll() {
+    const db = await _stockIdbOpen();
+    return new Promise((res, rej) => {
+        const tx  = db.transaction(_IDB_STOCK_STORE, 'readonly');
+        const req = tx.objectStore(_IDB_STOCK_STORE).getAll();
+        req.onsuccess = () => res(req.result);
+        req.onerror   = () => rej(req.error);
+    });
+}
+
+async function _stockIdbPutAll(rows) {
+    const db = await _stockIdbOpen();
+    return new Promise((res, rej) => {
+        const tx    = db.transaction(_IDB_STOCK_STORE, 'readwrite');
+        const store = tx.objectStore(_IDB_STOCK_STORE);
+        tx.oncomplete = () => res();
+        tx.onerror    = () => rej(tx.error);
+        rows.forEach(r => store.put(r));
+    });
+}
+
+async function _stockIdbPut(id, qty) {
+    const db = await _stockIdbOpen();
+    return new Promise((res, rej) => {
+        const tx  = db.transaction(_IDB_STOCK_STORE, 'readwrite');
+        const req = tx.objectStore(_IDB_STOCK_STORE).put({ id, qty });
+        req.onsuccess = () => res();
+        req.onerror   = () => rej(req.error);
+    });
+}
+
+// Fetch all stock from Supabase
+async function _sbGetStock() {
+    try {
+        const rows = await _sbFetch('stock?select=id,qty');
+        return rows || [];
+    } catch(e) {
+        console.warn('Stock fetch failed:', e);
+        return null;
+    }
+}
+
+// Push a single stock entry to Supabase (upsert)
+async function _sbUpsertStock(id, qty) {
+    try {
+        await _sbFetch('stock', {
+            method: 'POST',
+            headers: { 'Prefer': 'resolution=merge-duplicates' },
+            body: JSON.stringify({ id, qty, updated_at: new Date().toISOString() })
+        });
+        return true;
+    } catch(e) {
+        console.warn('Stock upsert failed:', e);
+        return false;
+    }
+}
+
+// Main stock sync — call on app start and after any stock change
+window._syncStock = async function() {
+    // 1. Push any queued offline writes first
+    if (_stockQueue.length > 0 && navigator.onLine) {
+        const queue = [..._stockQueue];
+        _stockQueue = [];
+        for (const { id, qty } of queue) {
+            const ok = await _sbUpsertStock(id, qty);
+            if (!ok) _stockQueue.push({ id, qty }); // re-queue if failed
+        }
+    }
+
+    // 2. Fetch fresh from Supabase if online
+    if (navigator.onLine) {
+        const rows = await _sbGetStock();
+        if (rows && rows.length > 0) {
+            await _stockIdbPutAll(rows);
+            // Convert to { id: qty } object and store in localStorage for fast access
+            const stock = {};
+            rows.forEach(r => { stock[r.id] = r.qty; });
+            localStorage.setItem('shmStock', JSON.stringify(stock));
+            if (typeof updateStockIndicators === 'function') updateStockIndicators();
+            if (typeof renderStockManager    === 'function') {
+                const mgr = document.getElementById('stockManagerList');
+                if (mgr && mgr.children.length > 0) renderStockManager();
+            }
+        }
+    }
+};
+
+// Write stock for one item — online: Supabase + IDB + localStorage. Offline: IDB + localStorage + queue.
+window._writeStock = async function(id, qty) {
+    // Always update local immediately
+    const stock = JSON.parse(localStorage.getItem('shmStock') || '{}');
+    stock[id]   = qty;
+    localStorage.setItem('shmStock', JSON.stringify(stock));
+    await _stockIdbPut(id, qty);
+    if (typeof updateStockIndicators === 'function') updateStockIndicators();
+
+    // Push to Supabase or queue
+    if (navigator.onLine) {
+        const ok = await _sbUpsertStock(id, qty);
+        if (!ok) _stockQueue.push({ id, qty });
+    } else {
+        _stockQueue.push({ id, qty });
+    }
+};
 
 // ─── Reset all orders ─────────────────────────────────────────────────────────
 // Deletes all orders from Supabase + IndexedDB and resets the ID sequence to 1.
