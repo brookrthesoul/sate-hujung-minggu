@@ -11,13 +11,8 @@ function getStock() {
 }
 
 function saveStock(stock) {
+    // saveStock only updates localStorage — callers handle Supabase sync individually
     localStorage.setItem(STOCK_KEY, JSON.stringify(stock));
-    // Push each changed item to Supabase via sync layer
-    if (typeof window._writeStock === 'function') {
-        Object.entries(stock).forEach(([id, qty]) => {
-            window._writeStock(id, qty);
-        });
-    }
 }
 
 function getStockFor(id) {

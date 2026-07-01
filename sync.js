@@ -62,8 +62,9 @@ async function _sbDelete(id) {
 // ─── IndexedDB cache ──────────────────────────────────────────────────────────
 
 const _IDB_NAME    = 'OrdersDB';
-const _IDB_VERSION = 3;
+const _IDB_VERSION = 4;  // bumped to add stock store
 const _IDB_STORE   = 'orders';
+const _IDB_STOCK   = 'stock';
 let   _idbConn     = null; // singleton connection
 
 function _idbOpen() {
@@ -76,6 +77,10 @@ function _idbOpen() {
             const db = ev.target.result;
             if (db.objectStoreNames.contains(_IDB_STORE)) db.deleteObjectStore(_IDB_STORE);
             db.createObjectStore(_IDB_STORE, { keyPath: 'id' }).createIndex('createdAt','createdAt');
+            // Add stock store in v4
+            if (!db.objectStoreNames.contains(_IDB_STOCK)) {
+                db.createObjectStore(_IDB_STOCK, { keyPath: 'id' });
+            }
             if (db.objectStoreNames.contains('syncQueue')) db.deleteObjectStore('syncQueue');
         };
     });
@@ -710,49 +715,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 // Reads: IDB first (instant), then Supabase (fresh). Writes: both.
 // Offline: writes to IDB + queue, pushes to Supabase when back online.
 
-const _IDB_STOCK_STORE = 'stock';
 let   _stockQueue      = []; // pending offline writes { id, qty }
 
 // Upgrade IDB to add stock store (bump version)
 // Note: We patch _idbOpen below to handle this automatically.
 
-function _stockIdbOpen() {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open('OrdersDB', 4); // bump to v4
-        req.onerror   = () => reject(req.error);
-        req.onsuccess = () => { _idbConn = req.result; resolve(req.result); };
-        req.onupgradeneeded = (ev) => {
-            const db = ev.target.result;
-            // Keep existing stores
-            if (!db.objectStoreNames.contains('orders')) {
-                db.createObjectStore('orders', { keyPath: 'id' }).createIndex('createdAt','createdAt');
-            }
-            if (!db.objectStoreNames.contains('syncQueue')) {
-                db.createObjectStore('syncQueue', { autoIncrement: true });
-            }
-            // New stock store
-            if (!db.objectStoreNames.contains(_IDB_STOCK_STORE)) {
-                db.createObjectStore(_IDB_STOCK_STORE, { keyPath: 'id' });
-            }
-        };
-    });
-}
-
 async function _stockIdbGetAll() {
-    const db = await _stockIdbOpen();
+    const db = await _idbOpen();
     return new Promise((res, rej) => {
-        const tx  = db.transaction(_IDB_STOCK_STORE, 'readonly');
-        const req = tx.objectStore(_IDB_STOCK_STORE).getAll();
+        const tx  = db.transaction(_IDB_STOCK, 'readonly');
+        const req = tx.objectStore(_IDB_STOCK).getAll();
         req.onsuccess = () => res(req.result);
         req.onerror   = () => rej(req.error);
     });
 }
 
 async function _stockIdbPutAll(rows) {
-    const db = await _stockIdbOpen();
+    const db = await _idbOpen();
     return new Promise((res, rej) => {
-        const tx    = db.transaction(_IDB_STOCK_STORE, 'readwrite');
-        const store = tx.objectStore(_IDB_STOCK_STORE);
+        const tx    = db.transaction(_IDB_STOCK, 'readwrite');
+        const store = tx.objectStore(_IDB_STOCK);
         tx.oncomplete = () => res();
         tx.onerror    = () => rej(tx.error);
         rows.forEach(r => store.put(r));
@@ -760,10 +742,10 @@ async function _stockIdbPutAll(rows) {
 }
 
 async function _stockIdbPut(id, qty) {
-    const db = await _stockIdbOpen();
+    const db = await _idbOpen();
     return new Promise((res, rej) => {
-        const tx  = db.transaction(_IDB_STOCK_STORE, 'readwrite');
-        const req = tx.objectStore(_IDB_STOCK_STORE).put({ id, qty });
+        const tx  = db.transaction(_IDB_STOCK, 'readwrite');
+        const req = tx.objectStore(_IDB_STOCK).put({ id, qty });
         req.onsuccess = () => res();
         req.onerror   = () => rej(req.error);
     });
