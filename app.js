@@ -74,6 +74,8 @@ window.onload = () => {
         setupPrinter();
         // Restore sync bar visibility preference
         initSyncBarToggle();
+        // Restore paste box collapse state
+        initPasteBox();
         // Day-close runs after sync in sync.js DOMContentLoaded
     });
 };
@@ -135,4 +137,26 @@ function initSyncBarToggle() {
     // Default visible (null = not set yet)
     const visible = stored === null ? true : stored === '1';
     setSyncBarVisible(visible);
+}
+
+// ─── Paste box collapse/expand ────────────────────────────────────────────────
+const PASTE_BOX_KEY = 'shmPasteBoxOpen';
+
+function togglePasteBox() {
+    const body    = document.getElementById('pasteBoxBody');
+    const chevron = document.getElementById('pasteBoxChevron');
+    const isOpen  = body.style.display !== 'none';
+    body.style.display    = isOpen ? 'none' : 'block';
+    chevron.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
+    localStorage.setItem(PASTE_BOX_KEY, isOpen ? '0' : '1');
+}
+
+function initPasteBox() {
+    const stored  = localStorage.getItem(PASTE_BOX_KEY);
+    const isOpen  = stored === null ? true : stored === '1';
+    const body    = document.getElementById('pasteBoxBody');
+    const chevron = document.getElementById('pasteBoxChevron');
+    if (!body || !chevron) return;
+    body.style.display      = isOpen ? 'block' : 'none';
+    chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
 }

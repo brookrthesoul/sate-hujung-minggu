@@ -33,13 +33,18 @@
         <h2>New Order</h2>
 
         <!-- Paste order message -->
-        <div id="pasteOrderBox" style="background:#f0f7ff; border:1.5px dashed #90c2ff; border-radius:14px; padding:14px; margin-bottom:16px;">
-            <label style="font-weight:600; font-size:13px; color:#1a6abf;">📋 Paste Customer Message</label>
-            <textarea id="pasteOrderInput" rows="3" placeholder="e.g. nak order 50 ayam 20 daging ngn lontong 1..." style="margin:8px 0 10px; font-size:13px; border-color:#90c2ff;"></textarea>
-            <div style="display:flex; gap:8px; align-items:center;">
-                <button onclick="parseOrderMessage()" style="background:#1a6abf; color:white; border:none; border-radius:8px; padding:8px 18px; font-size:13px; cursor:pointer;">✨ Auto-fill</button>
-                <button onclick="document.getElementById('pasteOrderInput').value=''" class="secondary" style="padding:8px 14px; font-size:13px;">Clear</button>
-                <span id="parseStatus" style="font-size:12px; color:#6c757d;"></span>
+        <div id="pasteOrderBox" style="background:#f0f7ff; border:1.5px dashed #90c2ff; border-radius:14px; margin-bottom:16px; overflow:hidden;">
+            <div onclick="togglePasteBox()" style="display:flex; justify-content:space-between; align-items:center; padding:12px 14px; cursor:pointer; user-select:none;">
+                <label style="font-weight:600; font-size:13px; color:#1a6abf; cursor:pointer;">📋 Paste Customer Message</label>
+                <span id="pasteBoxChevron" style="font-size:13px; color:#1a6abf; transition:transform 0.2s;">▼</span>
+            </div>
+            <div id="pasteBoxBody" style="padding:0 14px 14px;">
+                <textarea id="pasteOrderInput" rows="3" placeholder="e.g. nak order 50 ayam 20 daging ngn lontong 1..." style="margin:0 0 10px; font-size:13px; border-color:#90c2ff;"></textarea>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <button onclick="parseOrderMessage()" style="background:#1a6abf; color:white; border:none; border-radius:8px; padding:8px 18px; font-size:13px; cursor:pointer;">✨ Auto-fill</button>
+                    <button onclick="document.getElementById('pasteOrderInput').value=''" class="secondary" style="padding:8px 14px; font-size:13px;">Clear</button>
+                    <span id="parseStatus" style="font-size:12px; color:#6c757d;"></span>
+                </div>
             </div>
         </div>
 
