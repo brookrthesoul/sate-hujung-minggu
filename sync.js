@@ -811,9 +811,12 @@ window._syncStock = async function() {
         const rows = await _sbGetStock();
         if (rows && rows.length > 0) {
             await _stockIdbPutAll(rows);
-            // Convert to { id: qty } object and store in localStorage for fast access
+            // Convert to { id: qty } object — qty of -1 means no limit (skip it)
             const stock = {};
-            rows.forEach(r => { stock[r.id] = r.qty; });
+            rows.forEach(r => {
+                if (r.qty === -1) return; // -1 = no limit, don't add to stock object
+                stock[r.id] = r.qty;
+            });
             localStorage.setItem('shmStock', JSON.stringify(stock));
             if (typeof updateStockIndicators === 'function') updateStockIndicators();
             if (typeof renderStockManager    === 'function') {

@@ -137,7 +137,8 @@ function renderStockManager() {
     if (!container) return;
     const stock = getStock();
     container.innerHTML = getMenuItems().map(item => {
-        const qty = stock[item.id] ?? '';
+        const rawQty = stock[item.id];
+        const qty    = (rawQty === undefined || rawQty === null || rawQty === -1) ? '' : rawQty;
         return `
         <div class="stock-row">
             <span class="stock-item-name">${escapeHtml(item.name)}</span>
@@ -174,10 +175,11 @@ function saveStockFromInput(id) {
     if (!input) return;
     const val = input.value.trim();
     if (val === '' || val === '—') {
-        // Clear stock limit for this item
+        // Clear stock limit — remove from localStorage, write -1 to Supabase (signals no limit)
         const s = getStock();
         delete s[id];
-        saveStock(s);
+        localStorage.setItem(STOCK_KEY, JSON.stringify(s));
+        if (typeof window._writeStock === 'function') window._writeStock(id, -1);
     } else {
         setStockFor(id, parseInt(val) || 0);
     }
