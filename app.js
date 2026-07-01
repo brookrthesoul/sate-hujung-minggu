@@ -69,3 +69,32 @@ window.onload = () => {
         // Day-close runs after sync in sync.js DOMContentLoaded
     });
 };
+
+// ─── Reset all orders ─────────────────────────────────────────────────────────
+async function handleResetAllOrders() {
+    const input  = document.getElementById('resetConfirmInput');
+    const status = document.getElementById('resetStatusMsg');
+    if (!input || !status) return;
+
+    if (input.value.trim() !== 'RESET') {
+        status.style.color = '#dc3545';
+        status.textContent = '⚠️ Please type RESET exactly to confirm.';
+        return;
+    }
+
+    status.style.color = '#6c757d';
+    status.textContent = '⏳ Resetting...';
+
+    try {
+        await window._resetAllOrders();
+        input.value = '';
+        status.style.color = '#28a745';
+        status.textContent = '✅ All orders cleared. Order number will restart from #1 after the sequence reset.';
+        switchTab('orders');
+        switchOrderSubTab('prepare');
+    } catch(e) {
+        status.style.color = '#dc3545';
+        status.textContent = '❌ Reset failed: ' + e.message;
+        console.error(e);
+    }
+}

@@ -698,3 +698,47 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch(e) { console.error('Day-close error:', e); }
 });
+
+// ─── Reset all orders ─────────────────────────────────────────────────────────
+// Deletes all orders from Supabase + IndexedDB and resets the ID sequence to 1.
+// Stock, menu, and prices are kept untouched.
+window._resetAllOrders = async function() {
+    const SUPABASE_URL = window._supabaseUrl;
+    const SUPABASE_KEY = window._supabaseKey;
+    if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('Supabase not configured');
+
+    // 1. Delete all rows from orders table
+    const delRes = await fetch(`${SUPABASE_URL}/rest/v1/orders?id=gte.0`, {
+        method: 'DELETE',
+        headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+        }
+    });
+    if (!delRes.ok && delRes.status !== 404) {
+        const err = await delRes.text();
+        throw new Error('Delete failed: ' + err);
+    }
+
+    // 2. Reset the auto-increment sequence back to 1 via Supabase RPC
+    // This calls a stored procedure we create in Supabase SQL editor
+    await fetch(`${SUPABASE_URL}/rest/v1/rpc/reset_orders_sequence`, {
+        method: 'POST',
+        headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+    });
+    // Note: if RPC not set up yet, IDs just continue from where they left off
+    // Orders are still cleared — only the numbering won't reset until RPC is set up
+
+    // 3. Clear IndexedDB
+    await _idbReplaceAll([]);
+
+    // 4. Re-render
+    if (typeof loadOrders === 'function') loadOrders();
+};

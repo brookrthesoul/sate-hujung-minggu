@@ -211,6 +211,21 @@
             Changing prices or the menu affects future calculations and new orders. Existing orders keep their original totals.
         </p>
 
+        <h2 style="margin-top:28px; color:#dc3545;">⚠️ Danger Zone</h2>
+        <p style="font-size:13px;color:#666;margin-bottom:12px;">
+            Reset all order data. Menu, prices and stock levels will be kept.
+            Type <strong>RESET</strong> to confirm.
+        </p>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <input type="text" id="resetConfirmInput" placeholder="Type RESET to confirm"
+                style="flex:1;padding:10px;border-radius:10px;border:1px solid #ced4da;font-size:14px;">
+            <button onclick="handleResetAllOrders()"
+                style="background:#dc3545;color:white;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:bold;cursor:pointer;">
+                Reset
+            </button>
+        </div>
+        <p id="resetStatusMsg" style="font-size:13px;min-height:18px;"></p>
+
         <h2 style="margin-top:28px;">📦 Manage Stock</h2>
         <p style="font-size:13px;color:#666;margin-bottom:12px;">
             Set stock levels for each item. Leave blank for no limit. Use +/- to restock mid-day.
