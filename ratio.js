@@ -70,8 +70,21 @@
                 }
             }
 
+            // After ratio loop, try to spend remaining balance on whichever single item fits.
+            // Priority: ayam first (since slider is biased toward ayam side), then daging.
+            // This handles cases like RM1.30 balance when ayam = RM1.30 — buy 1 more ayam.
+            if (remaining >= ayamPrice) {
+                const extra = Math.floor(remaining / ayamPrice);
+                ayam      += extra;
+                remaining -= extra * ayamPrice;
+            } else if (remaining >= dagingPrice) {
+                const extra = Math.floor(remaining / dagingPrice);
+                daging    += extra;
+                remaining -= extra * dagingPrice;
+            }
+
             const totalCost = ayam * ayamPrice + daging * dagingPrice;
-            const balance = money - totalCost;
+            const balance   = money - totalCost;
 
             document.getElementById('ayamCount').innerText = ayam;
             document.getElementById('dagingCount').innerText = daging;
