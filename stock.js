@@ -96,9 +96,8 @@ function adjustStock(oldItems, newItems) {
             stock[id] = Math.max(0, stock[id] - diff);
         }
     }
-    // Write each deducted item to Supabase
-    for (const [id, item] of Object.entries(items)) {
-        if (item.qty <= 0) continue;
+    // Write each adjusted item to Supabase
+    for (const id of new Set([...Object.keys(oldItems), ...Object.keys(newItems)])) {
         if (stock[id] !== undefined && stock[id] !== null) {
             if (typeof window._writeStock === 'function') window._writeStock(id, stock[id]);
         }
