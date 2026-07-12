@@ -61,7 +61,9 @@
         <div id="results" style="display: none;">
             <h3>Results</h3>
             <div class="result-grid" id="resultsGrid"><!-- per-item costs + Cucuk/Senduk/Total render here --></div>
-            <button id="saveOrderBtn" onclick="saveOrder()">Save Order</button>
+            <div class="sticky-save-bar">
+                <button id="saveOrderBtn" onclick="saveOrder()" class="sticky-save-btn">💾 Save Order</button>
+            </div>
             <button class="secondary" onclick="clearForm()">Clear</button>
         </div>
         <p id="editHint" style="display:none; color:#17a2b8;">Editing order #<span id="editId"></span> — <a href="#" onclick="cancelEdit()">Cancel</a></p>

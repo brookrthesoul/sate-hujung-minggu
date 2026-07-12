@@ -378,6 +378,29 @@ function _showDayCloseModal(unpaidOrders) {
     renderModal();
 }
 
+
+// ---------- Card expand/collapse ----------
+const _expandedCards = new Set();
+
+function toggleCardExpand(id) {
+    if (_expandedCards.has(id)) {
+        _expandedCards.delete(id);
+    } else {
+        _expandedCards.add(id);
+    }
+    // Re-render just this card
+    getAllOrders().then(orders => {
+        const order = orders.find(o => o.id === id);
+        if (!order) return;
+        const card  = document.getElementById(`order-${id}`);
+        if (!card)  return;
+        // Determine stage from card's parent list
+        const listId = card.closest('.order-sublist')?.id || '';
+        const stage  = listId.replace('List','');
+        renderOrderCard(card, order, stage);
+    });
+}
+
 // ---------- Edit state tracking ----------
 // Tracks which order IDs are currently in edit mode so _rerender doesn't wipe them
 const _editingIds = new Set();
@@ -581,12 +604,28 @@ function renderOrderCard(card, rawOrder, stage) {
         ? `<div class="pickup-badge ${isPinned ? 'pickup-urgent' : ''}">📅 Pick-up: ${pickupStr}</div>`
         : '';
 
+    const isExpanded = _expandedCards.has(o.id);
+
+    // Mini summary line — item names + quantities
+    const miniItems = Object.values(o.items)
+        .filter(r => r.qty > 0)
+        .map(r => `${r.name} x${r.qty}`)
+        .join(' · ');
+
     const header = `
-        <div class="order-header">
+        <div class="order-header" onclick="toggleCardExpand(${o.id})" style="cursor:pointer;">
             <span class="order-id">#${o.id}</span>
             <span class="order-date">${formatDate(o.createdAt)}</span>
+            <span class="card-chevron">${isExpanded ? '▲' : '▼'}</span>
         </div>
         ${pickupBadge}`;
+
+    // Minimized view — shown when collapsed
+    const miniView = `
+        <div class="card-mini" onclick="toggleCardExpand(${o.id})">
+            <span class="card-mini-items">${miniItems}</span>
+            <span class="card-mini-total">RM ${o.totalCost.toFixed(2)}</span>
+        </div>`;
 
     const itemBadges = Object.values(o.items)
         .filter(r => r.qty > 0)
@@ -631,14 +670,14 @@ function renderOrderCard(card, rawOrder, stage) {
 
     // ── Preorder ──────────────────────────────────────────────────────────
     if (stage === 'preorder') {
-        card.innerHTML = `
+        card.innerHTML = isExpanded ? `
             ${header}
             <div class="order-details">${itemBadges}${statsBadges}</div>
             ${editableDesc}
             <div class="action-buttons">
                 <button class="delete-btn" onclick="deleteOrderConfirm(${o.id})">🗑️ Cancel</button>
                 <button class="edit-btn"   onclick="startEditTo(${o.id}, 'preorder')">✏️ Edit</button>
-            </div>`;
+            </div>` : `${header}${miniView}`;
         return;
     }
 
@@ -653,7 +692,7 @@ function renderOrderCard(card, rawOrder, stage) {
         const printReceiptBtnPrepare = hasPayment
             ? `<button class="print-btn" style="margin-top:8px;width:100%;" onclick="printOrderReceipt(${o.id})">🖨️ Print Receipt</button>` : '';
 
-        card.innerHTML = `
+        card.innerHTML = isExpanded ? `
             ${header}
             <div class="order-details">${itemBadges}${statsBadges}</div>
             ${editableDesc}
@@ -665,7 +704,8 @@ function renderOrderCard(card, rawOrder, stage) {
             </div>
             ${markPaidBtn}
             ${printReceiptBtnPrepare}
-            <button class="status-btn done-btn" onclick="markPrepared(${o.id})" style="margin-top:8px;">Ready</button>`;
+            <button class="status-btn done-btn" onclick="markPrepared(${o.id})" style="margin-top:8px;">Ready</button>`
+            : `${header}${payBadge}${miniView}`;
         return;
     }
 
@@ -678,7 +718,7 @@ function renderOrderCard(card, rawOrder, stage) {
         const printReceiptBtnPrepared = hasPayment
             ? `<button class="print-btn" style="margin-top:8px;width:100%;" onclick="printOrderReceipt(${o.id})">🖨️ Print Receipt</button>` : '';
 
-        card.innerHTML = `
+        card.innerHTML = isExpanded ? `
             ${header}
             <div class="order-details">${itemBadges}${statsBadges}</div>
             <div class="status-row"><span class="status-mark mark-prepared">🍢 Prepared</span></div>
@@ -690,13 +730,14 @@ function renderOrderCard(card, rawOrder, stage) {
                 <button class="pay-method-btn" onclick="openPaymentModal(${o.id}, ${o.totalCost}, 'prepared')">💳 Payment</button>
             </div>
             ${printReceiptBtnPrepared}
-            <button class="status-btn paid" onclick="markPaid(${o.id})" style="margin-top:8px;">✅ Mark as Paid</button>`;
+            <button class="status-btn paid" onclick="markPaid(${o.id})" style="margin-top:8px;">✅ Mark as Paid</button>`
+            : `${header}${payBadge}${miniView}`;
         return;
     }
 
     // ── Paid ──────────────────────────────────────────────────────────────
     if (stage === 'paid') {
-        card.innerHTML = `
+        card.innerHTML = isExpanded ? `
             ${header}
             <div class="order-details">${itemBadges}${statsBadges}</div>
             <div class="status-row"><span class="status-mark mark-paid">✅ Paid</span></div>
@@ -706,13 +747,14 @@ function renderOrderCard(card, rawOrder, stage) {
                 <button class="edit-btn"       onclick="undoToPrepared(${o.id})">↩️ Undo</button>
                 <button class="pay-method-btn" onclick="openPaymentModal(${o.id}, ${o.totalCost}, 'paid')">💳 Update Payment</button>
                 <button class="status-btn picked" onclick="markPickedUp(${o.id})">📦 Picked Up</button>
-            </div>`;
+            </div>`
+            : `${header}${paymentBadgeHTML(o) ? `<div style="margin:4px 0;">${paymentBadgeHTML(o)}</div>` : ''}${miniView}`;
         return;
     }
 
     // ── Done ──────────────────────────────────────────────────────────────
     if (stage === 'done') {
-        card.innerHTML = `
+        card.innerHTML = isExpanded ? `
             ${header}
             <div class="order-details">${itemBadges}${statsBadges}</div>
             <div class="status-row">
@@ -724,7 +766,8 @@ function renderOrderCard(card, rawOrder, stage) {
             <div class="action-buttons">
                 <button class="delete-btn" onclick="deleteOrderConfirm(${o.id})">🗑️ Delete</button>
                 <button class="print-btn"  onclick="printOrder(${o.id})">🖨️ Print</button>
-            </div>`;
+            </div>`
+            : `${header}${miniView}`;
         return;
     }
 }

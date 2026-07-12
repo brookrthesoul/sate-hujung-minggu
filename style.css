@@ -417,3 +417,58 @@
     0%, 100% { opacity: 1; }
     50%       { opacity: 0.6; }
 }
+
+/* ─── Minimized card ─────────────────────────────────────────────────────── */
+.card-mini {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 4px;
+    cursor: pointer;
+    gap: 8px;
+}
+.card-mini-items {
+    font-size: 13px;
+    color: #444;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.card-mini-total {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a1a1a;
+    white-space: nowrap;
+}
+.card-chevron {
+    font-size: 11px;
+    color: #aaa;
+    margin-left: 6px;
+}
+.order-card {
+    cursor: default;
+}
+
+/* ─── Sticky Save Order button ───────────────────────────────────────────── */
+.sticky-save-bar {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 0 6px;
+    background: linear-gradient(to bottom, transparent, white 30%);
+    z-index: 100;
+}
+.sticky-save-btn {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: bold;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(40,167,69,0.3);
+}
