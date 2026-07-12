@@ -123,13 +123,20 @@ async function saveOrder() {
     const totals      = calculateTotals(quantities);
     const description = document.getElementById('orderDescription').value.trim() || '';
 
-    const pickupDateEl = document.getElementById('pickupDate');
+   const pickupDateEl = document.getElementById('pickupDate');
     const pickupTimeEl = document.getElementById('pickupTime');
     let pickupTs = null;
+
     if (pickupDateEl && pickupDateEl.value) {
+        // Date + optional time
         const dateStr = pickupDateEl.value;
         const timeStr = (pickupTimeEl && pickupTimeEl.value) ? pickupTimeEl.value : '00:00';
         pickupTs = new Date(`${dateStr}T${timeStr}`).getTime();
+    } else if (pickupTimeEl && pickupTimeEl.value) {
+        // Only time → assume today
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        const timeStr  = pickupTimeEl.value;
+        pickupTs = new Date(`${todayStr}T${timeStr}`).getTime();
     }
     
     const order = {
