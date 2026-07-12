@@ -39,6 +39,15 @@ function normalizeOrder(order) {
     if (order.paymentMethod  === undefined) order.paymentMethod  = null;
     if (order.paymentOnline  === undefined) order.paymentOnline  = 0;
     if (order.paymentCash    === undefined) order.paymentCash    = 0;
+    // Backfill pickupMode
+    if (order.pickupMode === undefined) order.pickupMode = null;
+    // For time-only orders, recalculate pickupTs using TODAY's date
+    // This ensures the pin logic works correctly each day
+    if (order.pickupMode === 'time' && order.pickupTs) {
+        const stored  = new Date(order.pickupTs);
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        order.pickupTs = new Date(`${todayStr}T${stored.toTimeString().substring(0,5)}`).getTime();
+    }
     return order;
 }
 
