@@ -551,16 +551,19 @@ function renderOrderCard(card, rawOrder, stage) {
     const pickupStr = o.pickupTs ? new Date(o.pickupTs).toLocaleString(undefined, {
         weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'
     }) : null;
-    const pickupBadge = pickupStr
-        ? `<div class="pickup-badge ${isPinned ? 'pickup-urgent' : ''}">📅 Pick-up: ${pickupStr}</div>`
+
+    const pickupBadgePlain = pickupStr
+        ? `<div class="pickup-badge">📅 Pick-up: ${pickupStr}</div>`
+        : '';
+    const pickupBadgeUrgent = pickupStr
+        ? `<div class="pickup-badge pickup-urgent">📅 Pick-up: ${pickupStr}</div>`
         : '';
 
     const header = `
         <div class="order-header">
             <span class="order-id">#${o.id}</span>
             <span class="order-date">${formatDate(o.createdAt)}</span>
-        </div>
-        ${pickupBadge}`;
+        </div>`;
 
     const itemBadges = Object.values(o.items)
         .filter(r => r.qty > 0)
@@ -574,11 +577,10 @@ function renderOrderCard(card, rawOrder, stage) {
 
     const editableDesc = `<div class="order-description" id="desc-${o.id}" contenteditable="true"
         onblur="updateDescription(${o.id}, this.innerText)">${escapeHtml(o.description)}</div>`;
-
     const readonlyDesc = o.description
         ? `<div class="order-description" style="cursor:default;">${escapeHtml(o.description)}</div>` : '';
 
-    // ── Edit mode (shared between prepare & prepared) ─────────────────────
+    // ── Edit modes ────────────────────────────────────────────────────────────
     if (stage === 'prepare-edit' || stage === 'prepared-edit') {
         const returnStage = stage === 'prepare-edit' ? 'prepare' : 'prepared';
         const editInputs  = getMenuItems().map(item => {
@@ -589,6 +591,7 @@ function renderOrderCard(card, rawOrder, stage) {
         }).join('');
         card.innerHTML = `
             ${header}
+            ${pickupBadgePlain}   <!-- no urgent in edit mode -->
             <div class="order-details" id="edit-details-${o.id}">
                 ${editInputs}
                 <div class="detail-badge" id="edit-skewerQty-${o.id}">Cucuk: ${o.skewerQty}</div>
@@ -603,10 +606,11 @@ function renderOrderCard(card, rawOrder, stage) {
         return;
     }
 
-    // ── Preorder ──────────────────────────────────────────────────────────
+    // ── Preorder ──────────────────────────────────────────────────────────────
     if (stage === 'preorder') {
         card.innerHTML = `
             ${header}
+            ${pickupBadgePlain}
             <div class="order-details">${itemBadges}${statsBadges}</div>
             ${editableDesc}
             <div class="action-buttons">
@@ -616,19 +620,16 @@ function renderOrderCard(card, rawOrder, stage) {
         return;
     }
 
-    // ── Prepare ───────────────────────────────────────────────────────────
+    // ── Prepare ───────────────────────────────────────────────────────────────
     if (stage === 'prepare') {
         const hasPayment = !!o.paymentMethod;
-        const payBadge   = hasPayment
-            ? `<div style="margin:8px 0;">${paymentBadgeHTML(o)}</div>` : '';
-        const markPaidBtn = hasPayment
-            ? `<button class="status-btn paid" onclick="markPaidDirect(${o.id})">✅ Mark as Paid</button>` : '';
-
-        const printReceiptBtnPrepare = hasPayment
-            ? `<button class="print-btn" style="margin-top:8px;width:100%;" onclick="printOrderReceipt(${o.id})">🖨️ Print Receipt</button>` : '';
+        const payBadge   = hasPayment ? `<div style="margin:8px 0;">${paymentBadgeHTML(o)}</div>` : '';
+        const markPaidBtn = hasPayment ? `<button class="status-btn paid" onclick="markPaidDirect(${o.id})">✅ Mark as Paid</button>` : '';
+        const printReceiptBtnPrepare = hasPayment ? `<button class="print-btn" style="margin-top:8px;width:100%;" onclick="printOrderReceipt(${o.id})">🖨️ Print Receipt</button>` : '';
 
         card.innerHTML = `
             ${header}
+            ${isPinned ? pickupBadgeUrgent : pickupBadgePlain}
             <div class="order-details">${itemBadges}${statsBadges}</div>
             ${editableDesc}
             ${payBadge}
@@ -643,17 +644,15 @@ function renderOrderCard(card, rawOrder, stage) {
         return;
     }
 
-    // ── Prepared ──────────────────────────────────────────────────────────
+    // ── Prepared ──────────────────────────────────────────────────────────────
     if (stage === 'prepared') {
         const hasPayment = !!o.paymentMethod;
-        const payBadge   = hasPayment
-            ? `<div style="margin:8px 0;">${paymentBadgeHTML(o)}</div>` : '';
-
-        const printReceiptBtnPrepared = hasPayment
-            ? `<button class="print-btn" style="margin-top:8px;width:100%;" onclick="printOrderReceipt(${o.id})">🖨️ Print Receipt</button>` : '';
+        const payBadge   = hasPayment ? `<div style="margin:8px 0;">${paymentBadgeHTML(o)}</div>` : '';
+        const printReceiptBtnPrepared = hasPayment ? `<button class="print-btn" style="margin-top:8px;width:100%;" onclick="printOrderReceipt(${o.id})">🖨️ Print Receipt</button>` : '';
 
         card.innerHTML = `
             ${header}
+            ${pickupBadgePlain}   <!-- no urgent -->
             <div class="order-details">${itemBadges}${statsBadges}</div>
             <div class="status-row"><span class="status-mark mark-prepared">🍢 Prepared</span></div>
             ${editableDesc}
@@ -668,10 +667,11 @@ function renderOrderCard(card, rawOrder, stage) {
         return;
     }
 
-    // ── Paid ──────────────────────────────────────────────────────────────
+    // ── Paid ──────────────────────────────────────────────────────────────────
     if (stage === 'paid') {
         card.innerHTML = `
             ${header}
+            ${pickupBadgePlain}   <!-- no urgent -->
             <div class="order-details">${itemBadges}${statsBadges}</div>
             <div class="status-row"><span class="status-mark mark-paid">✅ Paid</span></div>
             <div style="margin:8px 0;">${paymentBadgeHTML(o)}</div>
@@ -684,10 +684,11 @@ function renderOrderCard(card, rawOrder, stage) {
         return;
     }
 
-    // ── Done ──────────────────────────────────────────────────────────────
+    // ── Done ──────────────────────────────────────────────────────────────────
     if (stage === 'done') {
         card.innerHTML = `
             ${header}
+            ${pickupBadgePlain}   <!-- no urgent -->
             <div class="order-details">${itemBadges}${statsBadges}</div>
             <div class="status-row">
                 <span class="status-mark mark-paid">✅ Paid</span>
@@ -702,7 +703,6 @@ function renderOrderCard(card, rawOrder, stage) {
         return;
     }
 }
-
 // ---------- Edit helpers ----------
 function startEditTo(id, fromStage) {
     const card = document.getElementById(`order-${id}`);
