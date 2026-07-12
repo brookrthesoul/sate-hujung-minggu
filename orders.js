@@ -564,7 +564,8 @@ function renderOrderCard(card, rawOrder, stage) {
 
     const now       = Date.now();
     const WARN_MS   = 15 * 60 * 1000;
-    const isPinned  = o.pickupTs && (now - o.pickupTs) >= -WARN_MS;
+    // Only pin/urgent in prepare stage — once moved forward, show plain badge
+    const isPinned  = o.pickupTs && (now - o.pickupTs) >= -WARN_MS && !o.prepared && !o.paid;
     let pickupStr = null;
     if (o.pickupTs) {
         const dt = new Date(o.pickupTs);
