@@ -394,3 +394,26 @@
 .settings-subtab-content.active {
     display: block;
 }
+
+/* ─── Pickup time badge ──────────────────────────────────────────────────── */
+.pickup-badge {
+    display: inline-block;
+    background: #e8f4fd;
+    color: #1a6abf;
+    border: 1px solid #90c2ff;
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    margin: 4px 0 6px;
+}
+.pickup-urgent {
+    background: #fff3cd;
+    color: #856404;
+    border-color: #ffc107;
+    animation: urgentPulse 1.5s ease-in-out infinite;
+}
+@keyframes urgentPulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.6; }
+}

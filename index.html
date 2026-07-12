@@ -23,6 +23,7 @@
     <div class="tab-bar">
         <div class="tab active" onclick="switchTab('home')">🍎 Home</div>
         <div class="tab" onclick="switchTab('orders')">📋 Orders</div>
+        <div class="tab" onclick="switchTab('preorder')">📅 Preorder</div>
         <div class="tab" onclick="switchTab('ratio')">⚖️ Ratio</div>
         <div class="tab" onclick="switchTab('settings')">⚙️ Settings</div>
     </div>
@@ -331,6 +332,20 @@
             </div>
         </div>
     </div>
+    <!-- PREORDER PANEL -->
+    <div id="preorderPanel" class="panel">
+        <h2>📅 Preorder</h2>
+        <p style="font-size:13px;color:#666;margin-bottom:12px;">
+            Orders with a future pick-up date. They move to Prepare automatically on the day.
+        </p>
+        <select id="sortPreorders" class="sort-dropdown" onchange="loadPreorders()" style="margin-bottom:12px;width:100%;">
+            <option value="asc">Earliest pick-up first</option>
+            <option value="desc">Latest pick-up first</option>
+        </select>
+        <div id="preorderList"></div>
+    </div>
+
+
 
     <script src="stock.js"></script>
     <!-- App scripts (order matters: menu before things that read it) -->

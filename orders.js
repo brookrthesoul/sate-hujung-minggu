@@ -102,6 +102,10 @@ function clearForm() {
         if (el) el.value = 0;
     });
     document.getElementById('orderDescription').value = '';
+    const pDate = document.getElementById('pickupDate');
+    const pTime = document.getElementById('pickupTime');
+    if (pDate) pDate.value = '';
+    if (pTime) pTime.value = '';
     document.getElementById('results').style.display = 'none';
 }
 
@@ -127,6 +131,7 @@ async function saveOrder() {
         paid: false,
         pickedUp: false,
         description,
+        pickupTs: pickupTs || null,
         paymentMethod: null,
         paymentOnline: 0,
         paymentCash: 0,
@@ -149,12 +154,79 @@ async function saveOrder() {
     try {
         await addOrder(order);
         clearForm();
-        switchTab('orders');
-        switchOrderSubTab('prepare');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        const today = new Date().toLocaleDateString('en-CA');
+        const isPreorder = pickupTs && new Date(pickupTs).toLocaleDateString('en-CA') > today;
+        if (isPreorder) {
+            switchTab('preorder');
+        } else {
+            switchTab('orders');
+            switchOrderSubTab('prepare');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     } catch (e) {
         alert('❌ Failed to save order: ' + e.message);
     }
+}
+
+
+// ─── Preorder tab ─────────────────────────────────────────────────────────────
+async function loadPreorders() {
+    try {
+        const orders  = (await getAllOrders()).map(normalizeOrder);
+        const today   = new Date().toLocaleDateString('en-CA');
+        const sortDir = document.getElementById('sortPreorders') ?
+            document.getElementById('sortPreorders').value : 'asc';
+
+        const preorders = orders.filter(o => {
+            if (o.prepared || o.paid || o.pickedUp) return false;
+            if (!o.pickupTs) return false;
+            const pDay = new Date(o.pickupTs).toLocaleDateString('en-CA');
+            return pDay > today; // strictly future
+        });
+
+        preorders.sort((a, b) => sortDir === 'asc'
+            ? (a.pickupTs || 0) - (b.pickupTs || 0)
+            : (b.pickupTs || 0) - (a.pickupTs || 0));
+
+        const container = document.getElementById('preorderList');
+        if (!container) return;
+        container.innerHTML = '';
+
+        if (preorders.length === 0) {
+            container.innerHTML = '<p style="text-align:center;color:#999;">No preorders yet.</p>';
+            return;
+        }
+
+        preorders.forEach(order => {
+            const card = document.createElement('div');
+            card.className = 'order-card';
+            card.id = `order-${order.id}`;
+            renderOrderCard(card, order, 'preorder');
+            container.appendChild(card);
+        });
+    } catch(e) {
+        console.error('loadPreorders error:', e);
+    }
+}
+
+// Check every minute if any preorder should move to Prepare
+function startPreorderTimer() {
+    setInterval(async () => {
+        const today   = new Date().toLocaleDateString('en-CA');
+        const orders  = (await getAllOrders()).map(normalizeOrder);
+        const toMove  = orders.filter(o => {
+            if (o.prepared || o.paid || o.pickedUp || !o.pickupTs) return false;
+            const pDay = new Date(o.pickupTs).toLocaleDateString('en-CA');
+            return pDay <= today;
+        });
+        if (toMove.length > 0) {
+            // No DB change needed — loadOrders re-filters by date automatically
+            loadOrders();
+            loadPreorders();
+        }
+        // Also refresh prepare sort every minute (for 15min pin logic)
+        if (currentOrderSubTab === 'prepare') loadOrders();
+    }, 60 * 1000); // every 60 seconds
 }
 
 // ---------- Auto day-close ----------
@@ -334,14 +406,32 @@ async function loadOrders() {
         orders.sort((a,b) => sortDir==='asc' ? a.createdAt-b.createdAt : b.createdAt-a.createdAt);
 
         // Stage buckets
-        // prepare  = not prepared, not paid
-        // prepared = prepared but not paid
-        // paid     = paid but not pickedUp
-        // done     = paid + pickedUp
-        const prepare  = orders.filter(o => !o.prepared && !o.paid);
+        const today    = new Date().toLocaleDateString('en-CA');
+        const now      = Date.now();
+        const WARN_MS  = 15 * 60 * 1000; // 15 minutes
+
+        // preorder = future pickupTs (not today)
+        // prepare  = not prepared, not paid, and either no pickupTs or pickupTs is today/past
+        const prepare  = orders.filter(o => {
+            if (o.prepared || o.paid) return false;
+            if (!o.pickupTs) return true;
+            const pDay = new Date(o.pickupTs).toLocaleDateString('en-CA');
+            return pDay <= today;
+        });
         const prepared = orders.filter(o =>  o.prepared && !o.paid);
         const paid     = orders.filter(o =>  o.paid     && !o.pickedUp);
         let   done     = orders.filter(o =>  o.paid     &&  o.pickedUp);
+
+        // Sort prepare: orders with pickupTs within 15min (or past) float to top
+        prepare.sort((a, b) => {
+            const aPinned = a.pickupTs && (now - a.pickupTs) >= -WARN_MS;
+            const bPinned = b.pickupTs && (now - b.pickupTs) >= -WARN_MS;
+            if (aPinned && !bPinned) return -1;
+            if (!aPinned && bPinned) return  1;
+            if (aPinned && bPinned) return (a.pickupTs || 0) - (b.pickupTs || 0); // earliest first
+            // Normal sort
+            return sortDir === 'asc' ? a.createdAt - b.createdAt : b.createdAt - a.createdAt;
+        });
 
         const dateFilter = document.getElementById('doneDateFilter');
         if (dateFilter && dateFilter.value && dateFilter.value !== 'all') {
@@ -438,11 +528,22 @@ function paymentBadgeHTML(order) {
 function renderOrderCard(card, rawOrder, stage) {
     const o = normalizeOrder(rawOrder);
 
+    const now       = Date.now();
+    const WARN_MS   = 15 * 60 * 1000;
+    const isPinned  = o.pickupTs && (now - o.pickupTs) >= -WARN_MS;
+    const pickupStr = o.pickupTs ? new Date(o.pickupTs).toLocaleString(undefined, {
+        weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'
+    }) : null;
+    const pickupBadge = pickupStr
+        ? `<div class="pickup-badge ${isPinned ? 'pickup-urgent' : ''}">📅 Pick-up: ${pickupStr}</div>`
+        : '';
+
     const header = `
         <div class="order-header">
             <span class="order-id">#${o.id}</span>
             <span class="order-date">${formatDate(o.createdAt)}</span>
-        </div>`;
+        </div>
+        ${pickupBadge}`;
 
     const itemBadges = Object.values(o.items)
         .filter(r => r.qty > 0)
@@ -481,6 +582,19 @@ function renderOrderCard(card, rawOrder, stage) {
             <div class="action-buttons">
                 <button class="save-btn"   onclick="saveEdit(${o.id}, '${returnStage}')">💾 Save</button>
                 <button class="cancel-btn" onclick="cancelEditTo(${o.id}, '${returnStage}')">✖ Cancel</button>
+            </div>`;
+        return;
+    }
+
+    // ── Preorder ──────────────────────────────────────────────────────────
+    if (stage === 'preorder') {
+        card.innerHTML = `
+            ${header}
+            <div class="order-details">${itemBadges}${statsBadges}</div>
+            ${editableDesc}
+            <div class="action-buttons">
+                <button class="delete-btn" onclick="deleteOrderConfirm(${o.id})">🗑️ Cancel</button>
+                <button class="edit-btn"   onclick="startEditTo(${o.id}, 'preorder')">✏️ Edit</button>
             </div>`;
         return;
     }

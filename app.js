@@ -1,6 +1,6 @@
 // app.js — tab switching via native scroll-snap
 
-const TABS = ['home', 'orders', 'ratio', 'settings'];
+const TABS = ['home', 'orders', 'preorder', 'ratio', 'settings'];
 let currentTabIndex = 0;
 
 function getVP() { return document.getElementById('panelsTrack'); }
@@ -23,6 +23,7 @@ function switchTab(tab) {
     slideTo(index, true);
 
     if (tab === 'orders') loadOrders();
+    if (tab === 'preorder') loadPreorders();
     if (tab === 'settings') {
         switchSettingsTab('menu');
         // Restore sync bar toggle state
@@ -48,6 +49,7 @@ function switchTab(tab) {
                 document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', i === index));
                 const tab = TABS[index];
                 if (tab === 'orders') loadOrders();
+    if (tab === 'preorder') loadPreorders();
     if (tab === 'settings') {
         switchSettingsTab('menu');
         // Restore sync bar toggle state
@@ -74,6 +76,8 @@ window.onload = () => {
         setupPrinter();
         // Restore sync bar visibility preference
         initSyncBarToggle();
+        // Start preorder → prepare promotion timer
+        if (typeof startPreorderTimer === 'function') startPreorderTimer();
         // Restore paste box collapse state
         initPasteBox();
         // Day-close runs after sync in sync.js DOMContentLoaded
