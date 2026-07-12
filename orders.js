@@ -56,9 +56,12 @@ function renderHomeMenuInputs() {
     const container = document.getElementById('menuInputs');
     if (!container) return;
     container.innerHTML = getMenuItems().map(item => `
-        <label id="label-${item.id}">${escapeHtml(item.name)} (RM${item.price.toFixed(2)})</label>
         <div style="display:flex;flex-direction:column;gap:4px;">
+            <label id="label-${item.id}" style="font-size:13px;font-weight:600;line-height:1.3;">
+                ${escapeHtml(item.name)}<br><span style="font-weight:400;color:#666;">RM${item.price.toFixed(2)}</span>
+            </label>
             <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0"
+                style="width:100%;box-sizing:border-box;"
                 oninput="checkStockInput('${item.id}', this.value)">
             <span id="stock-indicator-${item.id}" class="stock-indicator"></span>
         </div>
