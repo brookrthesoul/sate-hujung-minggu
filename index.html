@@ -50,6 +50,11 @@
         </div>
 
         <div id="menuInputs"><!-- quantity inputs render here, one per menu item --></div>
+        <label>📅 Pick-up Date &amp; Time (optional)</label>
+        <div style="display:flex;gap:8px;margin:6px 0 12px;">
+            <input type="date" id="pickupDate" style="flex:1;padding:8px;border-radius:8px;border:1px solid #ced4da;font-size:14px;">
+            <input type="time" id="pickupTime" style="flex:1;padding:8px;border-radius:8px;border:1px solid #ced4da;font-size:14px;">
+        </div>
         <label>📝 Order Description (optional)</label>
         <textarea id="orderDescription" placeholder="Write any notes about this order..."></textarea>
         <button onclick="calculate()">Calculate</button>
@@ -91,6 +96,19 @@
         <div id="preparedList" class="order-sublist"></div>
         <div id="paidList" class="order-sublist"></div>
         <div id="doneList" class="order-sublist"></div>
+    </div>
+
+    <!-- PREORDER PANEL -->
+    <div id="preorderPanel" class="panel">
+        <h2>📅 Preorder</h2>
+        <p style="font-size:13px;color:#666;margin-bottom:12px;">
+            Orders with a future pick-up date. They move to Prepare automatically on the day.
+        </p>
+        <select id="sortPreorders" class="sort-dropdown" onchange="loadPreorders()" style="margin-bottom:12px;width:100%;">
+            <option value="asc">Earliest pick-up first</option>
+            <option value="desc">Latest pick-up first</option>
+        </select>
+        <div id="preorderList"></div>
     </div>
 
     <!-- RATIO PANEL (updated with Total Spent) -->
@@ -332,19 +350,6 @@
             </div>
         </div>
     </div>
-    <!-- PREORDER PANEL -->
-    <div id="preorderPanel" class="panel">
-        <h2>📅 Preorder</h2>
-        <p style="font-size:13px;color:#666;margin-bottom:12px;">
-            Orders with a future pick-up date. They move to Prepare automatically on the day.
-        </p>
-        <select id="sortPreorders" class="sort-dropdown" onchange="loadPreorders()" style="margin-bottom:12px;width:100%;">
-            <option value="asc">Earliest pick-up first</option>
-            <option value="desc">Latest pick-up first</option>
-        </select>
-        <div id="preorderList"></div>
-    </div>
-
 
 
     <script src="stock.js"></script>

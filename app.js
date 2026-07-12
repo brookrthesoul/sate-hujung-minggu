@@ -48,16 +48,15 @@ function switchTab(tab) {
                 document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === index));
                 document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', i === index));
                 const tab = TABS[index];
-                if (tab === 'orders') loadOrders();
-    if (tab === 'preorder') loadPreorders();
-    if (tab === 'settings') {
-        switchSettingsTab('menu');
-        // Restore sync bar toggle state
-        const stored = localStorage.getItem(SYNC_BAR_KEY);
-        const toggle = document.getElementById('syncBarToggle');
-        if (toggle) toggle.checked = stored === null ? true : stored === '1';
-    }
-                if (tab === 'ratio') { updateSliderLabel(); calculateRatio(); }
+                if (tab === 'orders')   loadOrders();
+                if (tab === 'preorder') loadPreorders();
+                if (tab === 'ratio')    { if (typeof updateSliderLabel==='function') updateSliderLabel(); if (typeof calculateRatio==='function') calculateRatio(); }
+                if (tab === 'settings') {
+                    switchSettingsTab('menu');
+                    const stored = localStorage.getItem(SYNC_BAR_KEY);
+                    const toggle = document.getElementById('syncBarToggle');
+                    if (toggle) toggle.checked = stored === null ? true : stored === '1';
+                }
                 if (tab === 'settings') renderSettingsMenuList();
             }
         }, 80);
