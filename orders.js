@@ -129,10 +129,18 @@ async function saveOrder() {
     const pickupDate   = pickupDateEl ? pickupDateEl.value : '';
     const pickupTime   = pickupTimeEl ? pickupTimeEl.value : '';
     let   pickupTs     = null;
+    let   pickupMode   = null; // 'datetime' | 'date' | 'time'
+    const todayStr     = new Date().toLocaleDateString('en-CA');
     if (pickupDate && pickupTime) {
-        pickupTs = new Date(`${pickupDate}T${pickupTime}`).getTime();
+        pickupTs   = new Date(`${pickupDate}T${pickupTime}`).getTime();
+        pickupMode = 'datetime';
     } else if (pickupDate) {
-        pickupTs = new Date(`${pickupDate}T00:00`).getTime();
+        pickupTs   = new Date(`${pickupDate}T00:00`).getTime();
+        pickupMode = 'date';
+    } else if (pickupTime) {
+        // Time only — use today's date
+        pickupTs   = new Date(`${todayStr}T${pickupTime}`).getTime();
+        pickupMode = 'time';
     }
 
     const order = {
@@ -144,7 +152,8 @@ async function saveOrder() {
         paid: false,
         pickedUp: false,
         description,
-        pickupTs: pickupTs || null,
+        pickupTs:   pickupTs   || null,
+        pickupMode: pickupMode || null,
         paymentMethod: null,
         paymentOnline: 0,
         paymentCash: 0,
@@ -168,7 +177,10 @@ async function saveOrder() {
         await addOrder(order);
         clearForm();
         const today = new Date().toLocaleDateString('en-CA');
-        const isPreorder = pickupTs && new Date(pickupTs).toLocaleDateString('en-CA') > today;
+        // Only date or datetime with a FUTURE date go to preorder
+        // Time-only always goes to prepare (today)
+        const isPreorder = pickupTs && pickupMode !== 'time' &&
+            new Date(pickupTs).toLocaleDateString('en-CA') > today;
         if (isPreorder) {
             switchTab('preorder');
         } else {
@@ -192,7 +204,7 @@ async function loadPreorders() {
 
         const preorders = orders.filter(o => {
             if (o.prepared || o.paid || o.pickedUp) return false;
-            if (!o.pickupTs) return false;
+            if (!o.pickupTs || o.pickupMode === 'time') return false;
             const pDay = new Date(o.pickupTs).toLocaleDateString('en-CA');
             return pDay > today; // strictly future
         });
@@ -544,9 +556,17 @@ function renderOrderCard(card, rawOrder, stage) {
     const now       = Date.now();
     const WARN_MS   = 15 * 60 * 1000;
     const isPinned  = o.pickupTs && (now - o.pickupTs) >= -WARN_MS;
-    const pickupStr = o.pickupTs ? new Date(o.pickupTs).toLocaleString(undefined, {
-        weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'
-    }) : null;
+    let pickupStr = null;
+    if (o.pickupTs) {
+        const dt = new Date(o.pickupTs);
+        if (o.pickupMode === 'time') {
+            pickupStr = dt.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+        } else if (o.pickupMode === 'date') {
+            pickupStr = dt.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
+        } else {
+            pickupStr = dt.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+        }
+    }
     const pickupBadge = pickupStr
         ? `<div class="pickup-badge ${isPinned ? 'pickup-urgent' : ''}">📅 Pick-up: ${pickupStr}</div>`
         : '';
