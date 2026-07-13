@@ -208,6 +208,7 @@ async function saveOrder() {
 
 // ─── Preorder tab ─────────────────────────────────────────────────────────────
 async function loadPreorders() {
+    if (_editingIds.size > 0) return;
     try {
         const orders  = (await getAllOrders()).map(normalizeOrder);
         const today   = new Date().toLocaleDateString('en-CA');
@@ -238,7 +239,8 @@ async function loadPreorders() {
             const card = document.createElement('div');
             card.className = 'order-card';
             card.id = `order-${order.id}`;
-            renderOrderCard(card, order, 'preorder');
+            card.dataset.stage = 'preorder';
+            renderOrderCard(card, normalizeOrder(order), 'preorder');
             container.appendChild(card);
         });
     } catch(e) {
@@ -391,16 +393,13 @@ function toggleCardExpand(id) {
     } else {
         _expandedCards.add(id);
     }
-    // Re-render just this card
+    const card = document.getElementById(`order-${id}`);
+    if (!card) return;
+    // Stage is stored as data-stage attribute on the card
+    const stage = card.dataset.stage || 'prepare';
     getAllOrders().then(orders => {
         const order = orders.find(o => o.id === id);
-        if (!order) return;
-        const card  = document.getElementById(`order-${id}`);
-        if (!card)  return;
-        // Determine stage from card's parent list
-        const listId = card.closest('.order-sublist')?.id || '';
-        const stage  = listId.replace('List','');
-        renderOrderCard(card, order, stage);
+        if (order) renderOrderCard(card, normalizeOrder(order), stage);
     });
 }
 
@@ -538,6 +537,7 @@ function renderOrderList(containerId, orderList, stage) {
             const card = document.createElement('div');
             card.className = 'order-card';
             card.id = `order-${order.id}`;
+            card.dataset.stage = stage;
             renderOrderCard(card, order, stage);
             dayDiv.appendChild(card);
         });
@@ -608,6 +608,8 @@ function renderOrderCard(card, rawOrder, stage) {
         : '';
 
     const isExpanded = _expandedCards.has(o.id);
+    // Always stamp data-stage so toggleCardExpand can find the stage without DOM traversal
+    card.dataset.stage = stage;
 
     // Mini summary line — item names + quantities
     const miniItems = Object.values(o.items)
@@ -673,14 +675,19 @@ function renderOrderCard(card, rawOrder, stage) {
 
     // ── Preorder ──────────────────────────────────────────────────────────
     if (stage === 'preorder') {
+        const hasPaymentPre  = !!o.paymentMethod;
+        const payBadgePre    = hasPaymentPre ? `<div style="margin:8px 0;">${paymentBadgeHTML(o)}</div>` : '';
+        card.dataset.stage   = 'preorder';
         card.innerHTML = isExpanded ? `
             ${header}
             <div class="order-details">${itemBadges}${statsBadges}</div>
             ${editableDesc}
+            ${payBadgePre}
             <div class="action-buttons">
                 <button class="delete-btn" onclick="deleteOrderConfirm(${o.id})">🗑️ Cancel</button>
                 <button class="edit-btn"   onclick="startEditTo(${o.id}, 'preorder')">✏️ Edit</button>
-            </div>` : `${header}${miniView}`;
+                <button class="pay-method-btn" onclick="openPaymentModal(${o.id}, ${o.totalCost}, 'preorder')">💳 Payment</button>
+            </div>` : `${header}${payBadgePre}${miniView}`;
         return;
     }
 
@@ -1080,6 +1087,7 @@ async function confirmPayment() {
     await updateOrder(order);
     closePaymentModal();
     loadOrders();
+    if (typeof loadPreorders === 'function') loadPreorders();
 }
 
 // ─── Done tab date filter ─────────────────────────────────────────────────────
