@@ -2,8 +2,8 @@
         /* (same styles as before) */
          * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
         body { background: #f8f9fa; margin: 0; padding: 10px; max-width: 600px; margin: auto; }
-        .tab-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-        .tab { flex: 1; text-align: center; padding: 12px; background: #e9ecef; border-radius: 30px; cursor: pointer; font-weight: bold; min-width: 80px; }
+        .tab-bar { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+        .tab { flex: 1; text-align: center; padding: 7px 6px; background: #e9ecef; border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 12px; min-width: 52px; white-space: nowrap; }
         .tab.active { background: #007bff; color: white; }
         /* ── Swipeable panels ── */
         .panels-viewport {
@@ -38,9 +38,9 @@
         .result-item .label { font-size: 14px; color: #495057; }
         .result-item .value { font-size: 22px; font-weight: bold; }
         .order-card { background: #f8f9fa; border-radius: 16px; padding: 15px; margin-bottom: 15px; border-left: 5px solid #007bff; }
-        .order-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .order-id { font-weight: bold; background: #007bff; color: white; padding: 4px 12px; border-radius: 20px; font-size: 14px; }
-        .order-date { color: #6c757d; font-size: 14px; }
+        .order-header { display: flex; align-items: center; gap: 6px; margin-bottom: 0; flex-wrap: nowrap; }
+        .order-id { font-weight: bold; background: #007bff; color: white; padding: 3px 10px; border-radius: 20px; font-size: 13px; flex-shrink: 0; }
+        .order-date { color: #6c757d; font-size: 12px; margin-left: auto; white-space: nowrap; flex-shrink: 0; }
         .order-details { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 10px 0; }
         .detail-badge { background: white; padding: 6px 10px; border-radius: 20px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         .edit-input { width: 100%; padding: 6px; border-radius: 20px; border: 1px solid #ced4da; text-align: center; }
@@ -397,15 +397,17 @@
 
 /* ─── Pickup time badge ──────────────────────────────────────────────────── */
 .pickup-badge {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
     background: #e8f4fd;
     color: #1a6abf;
     border: 1px solid #90c2ff;
     border-radius: 20px;
-    padding: 4px 12px;
-    font-size: 12px;
+    padding: 2px 8px;
+    font-size: 11px;
     font-weight: 600;
-    margin: 4px 0 6px;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 .pickup-urgent {
     background: #fff3cd;
@@ -423,7 +425,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 6px 4px;
+    padding: 4px 4px 0;
     cursor: pointer;
     gap: 8px;
 }
@@ -442,9 +444,9 @@
     white-space: nowrap;
 }
 .card-chevron {
-    font-size: 11px;
+    font-size: 10px;
     color: #aaa;
-    margin-left: 6px;
+    flex-shrink: 0;
 }
 .order-card {
     cursor: default;

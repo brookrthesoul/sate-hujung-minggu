@@ -620,10 +620,10 @@ function renderOrderCard(card, rawOrder, stage) {
     const header = `
         <div class="order-header" onclick="toggleCardExpand(${o.id})" style="cursor:pointer;">
             <span class="order-id">#${o.id}</span>
+            ${pickupBadge}
             <span class="order-date">${formatDate(o.createdAt)}</span>
             <span class="card-chevron">${isExpanded ? '▲' : '▼'}</span>
-        </div>
-        ${pickupBadge}`;
+        </div>`;
 
     // Minimized view — shown when collapsed
     const miniView = `
