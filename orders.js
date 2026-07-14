@@ -649,8 +649,8 @@ function renderOrderCard(card, rawOrder, stage) {
         ? `<div class="order-description" style="cursor:default;">${escapeHtml(o.description)}</div>` : '';
 
     // ── Edit mode (shared between prepare & prepared) ─────────────────────
-    if (stage === 'prepare-edit' || stage === 'prepared-edit') {
-        const returnStage = stage === 'prepare-edit' ? 'prepare' : 'prepared';
+    if (stage === 'prepare-edit' || stage === 'prepared-edit' || stage === 'preorder-edit') {
+        const returnStage = stage === 'prepare-edit' ? 'prepare' : stage === 'preorder-edit' ? 'preorder' : 'prepared';
         const editInputs  = getMenuItems().map(item => {
             const qty = (o.items[item.id] && o.items[item.id].qty) || 0;
             return `<div><label>${escapeHtml(item.name)}</label>
@@ -790,13 +790,15 @@ function startEditTo(id, fromStage) {
         const o = orders.find(o => o.id === id);
         if (o) {
             _editingIds.add(id);
-            renderOrderCard(card, o, fromStage + '-edit');
+            card.dataset.stage = fromStage;
+            renderOrderCard(card, normalizeOrder(o), fromStage + '-edit');
         }
     });
 }
 function cancelEditTo(id, returnStage) {
     _editingIds.delete(id);
     loadOrders();
+    loadPreorders();
 }
 // Legacy shims
 function startEdit(id)  { startEditTo(id, 'prepare'); }
@@ -845,6 +847,7 @@ async function saveEdit(id, returnStage = 'prepare') {
     await updateOrder(updated);
     _editingIds.delete(id);
     loadOrders();
+    loadPreorders();
 }
 async function updateDescription(id, newText) {
     const all   = await getAllOrders();
@@ -911,6 +914,7 @@ async function deleteOrderConfirm(id) {
         }
         await deleteOrder(id);
         loadOrders();
+        loadPreorders();
     }
 }
 
