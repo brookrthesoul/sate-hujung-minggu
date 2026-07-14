@@ -212,9 +212,15 @@ async function loadStock() {
 async function loadBusy() {
     try {
         const orders = await sbFetch('orders?select=data&data->>paid=eq.false&data->>prepared=eq.false&data->>pickedUp=eq.false');
+        const today  = new Date().toLocaleDateString('en-CA');
         let total = 0;
         (orders || []).forEach(row => {
             const o = row.data || {};
+            // Skip preorders (future pickup date) — they don't affect today's workload
+            if (o.pickupTs && o.pickupMode !== 'time') {
+                const pDay = new Date(o.pickupTs).toLocaleDateString('en-CA');
+                if (pDay > today) return;
+            }
             Object.values(o.items || {}).forEach(item => {
                 if (SKEWER_CATS.includes(item.category)) total += (item.qty || 0);
             });
