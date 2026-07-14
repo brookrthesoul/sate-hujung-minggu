@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Sate Hujung Minggu — Order</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; min-height: 100vh; }
+
+/* ── Nav ── */
+.nav { background: white; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.08); position: sticky; top: 0; z-index: 100; }
+.nav h1 { font-size: 16px; font-weight: 700; color: #1a1a1a; }
+.busy-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+.busy-none   { background: #cce5ff; color: #004085; }
+.busy-ok     { background: #d4edda; color: #155724; }
+.busy-busy   { background: #f8d7da; color: #721c24; }
+
+/* ── Tabs ── */
+.tab-bar { display: flex; background: white; border-bottom: 1px solid #eee; }
+.tab-btn { flex: 1; padding: 10px; text-align: center; font-size: 13px; font-weight: 600; color: #666; cursor: pointer; border-bottom: 3px solid transparent; }
+.tab-btn.active { color: #007bff; border-bottom-color: #007bff; }
+
+/* ── Content ── */
+.tab-content { display: none; padding: 16px; max-width: 480px; margin: 0 auto; }
+.tab-content.active { display: block; }
+
+/* ── Form ── */
+.section-title { font-size: 14px; font-weight: 700; color: #333; margin: 14px 0 8px; }
+.menu-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.menu-cell { display: flex; flex-direction: column; gap: 4px; }
+.menu-cell label { font-size: 12px; font-weight: 600; line-height: 1.3; }
+.menu-cell label span { font-weight: 400; color: #888; font-size: 11px; }
+.menu-cell input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; text-align: center; }
+.menu-cell input:focus { outline: none; border-color: #007bff; }
+.stock-hint { font-size: 11px; font-weight: 600; min-height: 14px; }
+.stock-out { color: #dc3545; }
+.stock-warn { color: #fd7e14; }
+
+/* ── Pickup time ── */
+.pickup-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.pickup-row input { flex: 1; padding: 9px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+.time-hint { font-size: 12px; color: #888; margin-top: -6px; margin-bottom: 8px; }
+
+/* ── Description ── */
+textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10px; font-size: 14px; resize: none; }
+
+/* ── Results ── */
+.results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+.result-item { background: white; border-radius: 10px; padding: 10px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.result-item.total { grid-column: span 2; background: #fff8e1; }
+.result-label { font-size: 11px; color: #888; }
+.result-value { font-size: 15px; font-weight: 700; color: #1a1a1a; }
+
+/* ── Sticky save ── */
+.sticky-save { position: sticky; bottom: 0; padding: 10px 0 4px; background: linear-gradient(transparent, #f5f5f5 30%); }
+.save-btn { width: 100%; padding: 14px; background: #28a745; color: white; border: none; border-radius: 14px; font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(40,167,69,0.3); }
+.save-btn:disabled { background: #aaa; box-shadow: none; cursor: not-allowed; }
+
+/* ── My Order card ── */
+.order-card { background: white; border-radius: 14px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 4px solid #007bff; margin-bottom: 12px; }
+.order-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.order-num { background: #007bff; color: white; border-radius: 20px; padding: 3px 10px; font-size: 13px; font-weight: 700; }
+.order-time { font-size: 12px; color: #888; margin-left: auto; }
+.order-items { font-size: 13px; color: #444; margin-bottom: 6px; line-height: 1.6; }
+.order-total { font-size: 15px; font-weight: 700; }
+.status-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+.badge-preparing { background: #e2e3e5; color: #383d41; }
+.badge-ready     { background: #d4edda; color: #155724; }
+.action-row { display: flex; gap: 8px; margin-top: 10px; }
+.btn-edit   { flex: 1; padding: 9px; background: #17a2b8; color: white; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-cancel { flex: 1; padding: 9px; background: #dc3545; color: white; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.edit-lock-note { font-size: 11px; color: #888; margin-top: 6px; text-align: center; }
+.no-order { text-align: center; color: #aaa; padding: 40px 16px; font-size: 14px; }
+
+/* ── Edit modal ── */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 999; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal-box { background: white; border-radius: 18px; padding: 20px; width: 92%; max-width: 400px; max-height: 90vh; overflow-y: auto; }
+.modal-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; }
+.modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+.modal-save { flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
+.modal-cancel-btn { padding: 12px 16px; background: #6c757d; color: white; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; }
+
+.spinner { text-align: center; padding: 30px; color: #aaa; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="nav">
+    <h1>🍢 Sate Hujung Minggu</h1>
+    <span id="busyBadge" class="busy-badge busy-none">No Order</span>
+</div>
+
+<div class="tab-bar">
+    <div class="tab-btn active" id="tabNewOrder" onclick="switchTab('new')">New Order</div>
+    <div class="tab-btn"        id="tabMyOrder"  onclick="switchTab('my')">My Order</div>
+</div>
+
+<!-- NEW ORDER TAB -->
+<div class="tab-content active" id="tabContentNew">
+    <div class="section-title">📅 Pick-up Time (optional)</div>
+    <div class="pickup-row">
+        <input type="date" id="pickupDate" min="">
+        <input type="time" id="pickupTime">
+    </div>
+    <div class="time-hint" id="timeHint"></div>
+
+    <div class="section-title">🍢 Your Order</div>
+    <div class="menu-grid" id="menuGrid"></div>
+
+    <div class="section-title">📝 Note (optional)</div>
+    <textarea id="orderNote" rows="2" placeholder="Any special requests..."></textarea>
+
+    <div id="resultsBox" style="display:none;">
+        <div class="section-title">Summary</div>
+        <div class="results-grid" id="resultsGrid"></div>
+    </div>
+
+    <div class="sticky-save">
+        <button class="save-btn" id="saveBtn" onclick="placeOrder()">Place Order</button>
+    </div>
+</div>
+
+<!-- MY ORDER TAB -->
+<div class="tab-content" id="tabContentMy">
+    <div id="myOrderContent"><div class="spinner">Loading...</div></div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="editModal">
+    <div class="modal-box">
+        <div class="modal-title">✏️ Edit Order</div>
+        <div class="menu-grid" id="editMenuGrid"></div>
+        <textarea id="editNote" rows="2" placeholder="Note..." style="margin-top:10px;"></textarea>
+        <div class="modal-actions">
+            <button class="modal-save" onclick="saveEdit()">💾 Save</button>
+            <button class="modal-cancel-btn" onclick="closeEdit()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://efrwvksxttauhoxllhqu.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_SOoDs65SPw_G_m-lZ6NP-w_MbbqxOUw';
+const ORDER_ID_KEY = 'shmCustomerOrderId';
+const SKEWER_CATS  = ['skewer', 'no-kuah'];
+const EDIT_LOCK_MINS   = 5;
+const PICKUP_EDIT_MINS = 20;
+const PICKUP_MIN_HOURS = 1;
+
+let menuItems  = [];
+let stockData  = {};
+let myOrderId  = localStorage.getItem(ORDER_ID_KEY);
+let myOrder    = null;
+let realtimeWs = null;
+let currentTab = 'new';
+
+// ── Supabase helpers ──────────────────────────────────────────────────────────
+function headers(extra = {}) {
+    return { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', ...extra };
+}
+async function sbFetch(path, opts = {}) {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, { ...opts, headers: headers(opts.headers || {}) });
+    const txt = await res.text();
+    if (!res.ok) throw new Error(txt);
+    return txt ? JSON.parse(txt) : null;
+}
+async function sbRpc(fn, body) {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, { method: 'POST', headers: headers(), body: JSON.stringify(body) });
+    const txt = await res.text();
+    if (!res.ok) throw new Error(txt);
+    return txt ? JSON.parse(txt) : null;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+    setPickupDateMin();
+    await Promise.all([loadMenu(), loadStock(), loadBusy()]);
+    renderMenuGrid();
+    if (myOrderId) loadMyOrder();
+    connectRealtime();
+    setInterval(loadBusy, 30000);
+    setInterval(() => { if (myOrderId) loadMyOrder(); }, 15000);
+}
+
+function setPickupDateMin() {
+    const today = new Date().toLocaleDateString('en-CA');
+    document.getElementById('pickupDate').min = today;
+    document.getElementById('pickupDate').value = today;
+}
+
+// ── Menu ──────────────────────────────────────────────────────────────────────
+async function loadMenu() {
+    try {
+        const rows = await sbFetch('menu?select=id,name,price,category&order=sort_order.asc');
+        if (rows && rows.length) menuItems = rows;
+    } catch(e) { console.warn('Menu load failed', e); }
+}
+
+// ── Stock ─────────────────────────────────────────────────────────────────────
+async function loadStock() {
+    try {
+        const rows = await sbFetch('stock?select=id,qty');
+        stockData = {};
+        (rows || []).forEach(r => { stockData[r.id] = r.qty; });
+    } catch(e) { console.warn('Stock load failed', e); }
+}
+
+// ── Busy badge ────────────────────────────────────────────────────────────────
+async function loadBusy() {
+    try {
+        const orders = await sbFetch('orders?select=data&data->>paid=eq.false&data->>prepared=eq.false&data->>pickedUp=eq.false');
+        let total = 0;
+        (orders || []).forEach(row => {
+            const o = row.data || {};
+            Object.values(o.items || {}).forEach(item => {
+                if (SKEWER_CATS.includes(item.category)) total += (item.qty || 0);
+            });
+        });
+        const badge = document.getElementById('busyBadge');
+        if (total === 0) { badge.textContent = 'No Order'; badge.className = 'busy-badge busy-none'; }
+        else if (total <= 300) { badge.textContent = 'Not Busy'; badge.className = 'busy-badge busy-ok'; }
+        else { badge.textContent = 'Busy'; badge.className = 'busy-badge busy-busy'; }
+    } catch(e) {}
+}
+
+// ── Menu grid render ──────────────────────────────────────────────────────────
+function renderMenuGrid(containerId = 'menuGrid', existingItems = {}) {
+    const grid = document.getElementById(containerId);
+    if (!grid) return;
+    grid.innerHTML = menuItems.map(item => {
+        const qty = existingItems[item.id] || 0;
+        return `<div class="menu-cell">
+            <label for="qty_${containerId}_${item.id}">${item.name}<br><span>RM${item.price.toFixed(2)}</span></label>
+            <input type="number" id="qty_${containerId}_${item.id}" min="0" step="1" value="${qty || ''}" placeholder="0"
+                oninput="onQtyInput('${containerId}','${item.id}',this.value)">
+            <span class="stock-hint" id="hint_${containerId}_${item.id}"></span>
+        </div>`;
+    }).join('');
+}
+
+function onQtyInput(gridId, itemId, value) {
+    const qty   = parseInt(value) || 0;
+    const hint  = document.getElementById(`hint_${gridId}_${itemId}`);
+    const avail = stockData[itemId];
+    if (hint) {
+        if (avail === -1 || avail === undefined || avail === null) { hint.textContent = ''; hint.className = 'stock-hint'; }
+        else if (avail === 0) { hint.textContent = 'Out of stock'; hint.className = 'stock-hint stock-out'; }
+        else if (qty > avail) { hint.textContent = `Insufficient — only ${avail} left`; hint.className = 'stock-hint stock-out'; }
+        else { hint.textContent = ''; hint.className = 'stock-hint'; }
+    }
+    if (gridId === 'menuGrid') updateSummary();
+}
+
+function getQtys(gridId = 'menuGrid') {
+    const qtys = {};
+    menuItems.forEach(item => {
+        const el = document.getElementById(`qty_${gridId}_${item.id}`);
+        qtys[item.id] = el ? (parseInt(el.value) || 0) : 0;
+    });
+    return qtys;
+}
+
+function updateSummary() {
+    const qtys = getQtys();
+    const hasAny = Object.values(qtys).some(q => q > 0);
+    document.getElementById('resultsBox').style.display = hasAny ? 'block' : 'none';
+    if (!hasAny) return;
+
+    const grid = document.getElementById('resultsGrid');
+    let total = 0, skewers = 0, scoops = 0;
+    let html = '';
+    menuItems.forEach(item => {
+        const qty = qtys[item.id] || 0;
+        if (qty === 0) return;
+        const cost = qty * item.price;
+        total += cost;
+        if (item.category === 'skewer' || item.category === 'no-kuah') skewers += qty;
+        if (item.category === 'skewer') scoops += Math.ceil(qty / 10);
+        if (item.category === 'side') scoops += qty * 2;
+        if (item.category === 'kuah-only') scoops += qty;
+        html += `<div class="result-item"><div class="result-label">${item.name} ×${qty}</div><div class="result-value">RM${cost.toFixed(2)}</div></div>`;
+    });
+    html += `<div class="result-item"><div class="result-label">Cucuk / Senduk</div><div class="result-value">${skewers} / ${scoops}</div></div>`;
+    html += `<div class="result-item total"><div class="result-label">Total</div><div class="result-value">RM${total.toFixed(2)}</div></div>`;
+    grid.innerHTML = html;
+}
+
+// ── Pickup time validation ────────────────────────────────────────────────────
+function getPickupTs() {
+    const dateEl = document.getElementById('pickupDate');
+    const timeEl = document.getElementById('pickupTime');
+    const date   = dateEl.value;
+    const time   = timeEl.value;
+    if (!time) return { ts: null, mode: null };
+    const today  = new Date().toLocaleDateString('en-CA');
+    const useDate = date || today;
+    const ts    = new Date(`${useDate}T${time}`).getTime();
+    const mode  = date && date !== today ? 'datetime' : (date === today ? 'datetime' : 'time');
+    return { ts, mode: date ? (date !== today ? 'datetime' : 'datetime') : 'time' };
+}
+
+function validatePickupTime() {
+    const { ts } = getPickupTs();
+    const hint   = document.getElementById('timeHint');
+    if (!ts) { hint.textContent = ''; return true; }
+    const minTs  = Date.now() + PICKUP_MIN_HOURS * 60 * 60 * 1000;
+    if (ts < minTs) {
+        hint.textContent = `⚠️ Pick-up time must be at least ${PICKUP_MIN_HOURS} hour from now.`;
+        hint.style.color = '#dc3545';
+        return false;
+    }
+    hint.textContent = '';
+    return true;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('pickupTime').addEventListener('change', validatePickupTime);
+    document.getElementById('pickupDate').addEventListener('change', validatePickupTime);
+});
+
+// ── Place order ───────────────────────────────────────────────────────────────
+async function placeOrder() {
+    if (!validatePickupTime()) return;
+
+    const qtys   = getQtys();
+    const hasAny = Object.values(qtys).some(q => q > 0);
+    if (!hasAny) { alert('Please add at least one item.'); return; }
+
+    // Build items object
+    const items = {};
+    let totalCost = 0, skewerQty = 0, scoops = 0;
+    menuItems.forEach(item => {
+        const qty = qtys[item.id] || 0;
+        if (qty === 0) return;
+        const cost = qty * item.price;
+        items[item.id] = { name: item.name, category: item.category, price: item.price, qty, cost };
+        totalCost += cost;
+        if (item.category === 'skewer' || item.category === 'no-kuah') skewerQty += qty;
+        if (item.category === 'skewer') scoops += Math.ceil(qty / 10);
+        if (item.category === 'side') scoops += qty * 2;
+        if (item.category === 'kuah-only') scoops += qty;
+    });
+
+    const { ts, mode } = getPickupTs();
+    const orderData = {
+        items, totalCost, skewerQty, scoops,
+        prepared: false, paid: false, pickedUp: false,
+        description: document.getElementById('orderNote').value.trim(),
+        paymentMethod: null, paymentOnline: 0, paymentCash: 0,
+        pickupTs: ts || null, pickupMode: mode || null,
+        createdAt: Date.now(),
+        source: 'customer'
+    };
+
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true;
+    btn.textContent = 'Placing order...';
+
+    try {
+        const result = await sbRpc('place_customer_order', { order_data: orderData });
+        if (!result.ok) {
+            const item = menuItems.find(m => m.id === result.item);
+            const name = item ? item.name : result.item;
+            if (result.reason === 'out_of_stock') {
+                alert(`❌ Out of stock: ${name}`);
+            } else {
+                alert(`❌ Insufficient stock: ${name} — only ${result.available} left`);
+            }
+            await loadStock();
+            renderMenuGrid('menuGrid', qtys);
+            return;
+        }
+
+        // Success
+        myOrderId = String(result.id);
+        localStorage.setItem(ORDER_ID_KEY, myOrderId);
+        resetForm();
+        switchTab('my');
+        loadMyOrder();
+        loadBusy();
+    } catch(e) {
+        alert('Failed to place order: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Place Order';
+    }
+}
+
+function resetForm() {
+    menuItems.forEach(item => {
+        const el = document.getElementById(`qty_menuGrid_${item.id}`);
+        if (el) el.value = '';
+    });
+    document.getElementById('orderNote').value = '';
+    document.getElementById('resultsBox').style.display = 'none';
+    document.getElementById('pickupTime').value = '';
+    document.getElementById('timeHint').textContent = '';
+}
+
+// ── My Order ──────────────────────────────────────────────────────────────────
+async function loadMyOrder() {
+    if (!myOrderId) { renderNoOrder(); return; }
+    try {
+        const rows = await sbFetch(`orders?id=eq.${myOrderId}&select=id,data`);
+        if (!rows || rows.length === 0) {
+            // Order deleted (picked up/done on operator side)
+            localStorage.removeItem(ORDER_ID_KEY);
+            myOrderId = null;
+            renderNoOrder();
+            return;
+        }
+        myOrder = { id: rows[0].id, ...rows[0].data };
+        renderMyOrder();
+    } catch(e) { console.warn('loadMyOrder error', e); }
+}
+
+function renderNoOrder() {
+    document.getElementById('myOrderContent').innerHTML =
+        '<div class="no-order">No active order.<br>Go to <strong>New Order</strong> to place one.</div>';
+}
+
+function renderMyOrder() {
+    if (!myOrder) { renderNoOrder(); return; }
+    const o = myOrder;
+
+    // If done (picked up), clear
+    if (o.pickedUp) {
+        localStorage.removeItem(ORDER_ID_KEY);
+        myOrderId = null;
+        renderNoOrder();
+        return;
+    }
+
+    const items = Object.values(o.items || {}).filter(r => r.qty > 0)
+        .map(r => `${r.name} ×${r.qty} — RM${r.cost.toFixed(2)}`).join('<br>');
+    const time  = new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // Status badge
+    let statusBadge = '';
+    if (o.paid) {
+        statusBadge = '<span class="badge badge-ready">✅ READY — Please pay &amp; collect</span>';
+    } else {
+        statusBadge = '<span class="badge badge-preparing">⏳ Preparing...</span>';
+    }
+
+    // Edit/cancel lock logic
+    const now      = Date.now();
+    const created  = o.createdAt || now;
+    const lockMs   = EDIT_LOCK_MINS * 60 * 1000;
+    const editDeadline = created + lockMs;
+    let canEdit    = false;
+    let lockNote   = '';
+
+    if (o.prepared || o.paid) {
+        lockNote = 'Order is being prepared — editing not available.';
+    } else if (o.pickupTs && o.pickupMode !== 'time') {
+        const cutoff = o.pickupTs - PICKUP_EDIT_MINS * 60 * 1000;
+        if (now >= cutoff) {
+            lockNote = `Edit unavailable within ${PICKUP_EDIT_MINS} min of pick-up time.`;
+        } else {
+            canEdit = true;
+        }
+    } else if (o.pickupMode === 'time') {
+        const cutoff = o.pickupTs - PICKUP_EDIT_MINS * 60 * 1000;
+        if (now >= cutoff) {
+            lockNote = `Edit unavailable within ${PICKUP_EDIT_MINS} min of pick-up time.`;
+        } else if (now >= editDeadline) {
+            lockNote = `Edit locked after ${EDIT_LOCK_MINS} min of placing order.`;
+        } else {
+            canEdit = true;
+            const secsLeft = Math.ceil((editDeadline - now) / 1000);
+            lockNote = `Edit available for ${secsLeft > 60 ? Math.ceil(secsLeft/60) + ' min' : secsLeft + ' sec'} more.`;
+        }
+    } else {
+        // No pickup time
+        if (now >= editDeadline) {
+            lockNote = `Edit locked after ${EDIT_LOCK_MINS} min of placing order.`;
+        } else {
+            canEdit = true;
+            const secsLeft = Math.ceil((editDeadline - now) / 1000);
+            lockNote = `Edit available for ${secsLeft > 60 ? Math.ceil(secsLeft/60) + ' min' : secsLeft + ' sec'} more.`;
+        }
+    }
+
+    const actionBtns = (canEdit && !o.prepared && !o.paid) ? `
+        <div class="action-row">
+            <button class="btn-edit" onclick="openEdit()">✏️ Edit</button>
+            <button class="btn-cancel" onclick="cancelOrder()">🗑️ Cancel</button>
+        </div>` : '';
+    const lockDiv = lockNote ? `<div class="edit-lock-note">${lockNote}</div>` : '';
+
+    const pickupStr = o.pickupTs ? `<br><span style="font-size:12px;color:#666;">📅 Pick-up: ${new Date(o.pickupTs).toLocaleString([], {weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span>` : '';
+
+    document.getElementById('myOrderContent').innerHTML = `
+        <div class="order-card">
+            <div class="order-card-header">
+                <span class="order-num">#${o.id || myOrderId}</span>
+                <span class="order-time">${time}</span>
+            </div>
+            ${pickupStr}
+            <div class="order-items" style="margin-top:8px;">${items}</div>
+            <div class="order-total">Total: RM${(o.totalCost||0).toFixed(2)}</div>
+            <div class="status-row">${statusBadge}</div>
+            ${actionBtns}
+            ${lockDiv}
+        </div>`;
+}
+
+// ── Cancel order ──────────────────────────────────────────────────────────────
+async function cancelOrder() {
+    if (!confirm('Cancel your order?')) return;
+    try {
+        await sbFetch(`orders?id=eq.${myOrderId}`, { method: 'DELETE' });
+        localStorage.removeItem(ORDER_ID_KEY);
+        myOrderId = null; myOrder = null;
+        renderNoOrder();
+        loadBusy();
+    } catch(e) { alert('Cancel failed: ' + e.message); }
+}
+
+// ── Edit order ────────────────────────────────────────────────────────────────
+function openEdit() {
+    if (!myOrder) return;
+    const existing = {};
+    Object.entries(myOrder.items || {}).forEach(([id, item]) => { existing[id] = item.qty; });
+    renderMenuGrid('editMenuGrid', existing);
+    document.getElementById('editNote').value = myOrder.description || '';
+    document.getElementById('editModal').classList.add('open');
+}
+function closeEdit() { document.getElementById('editModal').classList.remove('open'); }
+
+async function saveEdit() {
+    const qtys   = getQtys('editMenuGrid');
+    const hasAny = Object.values(qtys).some(q => q > 0);
+    if (!hasAny) { alert('Please keep at least one item.'); return; }
+
+    // Build diff for stock adjustment
+    const oldItems = myOrder.items || {};
+    const newItems = {};
+    let totalCost = 0, skewerQty = 0, scoops = 0;
+    menuItems.forEach(item => {
+        const qty = qtys[item.id] || 0;
+        const cost = qty * item.price;
+        newItems[item.id] = { name: item.name, category: item.category, price: item.price, qty, cost };
+        totalCost += cost;
+        if (item.category === 'skewer' || item.category === 'no-kuah') skewerQty += qty;
+        if (item.category === 'skewer') scoops += Math.ceil(qty / 10);
+        if (item.category === 'side') scoops += qty * 2;
+        if (item.category === 'kuah-only') scoops += qty;
+    });
+
+    // Check stock for increases
+    await loadStock();
+    for (const item of menuItems) {
+        const oldQty = (oldItems[item.id] && oldItems[item.id].qty) || 0;
+        const newQty = qtys[item.id] || 0;
+        const diff   = newQty - oldQty;
+        if (diff > 0) {
+            const avail = stockData[item.id];
+            if (avail !== undefined && avail !== null && avail !== -1 && avail < diff) {
+                alert(`❌ Insufficient stock for ${item.name} — only ${avail} extra available`);
+                return;
+            }
+        }
+    }
+
+    try {
+        // Update stock diff via RPC
+        await sbRpc('adjust_stock_diff', { old_items: oldItems, new_items: newItems });
+    } catch(e) { /* non-fatal if RPC not set up */ }
+
+    const updated = {
+        ...myOrder, items: newItems, totalCost, skewerQty, scoops,
+        description: document.getElementById('editNote').value.trim()
+    };
+
+    try {
+        await sbFetch(`orders?id=eq.${myOrderId}`, {
+            method: 'PATCH',
+            headers: { 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ data: updated, updated_ms: Date.now() })
+        });
+        myOrder = updated;
+        closeEdit();
+        renderMyOrder();
+    } catch(e) { alert('Save failed: ' + e.message); }
+}
+
+// ── Realtime ──────────────────────────────────────────────────────────────────
+function connectRealtime() {
+    const wsUrl = SUPABASE_URL.replace('https://', 'wss://') + '/realtime/v1/websocket?apikey=' + SUPABASE_KEY + '&vsn=1.0.0';
+    realtimeWs = new WebSocket(wsUrl);
+    let ref = 1;
+    realtimeWs.onopen = () => {
+        realtimeWs.send(JSON.stringify({ topic: 'realtime:customer', event: 'phx_join',
+            payload: { config: { broadcast: { self: false }, postgres_changes: [
+                { event: '*', schema: 'public', table: 'orders' },
+                { event: '*', schema: 'public', table: 'stock' }
+            ]}}, ref: String(ref++) }));
+        setInterval(() => {
+            if (realtimeWs.readyState === WebSocket.OPEN)
+                realtimeWs.send(JSON.stringify({ topic:'phoenix', event:'heartbeat', payload:{}, ref: String(ref++) }));
+        }, 25000);
+    };
+    realtimeWs.onmessage = ({ data }) => {
+        try {
+            const f = JSON.parse(data);
+            if (f.event === 'phx_reply') return;
+            if (f.event === 'postgres_changes' || f.payload?.data?.type) {
+                const tbl = f.payload?.data?.table || '';
+                if (tbl === 'stock') { loadStock(); return; }
+                loadBusy();
+                if (myOrderId) loadMyOrder();
+            }
+        } catch(_) {}
+    };
+    realtimeWs.onclose = () => setTimeout(connectRealtime, 5000);
+}
+
+// ── Tab switch ────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+    currentTab = tab;
+    document.getElementById('tabNewOrder').classList.toggle('active', tab === 'new');
+    document.getElementById('tabMyOrder').classList.toggle('active',  tab === 'my');
+    document.getElementById('tabContentNew').classList.toggle('active', tab === 'new');
+    document.getElementById('tabContentMy').classList.toggle('active',  tab === 'my');
+    if (tab === 'my' && myOrderId) loadMyOrder();
+}
+
+init();
+</script>
+</body>
+</html>
