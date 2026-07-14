@@ -56,6 +56,9 @@ function switchTab(tab) {
                     const stored = localStorage.getItem(SYNC_BAR_KEY);
                     const toggle = document.getElementById('syncBarToggle');
                     if (toggle) toggle.checked = stored === null ? true : stored === '1';
+                    const pStored = localStorage.getItem('shmPasteBoxEnabled');
+                    const pToggle = document.getElementById('pasteBoxToggle');
+                    if (pToggle) pToggle.checked = pStored === null ? true : pStored === '1';
                 }
                 if (tab === 'settings') renderSettingsMenuList();
             }
@@ -142,19 +145,33 @@ function initSyncBarToggle() {
     setSyncBarVisible(visible);
 }
 
-// ─── Paste box collapse/expand ────────────────────────────────────────────────
-const PASTE_BOX_KEY = 'shmPasteBoxOpen';
+// ─── Paste box collapse/expand + show/hide ───────────────────────────────────
+const PASTE_BOX_KEY     = 'shmPasteBoxOpen';
+const PASTE_ENABLED_KEY = 'shmPasteBoxEnabled';
 
 function togglePasteBox() {
     const body    = document.getElementById('pasteBoxBody');
     const chevron = document.getElementById('pasteBoxChevron');
+    if (!body || !chevron) return;
     const isOpen  = body.style.display !== 'none';
-    body.style.display    = isOpen ? 'none' : 'block';
+    body.style.display      = isOpen ? 'none' : 'block';
     chevron.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
     localStorage.setItem(PASTE_BOX_KEY, isOpen ? '0' : '1');
 }
 
+function setPasteBoxEnabled(enabled) {
+    localStorage.setItem(PASTE_ENABLED_KEY, enabled ? '1' : '0');
+    const box = document.getElementById('pasteOrderBox');
+    if (box) box.style.display = enabled ? 'block' : 'none';
+    const toggle = document.getElementById('pasteBoxToggle');
+    if (toggle) toggle.checked = enabled;
+}
+
 function initPasteBox() {
+    const enabledStored = localStorage.getItem(PASTE_ENABLED_KEY);
+    const enabled = enabledStored === null ? true : enabledStored === '1';
+    const box = document.getElementById('pasteOrderBox');
+    if (box) box.style.display = enabled ? 'block' : 'none';
     const stored  = localStorage.getItem(PASTE_BOX_KEY);
     const isOpen  = stored === null ? true : stored === '1';
     const body    = document.getElementById('pasteBoxBody');
