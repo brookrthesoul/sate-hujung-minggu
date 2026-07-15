@@ -398,9 +398,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── Place order ───────────────────────────────────────────────────────────────
 async function placeOrder() {
-    // Re-validate with fresh time check
+    // Get pickup time once and reuse throughout
+    const { ts, mode } = getPickupTs();
     const hint = document.getElementById('timeHint');
-    const { ts } = getPickupTs();
     if (ts) {
         const minTs = Date.now() + PICKUP_MIN_HOURS * 60 * 60 * 1000;
         if (ts < minTs) {
@@ -433,7 +433,6 @@ async function placeOrder() {
         if (item.category === 'kuah-only') scoops += qty;
     });
 
-    const { ts, mode } = getPickupTs();
     // Determine if this is a preorder (future date)
     const today2 = new Date().toLocaleDateString('en-CA');
     const isPreorder = ts && (mode === 'datetime' || mode === 'date') &&
