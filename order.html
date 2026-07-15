@@ -144,7 +144,8 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 <script>
 const SUPABASE_URL = 'https://efrwvksxttauhoxllhqu.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_SOoDs65SPw_G_m-lZ6NP-w_MbbqxOUw';
-const ORDER_ID_KEY = 'shmCustomerOrderId';
+const ORDER_ID_KEY  = 'shmCustomerOrderId';
+const ORDER_IDS_KEY = 'shmCustomerOrderIds';
 const SKEWER_CATS  = ['skewer', 'no-kuah'];
 const EDIT_LOCK_MINS   = 5;
 const PICKUP_EDIT_MINS = 20;
@@ -152,7 +153,8 @@ const PICKUP_MIN_HOURS = 1;
 
 let menuItems  = [];
 let stockData  = {};
-let myOrderId  = localStorage.getItem(ORDER_ID_KEY);
+let myOrderId  = localStorage.getItem(ORDER_ID_KEY); // legacy single order
+let myOrderIds = JSON.parse(localStorage.getItem(ORDER_IDS_KEY) || '[]');
 let myOrder    = null;
 let realtimeWs = null;
 let currentTab = 'new';
@@ -179,10 +181,14 @@ async function init() {
     setPickupDateMin();
     await Promise.all([loadMenu(), loadStock(), loadBusy()]);
     renderMenuGrid();
-    if (myOrderId) loadMyOrder();
+    if (myOrderId && !myOrderIds.includes(myOrderId)) {
+        myOrderIds.push(myOrderId);
+        localStorage.setItem(ORDER_IDS_KEY, JSON.stringify(myOrderIds));
+    }
+    if (myOrderIds.length > 0) loadMyOrders();
     connectRealtime();
     setInterval(loadBusy, 30000);
-    setInterval(() => { if (myOrderId) loadMyOrder(); }, 15000);
+    setInterval(() => { if (myOrderIds.length > 0) loadMyOrders(); }, 15000);
 }
 
 function setPickupDateMin() {
@@ -300,12 +306,25 @@ function getPickupTs() {
     const timeEl = document.getElementById('pickupTime');
     const date   = dateEl.value;
     const time   = timeEl.value;
-    if (!time) return { ts: null, mode: null };
     const today  = new Date().toLocaleDateString('en-CA');
-    const useDate = date || today;
-    const ts    = new Date(`${useDate}T${time}`).getTime();
-    const mode  = date && date !== today ? 'datetime' : (date === today ? 'datetime' : 'time');
-    return { ts, mode: date ? (date !== today ? 'datetime' : 'datetime') : 'time' };
+
+    if (!date && !time) return { ts: null, mode: null };
+
+    if (date && !time) {
+        // Date only — goes to preorder if future date
+        const ts = new Date(date + 'T00:00').getTime();
+        const mode = date > today ? 'date' : 'date-today';
+        return { ts, mode };
+    }
+    if (!date && time) {
+        // Time only — today, goes to prepare
+        const ts = new Date(today + 'T' + time).getTime();
+        return { ts, mode: 'time' };
+    }
+    // Both date and time
+    const ts = new Date(date + 'T' + time).getTime();
+    const mode = date > today ? 'datetime' : 'datetime';
+    return { ts, mode };
 }
 
 function validatePickupTime() {
@@ -351,12 +370,18 @@ async function placeOrder() {
     });
 
     const { ts, mode } = getPickupTs();
+    // Determine if this is a preorder (future date)
+    const today2 = new Date().toLocaleDateString('en-CA');
+    const isPreorder = ts && (mode === 'datetime' || mode === 'date') &&
+        new Date(ts).toLocaleDateString('en-CA') > today2;
+
     const orderData = {
         items, totalCost, skewerQty, scoops,
         prepared: false, paid: false, pickedUp: false,
         description: document.getElementById('orderNote').value.trim(),
         paymentMethod: null, paymentOnline: 0, paymentCash: 0,
-        pickupTs: ts || null, pickupMode: mode || null,
+        pickupTs: ts || null,
+        pickupMode: mode === 'date-today' ? 'date' : (mode || null),
         createdAt: Date.now(),
         source: 'customer'
     };
@@ -380,12 +405,17 @@ async function placeOrder() {
             return;
         }
 
-        // Success
-        myOrderId = String(result.id);
-        localStorage.setItem(ORDER_ID_KEY, myOrderId);
+        // Success — add to order IDs array
+        const newId = String(result.id);
+        myOrderId = newId;
+        localStorage.setItem(ORDER_ID_KEY, newId);
+        if (!myOrderIds.includes(newId)) {
+            myOrderIds.push(newId);
+            localStorage.setItem(ORDER_IDS_KEY, JSON.stringify(myOrderIds));
+        }
         resetForm();
         switchTab('my');
-        loadMyOrder();
+        loadMyOrders();
         loadBusy();
     } catch(e) {
         alert('Failed to place order: ' + e.message);
@@ -406,135 +436,156 @@ function resetForm() {
     document.getElementById('timeHint').textContent = '';
 }
 
-// ── My Order ──────────────────────────────────────────────────────────────────
-async function loadMyOrder() {
-    if (!myOrderId) { renderNoOrder(); return; }
+// ── My Orders (multiple) ─────────────────────────────────────────────────────
+async function loadMyOrders() {
+    // Merge legacy single ID into array
+    if (myOrderId && !myOrderIds.includes(myOrderId)) {
+        myOrderIds.push(myOrderId);
+        localStorage.setItem(ORDER_IDS_KEY, JSON.stringify(myOrderIds));
+    }
+    if (myOrderIds.length === 0) { renderNoOrder(); return; }
+
     try {
-        const rows = await sbFetch(`orders?id=eq.${myOrderId}&select=id,data`);
-        if (!rows || rows.length === 0) {
-            // Order deleted (picked up/done on operator side)
-            localStorage.removeItem(ORDER_ID_KEY);
-            myOrderId = null;
-            renderNoOrder();
-            return;
-        }
-        myOrder = { id: rows[0].id, ...rows[0].data };
-        renderMyOrder();
-    } catch(e) { console.warn('loadMyOrder error', e); }
+        const ids    = myOrderIds.join(',');
+        const rows   = await sbFetch(`orders?id=in.(${ids})&select=id,data`);
+        const found  = rows || [];
+        const foundIds = found.map(r => String(r.id));
+
+        // Remove IDs no longer in DB (picked up / deleted)
+        myOrderIds = myOrderIds.filter(id => foundIds.includes(id));
+        localStorage.setItem(ORDER_IDS_KEY, JSON.stringify(myOrderIds));
+
+        if (myOrderIds.length === 0) { renderNoOrder(); return; }
+
+        // Render all active orders
+        const container = document.getElementById('myOrderContent');
+        container.innerHTML = '';
+        found.forEach(row => {
+            const o = { id: row.id, ...row.data };
+            if (o.pickedUp) {
+                // Remove picked up orders
+                myOrderIds = myOrderIds.filter(id => String(id) !== String(row.id));
+                localStorage.setItem(ORDER_IDS_KEY, JSON.stringify(myOrderIds));
+                return;
+            }
+            container.innerHTML += renderMyOrderCard(o);
+        });
+        if (container.innerHTML === '') renderNoOrder();
+    } catch(e) { console.warn('loadMyOrders error', e); }
 }
+
+// Legacy compat
+async function loadMyOrder() { return loadMyOrders(); }
 
 function renderNoOrder() {
     document.getElementById('myOrderContent').innerHTML =
         '<div class="no-order">No active order.<br>Go to <strong>New Order</strong> to place one.</div>';
 }
 
-function renderMyOrder() {
-    if (!myOrder) { renderNoOrder(); return; }
-    const o = myOrder;
-
-    // If done (picked up), clear
-    if (o.pickedUp) {
-        localStorage.removeItem(ORDER_ID_KEY);
-        myOrderId = null;
-        renderNoOrder();
-        return;
-    }
-
+function renderMyOrderCard(o) {
     const items = Object.values(o.items || {}).filter(r => r.qty > 0)
         .map(r => `${r.name} ×${r.qty} — RM${r.cost.toFixed(2)}`).join('<br>');
     const time  = new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const oid   = o.id || '';
 
-    // Status badge
-    let statusBadge = '';
-    if (o.paid) {
-        statusBadge = '<span class="badge badge-ready">✅ READY — Please pay &amp; collect</span>';
-    } else {
-        statusBadge = '<span class="badge badge-preparing">⏳ Preparing...</span>';
-    }
+    let statusBadge = o.paid
+        ? '<span class="badge badge-ready">✅ READY — Please pay &amp; collect</span>'
+        : '<span class="badge badge-preparing">⏳ Preparing...</span>';
 
-    // Edit/cancel lock logic
-    const now      = Date.now();
-    const created  = o.createdAt || now;
-    const lockMs   = EDIT_LOCK_MINS * 60 * 1000;
+    const now          = Date.now();
+    const created      = o.createdAt || now;
+    const lockMs       = EDIT_LOCK_MINS * 60 * 1000;
     const editDeadline = created + lockMs;
-    let canEdit    = false;
-    let lockNote   = '';
+    let canEdit = false, lockNote = '';
 
     if (o.prepared || o.paid) {
         lockNote = 'Order is being prepared — editing not available.';
     } else if (o.pickupTs && o.pickupMode !== 'time') {
         const cutoff = o.pickupTs - PICKUP_EDIT_MINS * 60 * 1000;
-        if (now >= cutoff) {
-            lockNote = `Edit unavailable within ${PICKUP_EDIT_MINS} min of pick-up time.`;
-        } else {
-            canEdit = true;
-        }
+        if (now >= cutoff) lockNote = `Edit unavailable within ${PICKUP_EDIT_MINS} min of pick-up time.`;
+        else canEdit = true;
     } else if (o.pickupMode === 'time') {
         const cutoff = o.pickupTs - PICKUP_EDIT_MINS * 60 * 1000;
-        if (now >= cutoff) {
-            lockNote = `Edit unavailable within ${PICKUP_EDIT_MINS} min of pick-up time.`;
-        } else if (now >= editDeadline) {
-            lockNote = `Edit locked after ${EDIT_LOCK_MINS} min of placing order.`;
-        } else {
+        if (now >= cutoff) lockNote = `Edit unavailable within ${PICKUP_EDIT_MINS} min of pick-up time.`;
+        else if (now >= editDeadline) lockNote = `Edit locked after ${EDIT_LOCK_MINS} min.`;
+        else {
             canEdit = true;
-            const secsLeft = Math.ceil((editDeadline - now) / 1000);
-            lockNote = `Edit available for ${secsLeft > 60 ? Math.ceil(secsLeft/60) + ' min' : secsLeft + ' sec'} more.`;
+            const s = Math.ceil((editDeadline - now) / 1000);
+            lockNote = `Edit available for ${s > 60 ? Math.ceil(s/60) + ' min' : s + ' sec'} more.`;
         }
     } else {
-        // No pickup time
-        if (now >= editDeadline) {
-            lockNote = `Edit locked after ${EDIT_LOCK_MINS} min of placing order.`;
-        } else {
+        if (now >= editDeadline) lockNote = `Edit locked after ${EDIT_LOCK_MINS} min.`;
+        else {
             canEdit = true;
-            const secsLeft = Math.ceil((editDeadline - now) / 1000);
-            lockNote = `Edit available for ${secsLeft > 60 ? Math.ceil(secsLeft/60) + ' min' : secsLeft + ' sec'} more.`;
+            const s = Math.ceil((editDeadline - now) / 1000);
+            lockNote = `Edit available for ${s > 60 ? Math.ceil(s/60) + ' min' : s + ' sec'} more.`;
         }
     }
 
     const actionBtns = (canEdit && !o.prepared && !o.paid) ? `
         <div class="action-row">
-            <button class="btn-edit" onclick="openEdit()">✏️ Edit</button>
-            <button class="btn-cancel" onclick="cancelOrder()">🗑️ Cancel</button>
+            <button class="btn-edit"   onclick="openEdit('${oid}')">✏️ Edit</button>
+            <button class="btn-cancel" onclick="cancelOrder('${oid}')">🗑️ Cancel</button>
         </div>` : '';
-    const lockDiv = lockNote ? `<div class="edit-lock-note">${lockNote}</div>` : '';
+    const lockDiv  = lockNote ? `<div class="edit-lock-note">${lockNote}</div>` : '';
 
-    const pickupStr = o.pickupTs ? `<br><span style="font-size:12px;color:#666;">📅 Pick-up: ${new Date(o.pickupTs).toLocaleString([], {weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span>` : '';
+    // Fix 4: Show note
+    const noteDiv  = o.description ? `<div style="font-size:12px;color:#666;margin-top:4px;">📝 ${o.description}</div>` : '';
 
-    document.getElementById('myOrderContent').innerHTML = `
-        <div class="order-card">
-            <div class="order-card-header">
-                <span class="order-num">#${o.id || myOrderId}</span>
-                <span class="order-time">${time}</span>
-            </div>
-            ${pickupStr}
-            <div class="order-items" style="margin-top:8px;">${items}</div>
-            <div class="order-total">Total: RM${(o.totalCost||0).toFixed(2)}</div>
-            <div class="status-row">${statusBadge}</div>
-            ${actionBtns}
-            ${lockDiv}
-        </div>`;
+    let pickupStr = '';
+    if (o.pickupTs) {
+        const dt = new Date(o.pickupTs);
+        if (o.pickupMode === 'time') pickupStr = dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        else if (o.pickupMode === 'date') pickupStr = dt.toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'});
+        else pickupStr = dt.toLocaleString([], {weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+        pickupStr = `<div style="font-size:12px;color:#1a6abf;margin-top:4px;">📅 Pick-up: ${pickupStr}</div>`;
+    }
+
+    return `<div class="order-card" id="corder-${oid}">
+        <div class="order-card-header">
+            <span class="order-num">#${oid}</span>
+            <span class="order-time">${time}</span>
+        </div>
+        ${pickupStr}
+        <div class="order-items" style="margin-top:8px;">${items}</div>
+        ${noteDiv}
+        <div class="order-total" style="margin-top:4px;">Total: RM${(o.totalCost||0).toFixed(2)}</div>
+        <div class="status-row">${statusBadge}</div>
+        ${actionBtns}
+        ${lockDiv}
+    </div>`;
 }
 
+function renderMyOrder() { loadMyOrders(); }
+
 // ── Cancel order ──────────────────────────────────────────────────────────────
-async function cancelOrder() {
-    if (!confirm('Cancel your order?')) return;
+async function cancelOrder(orderId) {
+    if (!confirm('Cancel this order?')) return;
     try {
-        await sbFetch(`orders?id=eq.${myOrderId}`, { method: 'DELETE' });
-        localStorage.removeItem(ORDER_ID_KEY);
-        myOrderId = null; myOrder = null;
-        renderNoOrder();
+        await sbFetch(`orders?id=eq.${orderId}`, { method: 'DELETE' });
+        myOrderIds = myOrderIds.filter(id => String(id) !== String(orderId));
+        localStorage.setItem(ORDER_IDS_KEY, JSON.stringify(myOrderIds));
+        if (myOrderIds.length === 0) { localStorage.removeItem(ORDER_ID_KEY); }
+        loadMyOrders();
         loadBusy();
     } catch(e) { alert('Cancel failed: ' + e.message); }
 }
 
 // ── Edit order ────────────────────────────────────────────────────────────────
-function openEdit() {
-    if (!myOrder) return;
-    const existing = {};
-    Object.entries(myOrder.items || {}).forEach(([id, item]) => { existing[id] = item.qty; });
-    renderMenuGrid('editMenuGrid', existing);
-    document.getElementById('editNote').value = myOrder.description || '';
-    document.getElementById('editModal').classList.add('open');
+let _editingOrderId = null;
+function openEdit(orderId) {
+    _editingOrderId = orderId;
+    // Find order from DOM or reload
+    sbFetch(`orders?id=eq.${orderId}&select=id,data`).then(rows => {
+        if (!rows || !rows.length) return;
+        const o = { id: rows[0].id, ...rows[0].data };
+        const existing = {};
+        Object.entries(o.items || {}).forEach(([id, item]) => { existing[id] = item.qty; });
+        renderMenuGrid('editMenuGrid', existing);
+        document.getElementById('editNote').value = o.description || '';
+        document.getElementById('editModal').classList.add('open');
+        document.getElementById('editModal').dataset.order = JSON.stringify(o);
+    });
 }
 function closeEdit() { document.getElementById('editModal').classList.remove('open'); }
 
@@ -543,8 +594,8 @@ async function saveEdit() {
     const hasAny = Object.values(qtys).some(q => q > 0);
     if (!hasAny) { alert('Please keep at least one item.'); return; }
 
-    // Build diff for stock adjustment
-    const oldItems = myOrder.items || {};
+    const storedOrder = JSON.parse(document.getElementById('editModal').dataset.order || '{}');
+    const oldItems = storedOrder.items || {};
     const newItems = {};
     let totalCost = 0, skewerQty = 0, scoops = 0;
     menuItems.forEach(item => {
@@ -584,14 +635,13 @@ async function saveEdit() {
     };
 
     try {
-        await sbFetch(`orders?id=eq.${myOrderId}`, {
+        await sbFetch(`orders?id=eq.${_editingOrderId}`, {
             method: 'PATCH',
             headers: { 'Prefer': 'return=minimal' },
             body: JSON.stringify({ data: updated, updated_ms: Date.now() })
         });
-        myOrder = updated;
         closeEdit();
-        renderMyOrder();
+        loadMyOrders();
     } catch(e) { alert('Save failed: ' + e.message); }
 }
 
@@ -619,7 +669,7 @@ function connectRealtime() {
                 const tbl = f.payload?.data?.table || '';
                 if (tbl === 'stock') { loadStock(); return; }
                 loadBusy();
-                if (myOrderId) loadMyOrder();
+                if (myOrderIds.length > 0) loadMyOrders();
             }
         } catch(_) {}
     };

@@ -219,7 +219,7 @@ async function loadPreorders() {
             if (o.prepared || o.paid || o.pickedUp) return false;
             if (!o.pickupTs || o.pickupMode === 'time') return false;
             const pDay = new Date(o.pickupTs).toLocaleDateString('en-CA');
-            return pDay > today; // strictly future
+            return pDay > today; // strictly future (covers 'date' and 'datetime' modes)
         });
 
         preorders.sort((a, b) => sortDir === 'asc'

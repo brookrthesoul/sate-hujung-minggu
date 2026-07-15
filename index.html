@@ -378,5 +378,67 @@
 
     <!-- PWA manifest and service worker -->
     <script src="./sw-register.js"></script>
+    <!-- PASSWORD SCREEN -->
+    <div id="passwordScreen" style="display:none; position:fixed; inset:0; background:#f5f5f5; z-index:99999; align-items:center; justify-content:center; flex-direction:column;">
+        <div style="background:white; border-radius:20px; padding:32px 24px; width:90%; max-width:340px; box-shadow:0 8px 32px rgba(0,0,0,0.15); text-align:center;">
+            <div style="font-size:40px; margin-bottom:12px;">🍢</div>
+            <h2 style="font-size:18px; margin-bottom:6px; color:#1a1a1a;">Sate Hujung Minggu</h2>
+            <p style="font-size:13px; color:#888; margin-bottom:20px;">Staff access only</p>
+            <input type="password" id="pwInput" placeholder="Enter password"
+                style="width:100%; padding:12px; border:1.5px solid #ddd; border-radius:10px; font-size:15px; text-align:center; outline:none; margin-bottom:12px; box-sizing:border-box;"
+                onkeydown="if(event.key==='Enter') checkPassword()">
+            <p id="pwError" style="color:#dc3545; font-size:13px; min-height:18px; margin-bottom:10px;"></p>
+            <button onclick="checkPassword()"
+                style="width:100%; padding:13px; background:#007bff; color:white; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer;">
+                Unlock
+            </button>
+        </div>
+    </div>
+
+    <style>
+    @keyframes pwShake {
+        0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-6px)} 80%{transform:translateX(6px)}
+    }
+    .pw-shake { animation: pwShake 0.4s ease; }
+    </style>
+
+    <script>
+    const PWA_PASSWORD_HASH = 'c57e9effcfa85d2f975b3d188738a254ae02034232f804107dfbf07fdf27439c';
+    const PW_KEY = 'shmPwUnlocked';
+
+    async function sha256(str) {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+    }
+
+    async function checkPassword() {
+        const input = document.getElementById('pwInput');
+        const hash  = await sha256(input.value);
+        if (hash === PWA_PASSWORD_HASH) {
+            sessionStorage.setItem(PW_KEY, '1');
+            document.getElementById('passwordScreen').style.display = 'none';
+            input.value = '';
+            document.getElementById('pwError').textContent = '';
+        } else {
+            document.getElementById('pwError').textContent = '❌ Incorrect password';
+            const box = document.querySelector('#passwordScreen > div');
+            box.classList.remove('pw-shake');
+            void box.offsetWidth;
+            box.classList.add('pw-shake');
+            input.value = '';
+            input.focus();
+        }
+    }
+
+    function initPasswordScreen() {
+        if (sessionStorage.getItem(PW_KEY) === '1') return; // already unlocked this session
+        const screen = document.getElementById('passwordScreen');
+        screen.style.display = 'flex';
+        setTimeout(() => document.getElementById('pwInput').focus(), 100);
+    }
+
+    window.addEventListener('load', initPasswordScreen);
+    </script>
+
 </body>
 </html>
