@@ -193,8 +193,7 @@ async function init() {
 }
 
 function setPickupDateMin() {
-    const now   = new Date();
-    const today = now.toLocaleDateString('en-CA');
+    const today = new Date().toLocaleDateString('en-CA');
     document.getElementById('pickupDate').min   = today;
     document.getElementById('pickupDate').value = today;
     updateTimeMin();
@@ -205,17 +204,26 @@ function updateTimeMin() {
     const timeEl  = document.getElementById('pickupTime');
     const today   = new Date().toLocaleDateString('en-CA');
     const selDate = dateEl.value;
-    if (!selDate || selDate === today) {
-        // Today — disable times within next 1 hour
+    const isToday = !selDate || selDate === today;
+
+    if (isToday) {
+        // Today (or no date) — min time = now + 1 hour, default value = now + 1 hour
         const minTime = new Date(Date.now() + 60 * 60 * 1000);
         const hh = String(minTime.getHours()).padStart(2,'0');
         const mm = String(minTime.getMinutes()).padStart(2,'0');
-        timeEl.min = `${hh}:${mm}`;
-        // Clear hint
+        const minStr = `${hh}:${mm}`;
+        timeEl.min = minStr;
+        // Only auto-set if time field is empty or behind the new min
+        if (!timeEl.value || timeEl.value < minStr) {
+            timeEl.value = minStr;
+        }
         document.getElementById('timeHint').textContent = '';
     } else {
-        // Future date — any time is fine
-        timeEl.min = '';
+        // Future date — no restriction on time, clear any auto-set value
+        timeEl.min   = '';
+        if (timeEl.value) {
+            // Keep whatever time was set — just remove the min restriction
+        }
         document.getElementById('timeHint').textContent = '';
     }
 }
@@ -387,10 +395,17 @@ function validatePickupTime() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('pickupTime').addEventListener('change', () => {
+    const timeEl = document.getElementById('pickupTime');
+    const dateEl = document.getElementById('pickupDate');
+
+    // When customer taps the time field, auto-jump to 1hr from now if today
+    timeEl.addEventListener('focus', () => {
+        updateTimeMin();
+    });
+    timeEl.addEventListener('change', () => {
         validatePickupTime();
     });
-    document.getElementById('pickupDate').addEventListener('change', () => {
+    dateEl.addEventListener('change', () => {
         updateTimeMin();
         validatePickupTime();
     });
