@@ -221,11 +221,28 @@ function updateTimeMin() {
 }
 
 // ── Menu ──────────────────────────────────────────────────────────────────────
+const DEFAULT_MENU = [
+    { id: 'ayam',     name: 'Ayam',       price: 1.30, category: 'skewer'    },
+    { id: 'daging',   name: 'Daging',     price: 1.60, category: 'skewer'    },
+    { id: 'kambing',  name: 'Kambing',    price: 2.00, category: 'no-kuah'  },
+    { id: 'lontong',  name: 'Lontong',    price: 3.00, category: 'side'     },
+    { id: 'shortong', name: 'Shortong',   price: 2.00, category: 'side'     },
+    { id: 'kuah',     name: 'Kuah Kacang',price: 1.00, category: 'kuah-only'},
+];
+
 async function loadMenu() {
     try {
         const rows = await sbFetch('menu?select=id,name,price,category&order=sort_order.asc');
-        if (rows && rows.length) menuItems = rows;
-    } catch(e) { console.warn('Menu load failed', e); }
+        if (rows && rows.length) {
+            menuItems = rows;
+        } else {
+            // Table empty or doesn't exist yet — use defaults
+            menuItems = DEFAULT_MENU.map(i => ({ ...i }));
+        }
+    } catch(e) {
+        console.warn('Menu load failed, using defaults:', e);
+        menuItems = DEFAULT_MENU.map(i => ({ ...i }));
+    }
 }
 
 // ── Stock ─────────────────────────────────────────────────────────────────────
@@ -758,7 +775,7 @@ function switchTab(tab) {
     document.getElementById('tabMyOrder').classList.toggle('active',  tab === 'my');
     document.getElementById('tabContentNew').classList.toggle('active', tab === 'new');
     document.getElementById('tabContentMy').classList.toggle('active',  tab === 'my');
-    if (tab === 'my' && myOrderId) loadMyOrder();
+    if (tab === 'my') loadMyOrders();
 }
 
 init();
