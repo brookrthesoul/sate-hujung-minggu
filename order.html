@@ -68,6 +68,7 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 .badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
 .badge-preparing { background: #e2e3e5; color: #383d41; }
 .badge-ready     { background: #d4edda; color: #155724; }
+.badge-preorder  { background: #e8f4fd; color: #1a6abf; }
 .action-row { display: flex; gap: 8px; margin-top: 10px; }
 .btn-edit   { flex: 1; padding: 9px; background: #17a2b8; color: white; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .btn-cancel { flex: 1; padding: 9px; background: #dc3545; color: white; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
@@ -192,9 +193,31 @@ async function init() {
 }
 
 function setPickupDateMin() {
-    const today = new Date().toLocaleDateString('en-CA');
-    document.getElementById('pickupDate').min = today;
+    const now   = new Date();
+    const today = now.toLocaleDateString('en-CA');
+    document.getElementById('pickupDate').min   = today;
     document.getElementById('pickupDate').value = today;
+    updateTimeMin();
+}
+
+function updateTimeMin() {
+    const dateEl  = document.getElementById('pickupDate');
+    const timeEl  = document.getElementById('pickupTime');
+    const today   = new Date().toLocaleDateString('en-CA');
+    const selDate = dateEl.value;
+    if (!selDate || selDate === today) {
+        // Today — disable times within next 1 hour
+        const minTime = new Date(Date.now() + 60 * 60 * 1000);
+        const hh = String(minTime.getHours()).padStart(2,'0');
+        const mm = String(minTime.getMinutes()).padStart(2,'0');
+        timeEl.min = `${hh}:${mm}`;
+        // Clear hint
+        document.getElementById('timeHint').textContent = '';
+    } else {
+        // Future date — any time is fine
+        timeEl.min = '';
+        document.getElementById('timeHint').textContent = '';
+    }
 }
 
 // ── Menu ──────────────────────────────────────────────────────────────────────
@@ -347,13 +370,32 @@ function validatePickupTime() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('pickupTime').addEventListener('change', validatePickupTime);
-    document.getElementById('pickupDate').addEventListener('change', validatePickupTime);
+    document.getElementById('pickupTime').addEventListener('change', () => {
+        validatePickupTime();
+    });
+    document.getElementById('pickupDate').addEventListener('change', () => {
+        updateTimeMin();
+        validatePickupTime();
+    });
 });
 
 // ── Place order ───────────────────────────────────────────────────────────────
 async function placeOrder() {
-    if (!validatePickupTime()) return;
+    // Re-validate with fresh time check
+    const hint = document.getElementById('timeHint');
+    const { ts } = getPickupTs();
+    if (ts) {
+        const minTs = Date.now() + PICKUP_MIN_HOURS * 60 * 60 * 1000;
+        if (ts < minTs) {
+            hint.textContent = `⚠️ Pick-up time must be at least ${PICKUP_MIN_HOURS} hour from now.`;
+            hint.style.color = '#dc3545';
+            return;
+        } else {
+            hint.textContent = '';
+        }
+    } else {
+        hint.textContent = '';
+    }
 
     const qtys   = getQtys();
     const hasAny = Object.values(qtys).some(q => q > 0);
@@ -493,9 +535,26 @@ function renderMyOrderCard(o) {
     const time  = new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const oid   = o.id || '';
 
-    let statusBadge = o.paid
-        ? '<span class="badge badge-ready">✅ READY — Please pay &amp; collect</span>'
-        : '<span class="badge badge-preparing">⏳ Preparing...</span>';
+    // Determine if order is still in preorder (future pickup date, not yet prepared)
+    const nowMs   = Date.now();
+    const WARN_MS = 15 * 60 * 1000;
+    const today4  = new Date().toLocaleDateString('en-CA');
+    const isStillPreorder = o.pickupTs && !o.prepared && !o.paid &&
+        (o.pickupMode === 'datetime' || o.pickupMode === 'date') &&
+        new Date(o.pickupTs).toLocaleDateString('en-CA') > today4;
+    const isNearPickup = o.pickupTs && (nowMs - o.pickupTs) >= -WARN_MS;
+
+    let statusBadge = '';
+    if (o.paid) {
+        statusBadge = '<span class="badge badge-ready">✅ READY — Please pay &amp; collect</span>';
+    } else if (isStillPreorder && !isNearPickup) {
+        // In preorder, not yet close to pickup time — show scheduled badge
+        const pickupLabel = new Date(o.pickupTs).toLocaleString([], {weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+        statusBadge = `<span class="badge badge-preorder">📅 Scheduled: ${pickupLabel}</span>`;
+    } else {
+        // In prepare tab or within 15min of pickup — show preparing
+        statusBadge = '<span class="badge badge-preparing">⏳ Preparing...</span>';
+    }
 
     const now          = Date.now();
     const created      = o.createdAt || now;
