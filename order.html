@@ -211,6 +211,11 @@ async function loadStock() {
         const rows = await sbFetch('stock?select=id,qty');
         stockData = {};
         (rows || []).forEach(r => { stockData[r.id] = r.qty; });
+        // Refresh all visible stock hints without re-rendering the whole grid
+        menuItems.forEach(item => {
+            const el = document.getElementById(`qty_menuGrid_${item.id}`);
+            if (el) onQtyInput('menuGrid', item.id, el.value);
+        });
     } catch(e) { console.warn('Stock load failed', e); }
 }
 
@@ -562,6 +567,17 @@ function renderMyOrder() { loadMyOrders(); }
 async function cancelOrder(orderId) {
     if (!confirm('Cancel this order?')) return;
     try {
+        // First fetch order to get items for stock return
+        const rows = await sbFetch(`orders?id=eq.${orderId}&select=id,data`);
+        if (rows && rows.length) {
+            const o = rows[0].data || {};
+            if (o.items) {
+                // Return stock for each item
+                try {
+                    await sbRpc('return_customer_stock', { order_items: o.items });
+                } catch(e) { console.warn('Stock return failed:', e); }
+            }
+        }
         await sbFetch(`orders?id=eq.${orderId}`, { method: 'DELETE' });
         myOrderIds = myOrderIds.filter(id => String(id) !== String(orderId));
         localStorage.setItem(ORDER_IDS_KEY, JSON.stringify(myOrderIds));

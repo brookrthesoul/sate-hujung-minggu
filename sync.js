@@ -136,7 +136,8 @@ let _syncing  = false;
 let _draining = false;
 
 function _rerender() {
-    if (typeof loadOrders === 'function') loadOrders();
+    if (typeof loadOrders    === 'function') loadOrders();
+    if (typeof loadPreorders === 'function') loadPreorders();
 }
 
 async function syncNow() {

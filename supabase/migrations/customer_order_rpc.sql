@@ -90,3 +90,29 @@ end;
 $$;
 
 grant execute on function adjust_stock_diff(jsonb, jsonb) to anon;
+
+-- Return stock when customer cancels their order
+create or replace function return_customer_stock(order_items jsonb)
+returns void
+language plpgsql
+security definer
+as $$
+declare
+    item_id  text;
+    item_qty integer;
+begin
+    for item_id, item_qty in
+        select key, (value->>'qty')::integer
+        from jsonb_each(order_items)
+        where (value->>'qty')::integer > 0
+    loop
+        update stock
+        set qty = qty + item_qty,
+            updated_at = now()
+        where id = item_id
+          and qty is not null;
+    end loop;
+end;
+$$;
+
+grant execute on function return_customer_stock(jsonb) to anon;
