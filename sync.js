@@ -736,6 +736,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch(e) { console.warn('Threshold sync error:', e); }
 
+    // Sync business name from Supabase
+    try {
+        const name = await window._readSetting('businessName');
+        if (name) {
+            localStorage.setItem('shmBusinessName', name);
+            if (typeof initBusinessName === 'function') initBusinessName();
+        }
+    } catch(e) { console.warn('Business name sync error:', e); }
+
     // Run day-close check AFTER sync completes — guaranteed fresh data
     try {
         if (typeof autoClosePreviousDay === 'function') {

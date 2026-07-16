@@ -1202,7 +1202,7 @@ function _buildPDF(title, subtitle, orders) {
     doc.setFillColor(...HEAD_BG); doc.rect(0,0,PAGE_W,36,'F');
     doc.setTextColor(255,255,255);
     doc.setFontSize(18); doc.setFont('helvetica','bold');
-    doc.text('SATE HUJUNG MINGGU', PAGE_W/2, 13, {align:'center'});
+    doc.text((localStorage.getItem('shmBusinessName')||'Sate Hujung Minggu').toUpperCase(), PAGE_W/2, 13, {align:'center'});
     doc.setFontSize(13); doc.setFont('helvetica','normal');
     doc.text(title, PAGE_W/2, 21, {align:'center'});
     doc.setFontSize(10);
@@ -1328,7 +1328,7 @@ function _buildPDF(title, subtitle, orders) {
     // Footer
     for (let i=1; i<=doc.getNumberOfPages(); i++) {
         doc.setPage(i); doc.setFontSize(8); doc.setTextColor(150);
-        doc.text(`Sate Hujung Minggu - ${subtitle}`, MARGIN, 290);
+        doc.text(`${localStorage.getItem('shmBusinessName')||'Sate Hujung Minggu'} - ${subtitle}`, MARGIN, 290);
         doc.text(`Page ${i} of ${doc.getNumberOfPages()}`, PAGE_W-MARGIN, 290, {align:'right'});
     }
     doc.save(`SHM_${subtitle.replace(/[^a-zA-Z0-9]/g,'_')}.pdf`);

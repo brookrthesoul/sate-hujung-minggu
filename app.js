@@ -54,6 +54,7 @@ function switchTab(tab) {
                 if (tab === 'settings') {
                     switchSettingsTab('menu');
                     if (typeof initBusyThresholds === 'function') initBusyThresholds();
+                    if (typeof initBusinessName   === 'function') initBusinessName();
                     const stored = localStorage.getItem(SYNC_BAR_KEY);
                     const toggle = document.getElementById('syncBarToggle');
                     if (toggle) toggle.checked = stored === null ? true : stored === '1';
@@ -83,6 +84,8 @@ window.onload = () => {
         initShopToggle();
         // Restore busy thresholds
         if (typeof initBusyThresholds === 'function') initBusyThresholds();
+        // Restore business name
+        if (typeof initBusinessName === 'function') initBusinessName();
         // Start preorder → prepare promotion timer
         if (typeof startPreorderTimer === 'function') startPreorderTimer();
         // Restore paste box collapse state
@@ -237,4 +240,35 @@ function initBusyThresholds() {
     const el2        = document.getElementById('busyFrom');
     if (el)  el.value  = notBusyMax;
     if (el2) el2.value = notBusyMax + 1;
+}
+
+// ─── Business name setting ────────────────────────────────────────────────────
+const BIZ_NAME_KEY = 'shmBusinessName';
+
+function getBusinessName() {
+    return localStorage.getItem(BIZ_NAME_KEY) || 'Sate Hujung Minggu';
+}
+
+async function saveBusinessName() {
+    const input  = document.getElementById('businessNameInput');
+    const status = document.getElementById('businessNameStatus');
+    const name   = input.value.trim();
+    if (!name) { status.style.color = '#dc3545'; status.textContent = '⚠️ Name cannot be empty.'; return; }
+    localStorage.setItem(BIZ_NAME_KEY, name);
+    // Sync to Supabase
+    if (typeof window._writeSetting === 'function') {
+        await window._writeSetting('businessName', name);
+    }
+    status.style.color = '#28a745';
+    status.textContent = '✅ Saved!';
+    setTimeout(() => { status.textContent = ''; }, 3000);
+}
+
+function initBusinessName() {
+    const name  = getBusinessName();
+    const input = document.getElementById('businessNameInput');
+    if (input) input.value = name;
+    // Update password screen name if visible
+    const pwTitle = document.querySelector('#passwordScreen h2');
+    if (pwTitle) pwTitle.textContent = name;
 }

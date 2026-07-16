@@ -146,7 +146,7 @@ async function printOrder(id) {
         let receipt = encoder
             .initialize()
             .align('center')
-            .bold(true).line('SATE HUJUNG MINGGU').bold(false)
+            .bold(true).line((localStorage.getItem('shmBusinessName')||'Sate Hujung Minggu').toUpperCase()).bold(false)
             .line(`Order #${order.id}`)
             .line(formatDate(order.createdAt || Date.now()))
             .align('left')
@@ -223,7 +223,7 @@ async function printOrderReceipt(id) {
         let receipt = encoder
             .initialize()
             .align('center')
-            .bold(true).line('SATE HUJUNG MINGGU').bold(false)
+            .bold(true).line((localStorage.getItem('shmBusinessName')||'Sate Hujung Minggu').toUpperCase()).bold(false)
             .line('** RESIT / RECEIPT **')
             .line(`Order #${order.id}`)
             .line(formatDate(order.createdAt || Date.now()))
