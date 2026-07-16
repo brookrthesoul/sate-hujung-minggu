@@ -293,7 +293,16 @@ async function autoClosePreviousDay() {
     }
 
     // 2. Unpaid → ask user one by one
-    const unpaid = stale.filter(o => !o.paid);
+    // Exclude preorders whose pickup date is today — they legitimately just moved to Prepare
+    const unpaid = stale.filter(o => {
+        if (o.paid) return false;
+        // If order has a pickup date for today, it's a scheduled preorder arriving — keep it silently
+        if (o.pickupTs && (o.pickupMode === 'datetime' || o.pickupMode === 'date')) {
+            const pickupDay = new Date(o.pickupTs).toLocaleDateString('en-CA');
+            if (pickupDay === today) return false; // exclude from prompt
+        }
+        return true;
+    });
     if (unpaid.length === 0) return;
 
     // Show review modal
