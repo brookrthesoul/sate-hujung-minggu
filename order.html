@@ -69,6 +69,12 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 .badge-preparing { background: #e2e3e5; color: #383d41; }
 .badge-ready     { background: #d4edda; color: #155724; }
 .badge-preorder  { background: #e8f4fd; color: #1a6abf; }
+.pay-badge-cust  { font-size:12px; font-weight:600; padding:4px 10px; border-radius:14px; margin:4px 0; display:inline-block; }
+.pay-cust-online { background:#cce5ff; color:#004085; }
+.pay-cust-cash   { background:#d4edda; color:#155724; }
+.pay-cust-both   { background:#fff3cd; color:#856404; }
+.pay-cust-deposit{ background:#fff3cd; color:#856404; }
+.pay-cust-short  { background:#f8d7da; color:#721c24; }
 .action-row { display: flex; gap: 8px; margin-top: 10px; }
 .btn-edit   { flex: 1; padding: 9px; background: #17a2b8; color: white; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .btn-cancel { flex: 1; padding: 9px; background: #dc3545; color: white; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
@@ -212,6 +218,37 @@ async function loadShopStatus() {
         });
     } catch(e) { shopIsOpen = true; }
     updateShopBanner();
+}
+
+function payBadgeHTML(o) {
+    const m      = o.paymentMethod;
+    const online = o.paymentOnline || 0;
+    const cash   = o.paymentCash   || 0;
+    const total  = o.totalCost     || 0;
+    if (!m) return '';
+    const icons  = { online:'💳', card:'💳', boost:'🚀', tng:'🛣️', cash:'💵', both:'🤝' };
+    const names  = { online:'Online', card:'Card', boost:'Boost', tng:'T&G', cash:'Cash', both:'Both' };
+    const icon   = icons[m] || '💳';
+    const name   = names[m] || m;
+    const ONLINE = ['online','card','boost','tng'];
+    if (ONLINE.includes(m)) {
+        if (o.isDeposit) {
+            const bal = total - online;
+            return `<div class="pay-badge-cust pay-cust-deposit">${icon} Deposit (${name}) — RM${online.toFixed(2)} | Balance: RM${bal.toFixed(2)}</div>`;
+        }
+        return `<div class="pay-badge-cust pay-cust-online">${icon} ${name} — RM${online.toFixed(2)}</div>`;
+    }
+    if (m === 'cash') {
+        if (o.isCashShort) {
+            const short = total - cash;
+            return `<div class="pay-badge-cust pay-cust-short">⚠️ Short by RM${short.toFixed(2)} | Paid: RM${cash.toFixed(2)}</div>`;
+        }
+        return `<div class="pay-badge-cust pay-cust-cash">💵 Cash — RM${cash.toFixed(2)}</div>`;
+    }
+    if (m === 'both') {
+        return `<div class="pay-badge-cust pay-cust-both">💳 Online: RM${online.toFixed(2)} | 💵 Cash: RM${cash.toFixed(2)}</div>`;
+    }
+    return '';
 }
 
 function updateShopName(name) {
@@ -708,6 +745,7 @@ function renderMyOrderCard(o) {
         <div class="order-items" style="margin-top:8px;">${items}</div>
         ${noteDiv}
         <div class="order-total" style="margin-top:4px;">Total: RM${(o.totalCost||0).toFixed(2)}</div>
+        ${o.paymentMethod ? payBadgeHTML(o) : ''}
         <div class="status-row">${statusBadge}</div>
         ${actionBtns}
         ${lockDiv}

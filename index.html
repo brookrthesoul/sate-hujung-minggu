@@ -409,10 +409,13 @@
             <h3 style="margin:0 0 4px;">💳 Payment Method</h3>
             <p id="payModalTotal" style="margin:0 0 14px; font-size:13px; color:#6c757d;"></p>
             <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Method</label>
-            <div style="display:flex; gap:8px; margin-bottom:16px;">
-                <label class="pay-radio-label"><input type="radio" name="payMethod" value="online"  onchange="onPayMethodChange(this)" checked> 💳 Online</label>
-                <label class="pay-radio-label"><input type="radio" name="payMethod" value="cash"    onchange="onPayMethodChange(this)"> 💵 Cash</label>
-                <label class="pay-radio-label"><input type="radio" name="payMethod" value="both"    onchange="onPayMethodChange(this)"> 🤝 Both</label>
+            <div style="display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap;">
+                <label class="pay-radio-label"><input type="radio" name="payMethod" value="online" onchange="onPayMethodChange(this)" checked> 💳 Online</label>
+                <label class="pay-radio-label"><input type="radio" name="payMethod" value="cash"   onchange="onPayMethodChange(this)"> 💵 Cash</label>
+                <label class="pay-radio-label"><input type="radio" name="payMethod" value="card"   onchange="onPayMethodChange(this)"> 💳 Card</label>
+                <label class="pay-radio-label"><input type="radio" name="payMethod" value="boost"  onchange="onPayMethodChange(this)"> 🚀 Boost</label>
+                <label class="pay-radio-label"><input type="radio" name="payMethod" value="tng"    onchange="onPayMethodChange(this)"> 🛣️ T&G</label>
+                <label class="pay-radio-label"><input type="radio" name="payMethod" value="both"   onchange="onPayMethodChange(this)"> 🤝 Both</label>
             </div>
             <div id="paymentInputsBox"></div>
             <div style="display:flex; gap:8px; margin-top:16px;">

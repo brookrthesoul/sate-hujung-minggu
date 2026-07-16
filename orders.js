@@ -558,6 +558,10 @@ function renderOrderList(containerId, orderList, stage) {
 }
 
 // ---------- Payment display helper ----------
+const _ONLINE_METHODS_BADGE = ['online', 'card', 'boost', 'tng'];
+const _METHOD_ICONS = { online:'💳', card:'💳', boost:'🚀', tng:'🛣️', cash:'💵', both:'🤝' };
+const _METHOD_NAMES = { online:'Online', card:'Card', boost:'Boost', tng:'T&G', cash:'Cash', both:'Both' };
+
 function paymentBadgeHTML(order) {
     const m       = order.paymentMethod;
     const total   = order.totalCost || 0;
@@ -565,15 +569,18 @@ function paymentBadgeHTML(order) {
     const cash    = order.paymentCash   || 0;
     if (!m) return '';
 
-    if (m === 'online') {
+    const icon = _METHOD_ICONS[m] || '💳';
+    const name = _METHOD_NAMES[m] || m;
+
+    if (_ONLINE_METHODS_BADGE.includes(m)) {
         if (order.isDeposit) {
             const balance = total - online;
             return '<div class="payment-badge badge-deposit">' +
-                '💳 Deposit — RM' + online.toFixed(2) +
+                icon + ' Deposit (' + name + ') — RM' + online.toFixed(2) +
                 ' &nbsp;|&nbsp; Balance: <strong>RM' + balance.toFixed(2) + '</strong>' +
                 '</div>';
         }
-        return '<div class="payment-badge badge-online">💳 Online — RM' + online.toFixed(2) + '</div>';
+        return '<div class="payment-badge badge-online">' + icon + ' ' + name + ' — RM' + online.toFixed(2) + '</div>';
     }
 
     if (m === 'cash') {
@@ -980,12 +987,16 @@ function _renderPayInputs(method, existingOrder) {
     const box   = document.getElementById('paymentInputsBox');
     const total = _pmTotal;
 
-    if (method === 'online') {
-        const val = (existingOrder && existingOrder.paymentMethod === 'online')
+    const ONLINE_METHODS = ['online', 'card', 'boost', 'tng'];
+    const METHOD_LABELS  = { online:'Online', card:'Card', boost:'Boost', tng:'T&G' };
+
+    if (ONLINE_METHODS.includes(method)) {
+        const val = (existingOrder && ONLINE_METHODS.includes(existingOrder.paymentMethod))
             ? existingOrder.paymentOnline : total;
+        const label = METHOD_LABELS[method] || 'Online';
         box.innerHTML =
             '<div class="pay-total-hint">Bill total: <strong>RM' + total.toFixed(2) + '</strong></div>' +
-            '<label class="pay-label">💳 Online Amount (RM)</label>' +
+            '<label class="pay-label">' + label + ' Amount (RM)</label>' +
             '<input type="number" id="payOnlineInput" step="0.01" min="0" class="pay-input">' +
             '<div id="onlineDepositHint" class="change-display" style="display:none;"></div>';
         document.getElementById('payOnlineInput').value = val.toFixed(2);
@@ -1100,12 +1111,13 @@ async function confirmPayment() {
     const order = all.find(o => o.id === _pmOrderId);
     if (!order) return;
 
+    const _ONLINE_METHODS = ['online', 'card', 'boost', 'tng'];
     order.paymentMethod = method;
-    order.paymentOnline = (method === 'cash')   ? 0 : onlineAmt;
-    order.paymentCash   = (method === 'online') ? 0 : cashAmt;
+    order.paymentOnline = (method === 'cash')              ? 0 : onlineAmt;
+    order.paymentCash   = _ONLINE_METHODS.includes(method) ? 0 : cashAmt;
 
     // Deposit / short flags
-    if (method === 'online') {
+    if (_ONLINE_METHODS.includes(method)) {
         order.isDeposit   = onlineAmt < (_pmTotal - 0.005);
         order.isCashShort = false;
     } else if (method === 'cash') {
@@ -1224,6 +1236,19 @@ function _buildPDF(title, subtitle, orders) {
     const totalRevenue = orders.reduce((s,o) => s+(o.totalCost||0), 0);
     const totalOnline  = orders.reduce((s,o) => s+(o.paymentOnline||0), 0);
     const totalCash    = orders.reduce((s,o) => s+(o.paymentCash||0), 0);
+    // Breakdown by each method
+    const byMethod = {};
+    orders.forEach(o => {
+        const m = o.paymentMethod || 'unknown';
+        if (!byMethod[m]) byMethod[m] = 0;
+        if (['online','card','boost','tng'].includes(m)) byMethod[m] += (o.paymentOnline||0);
+        else if (m === 'cash') byMethod[m] += (o.paymentCash||0);
+        else if (m === 'both') {
+            byMethod['online'] = (byMethod['online']||0) + (o.paymentOnline||0);
+            byMethod['cash']   = (byMethod['cash']||0)   + (o.paymentCash||0);
+            delete byMethod['both'];
+        }
+    });
     const totalOrders  = orders.length;
 
     const itemTotals = {};
@@ -1263,8 +1288,13 @@ function _buildPDF(title, subtitle, orders) {
     doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(0);
     doc.text('Payment Breakdown:', MARGIN+2, y+8);
     doc.setFont('helvetica','normal');
-    doc.text(`Online: RM ${totalOnline.toFixed(2)}`, MARGIN+52, y+8);
-    doc.text(`Cash: RM ${totalCash.toFixed(2)}`, MARGIN+115, y+8);
+    const methodNames = { online:'Online', card:'Card', boost:'Boost', tng:'T&G', cash:'Cash' };
+    let bx = MARGIN + 52;
+    Object.entries(byMethod).forEach(([mkey, amt]) => {
+        const label = (methodNames[mkey] || mkey) + ': RM ' + amt.toFixed(2);
+        doc.text(label, bx, y+8);
+        bx += label.length * 2.2 + 8;
+    });
     y += 18;
 
     // Items sold table
@@ -1317,10 +1347,12 @@ function _buildPDF(title, subtitle, orders) {
     orders.sort((a,b)=>a.createdAt-b.createdAt).forEach((order,idx) => {
         const itemSummary = Object.values(order.items||{}).filter(r=>r.qty>0).map(r=>r.name + ' x' + r.qty).join(', ');
         const timeStr     = new Date(order.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+        const _PM = order.paymentMethod || '';
+        const _MN = { online:'Online', card:'Card', boost:'Boost', tng:'T&G' };
         let payStr = '';
-        if (order.paymentMethod==='online') payStr = `Online RM${(order.paymentOnline||0).toFixed(2)}`;
-        else if (order.paymentMethod==='cash') payStr = `Cash RM${(order.paymentCash||0).toFixed(2)}`;
-        else if (order.paymentMethod==='both') payStr = `O:RM${(order.paymentOnline||0).toFixed(2)} + C:RM${(order.paymentCash||0).toFixed(2)}`;
+        if (['online','card','boost','tng'].includes(_PM)) payStr = (_MN[_PM]||_PM) + ' RM' + (order.paymentOnline||0).toFixed(2);
+        else if (_PM==='cash') payStr = 'Cash RM' + (order.paymentCash||0).toFixed(2);
+        else if (_PM==='both') payStr = 'O:RM' + (order.paymentOnline||0).toFixed(2) + ' C:RM' + (order.paymentCash||0).toFixed(2);
 
         const wrappedItems = doc.splitTextToSize(itemSummary, 58);
         const rowH = Math.max(LINE_H, wrappedItems.length*4+3);
