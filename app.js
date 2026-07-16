@@ -55,6 +55,7 @@ function switchTab(tab) {
                     switchSettingsTab('menu');
                     if (typeof initBusyThresholds === 'function') initBusyThresholds();
                     if (typeof initBusinessName   === 'function') initBusinessName();
+                    if (typeof initKuahRatio      === 'function') initKuahRatio();
                     const stored = localStorage.getItem(SYNC_BAR_KEY);
                     const toggle = document.getElementById('syncBarToggle');
                     if (toggle) toggle.checked = stored === null ? true : stored === '1';
@@ -86,6 +87,8 @@ window.onload = () => {
         if (typeof initBusyThresholds === 'function') initBusyThresholds();
         // Restore business name
         if (typeof initBusinessName === 'function') initBusinessName();
+        // Restore kuah ratio
+        if (typeof initKuahRatio === 'function') initKuahRatio();
         // Start preorder → prepare promotion timer
         if (typeof startPreorderTimer === 'function') startPreorderTimer();
         // Restore paste box collapse state
@@ -271,4 +274,30 @@ function initBusinessName() {
     // Update password screen name if visible
     const pwTitle = document.querySelector('#passwordScreen h2');
     if (pwTitle) pwTitle.textContent = name;
+}
+
+// ─── Kuah kacang ratio setting ────────────────────────────────────────────────
+const KUAH_RATIO_KEY = 'shmKuahRatio';
+
+function getKuahRatio() {
+    return parseInt(localStorage.getItem(KUAH_RATIO_KEY)) || 10;
+}
+
+async function saveKuahRatio() {
+    const input  = document.getElementById('kuahRatioInput');
+    const status = document.getElementById('kuahRatioStatus');
+    const ratio  = parseInt(input.value) || 10;
+    if (ratio < 1) { status.style.color = '#dc3545'; status.textContent = '⚠️ Must be at least 1.'; return; }
+    localStorage.setItem(KUAH_RATIO_KEY, String(ratio));
+    if (typeof window._writeSetting === 'function') {
+        await window._writeSetting('kuahRatio', String(ratio));
+    }
+    status.style.color = '#28a745';
+    status.textContent = '✅ Saved!';
+    setTimeout(() => { status.textContent = ''; }, 3000);
+}
+
+function initKuahRatio() {
+    const el = document.getElementById('kuahRatioInput');
+    if (el) el.value = getKuahRatio();
 }

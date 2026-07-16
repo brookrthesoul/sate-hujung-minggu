@@ -745,6 +745,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch(e) { console.warn('Business name sync error:', e); }
 
+    // Sync kuah ratio from Supabase
+    try {
+        const ratio = await window._readSetting('kuahRatio');
+        if (ratio) {
+            localStorage.setItem('shmKuahRatio', ratio);
+            if (typeof initKuahRatio === 'function') initKuahRatio();
+        }
+    } catch(e) { console.warn('Kuah ratio sync error:', e); }
+
     // Run day-close check AFTER sync completes — guaranteed fresh data
     try {
         if (typeof autoClosePreviousDay === 'function') {

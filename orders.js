@@ -93,7 +93,8 @@ function calculateTotals(quantities) {
         else if (item.category === 'side')      { scoops += qty * 2; }
         else if (item.category === 'kuah-only') { scoops += qty * 1; }
     });
-    if (skewerWithKuah > 0) scoops += Math.ceil(skewerWithKuah / 10);
+    const _kuahRatio = parseInt(localStorage.getItem('shmKuahRatio')) || 10;
+    if (skewerWithKuah > 0) scoops += Math.ceil(skewerWithKuah / _kuahRatio);
     return { items, totalCost, skewerQty, scoops };
 }
 

@@ -161,6 +161,7 @@ let menuItems  = [];
 let stockData  = {};
 let shopIsOpen  = true;  // default open
 let notBusyMax  = 300;   // default threshold
+let kuahRatio   = 10;    // default: 1 scoop per 10 skewers
 let myOrderId  = localStorage.getItem(ORDER_ID_KEY); // legacy single order
 let myOrderIds = JSON.parse(localStorage.getItem(ORDER_IDS_KEY) || '[]');
 let myOrder    = null;
@@ -202,10 +203,11 @@ async function init() {
 
 async function loadShopStatus() {
     try {
-        const rows = await sbFetch('settings?key=in.(shopOpen,notBusyMax,businessName)&select=key,value');
+        const rows = await sbFetch('settings?key=in.(shopOpen,notBusyMax,businessName,kuahRatio)&select=key,value');
         (rows || []).forEach(r => {
             if (r.key === 'shopOpen')      shopIsOpen = r.value === 'true';
             if (r.key === 'notBusyMax')    notBusyMax = parseInt(r.value) || 300;
+            if (r.key === 'kuahRatio')     kuahRatio  = parseInt(r.value) || 10;
             if (r.key === 'businessName')  updateShopName(r.value);
         });
     } catch(e) { shopIsOpen = true; }
@@ -386,7 +388,7 @@ function updateSummary() {
         const cost = qty * item.price;
         total += cost;
         if (item.category === 'skewer' || item.category === 'no-kuah') skewers += qty;
-        if (item.category === 'skewer') scoops += Math.ceil(qty / 10);
+        if (item.category === 'skewer') scoops += Math.ceil(qty / kuahRatio);
         if (item.category === 'side') scoops += qty * 2;
         if (item.category === 'kuah-only') scoops += qty;
         html += `<div class="result-item"><div class="result-label">${item.name} ×${qty}</div><div class="result-value">RM${cost.toFixed(2)}</div></div>`;
@@ -497,7 +499,7 @@ async function placeOrder() {
         items[item.id] = { name: item.name, category: item.category, price: item.price, qty, cost };
         totalCost += cost;
         if (item.category === 'skewer' || item.category === 'no-kuah') skewerQty += qty;
-        if (item.category === 'skewer') scoops += Math.ceil(qty / 10);
+        if (item.category === 'skewer') scoops += Math.ceil(qty / kuahRatio);
         if (item.category === 'side') scoops += qty * 2;
         if (item.category === 'kuah-only') scoops += qty;
     });
@@ -771,7 +773,7 @@ async function saveEdit() {
         newItems[item.id] = { name: item.name, category: item.category, price: item.price, qty, cost };
         totalCost += cost;
         if (item.category === 'skewer' || item.category === 'no-kuah') skewerQty += qty;
-        if (item.category === 'skewer') scoops += Math.ceil(qty / 10);
+        if (item.category === 'skewer') scoops += Math.ceil(qty / kuahRatio);
         if (item.category === 'side') scoops += qty * 2;
         if (item.category === 'kuah-only') scoops += qty;
     });
