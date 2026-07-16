@@ -99,6 +99,11 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
     <div class="tab-btn"        id="tabMyOrder"  onclick="switchTab('my')">My Order</div>
 </div>
 
+<!-- SHOP STATUS BANNER -->
+<div id="shopBanner" style="padding:10px 16px; text-align:center; font-size:13px; font-weight:600; background:#d4edda; color:#155724;">
+    🟢 We are Open — Place your order below!
+</div>
+
 <!-- NEW ORDER TAB -->
 <div class="tab-content active" id="tabContentNew">
     <div class="section-title">📅 Pick-up Time (optional)</div>
@@ -154,6 +159,7 @@ const PICKUP_MIN_HOURS = 1;
 
 let menuItems  = [];
 let stockData  = {};
+let shopIsOpen = true; // default open
 let myOrderId  = localStorage.getItem(ORDER_ID_KEY); // legacy single order
 let myOrderIds = JSON.parse(localStorage.getItem(ORDER_IDS_KEY) || '[]');
 let myOrder    = null;
@@ -180,7 +186,7 @@ async function sbRpc(fn, body) {
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
     setPickupDateMin();
-    await Promise.all([loadMenu(), loadStock(), loadBusy()]);
+    await Promise.all([loadMenu(), loadStock(), loadBusy(), loadShopStatus()]);
     renderMenuGrid();
     if (myOrderId && !myOrderIds.includes(myOrderId)) {
         myOrderIds.push(myOrderId);
@@ -190,6 +196,34 @@ async function init() {
     connectRealtime();
     setInterval(loadBusy, 30000);
     setInterval(() => { if (myOrderIds.length > 0) loadMyOrders(); }, 15000);
+    setInterval(loadShopStatus, 30000); // check every 30s
+}
+
+async function loadShopStatus() {
+    try {
+        const rows = await sbFetch('settings?key=eq.shopOpen&select=value');
+        if (rows && rows.length) {
+            shopIsOpen = rows[0].value === 'true';
+        } else {
+            shopIsOpen = true; // not set = open
+        }
+    } catch(e) { shopIsOpen = true; }
+    updateShopBanner();
+}
+
+function updateShopBanner() {
+    const banner  = document.getElementById('shopBanner');
+    const saveBtn = document.getElementById('saveBtn');
+    if (!banner) return;
+    if (shopIsOpen) {
+        banner.style.background = '#d4edda';
+        banner.style.color      = '#155724';
+        banner.textContent      = '🟢 We are Open — Place your order below!';
+    } else {
+        banner.style.background = '#f8d7da';
+        banner.style.color      = '#721c24';
+        banner.textContent      = '🔴 We are Closed today. You can still place a preorder for a future date.';
+    }
 }
 
 function setPickupDateMin() {
@@ -416,6 +450,17 @@ async function placeOrder() {
     // Get pickup time once and reuse throughout
     const { ts, mode } = getPickupTs();
     const hint = document.getElementById('timeHint');
+
+    // Check if shop is closed — block today orders, allow preorders (future date)
+    if (!shopIsOpen) {
+        const today5 = new Date().toLocaleDateString('en-CA');
+        const isToday = !ts || (mode !== 'datetime' && mode !== 'date') ||
+            new Date(ts).toLocaleDateString('en-CA') === today5;
+        if (isToday) {
+            alert('🔴 We are closed today. You can still place a preorder by setting a future date.');
+            return;
+        }
+    }
     if (ts) {
         const minTs = Date.now() + PICKUP_MIN_HOURS * 60 * 60 * 1000;
         if (ts < minTs) {
@@ -767,7 +812,8 @@ function connectRealtime() {
         realtimeWs.send(JSON.stringify({ topic: 'realtime:customer', event: 'phx_join',
             payload: { config: { broadcast: { self: false }, postgres_changes: [
                 { event: '*', schema: 'public', table: 'orders' },
-                { event: '*', schema: 'public', table: 'stock' }
+                { event: '*', schema: 'public', table: 'stock' },
+                { event: '*', schema: 'public', table: 'settings' }
             ]}}, ref: String(ref++) }));
         setInterval(() => {
             if (realtimeWs.readyState === WebSocket.OPEN)
@@ -780,7 +826,8 @@ function connectRealtime() {
             if (f.event === 'phx_reply') return;
             if (f.event === 'postgres_changes' || f.payload?.data?.type) {
                 const tbl = f.payload?.data?.table || '';
-                if (tbl === 'stock') { loadStock(); return; }
+                if (tbl === 'stock')    { loadStock(); return; }
+                if (tbl === 'settings') { loadShopStatus(); return; }
                 loadBusy();
                 if (myOrderIds.length > 0) loadMyOrders();
             }

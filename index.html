@@ -31,7 +31,17 @@
     <div class="panels-viewport" id="panelsTrack">
     <!-- HOME PANEL -->
     <div id="homePanel" class="panel active">
-        <h2>New Order</h2>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0;">
+            <h2 style="margin:0;">New Order</h2>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span id="shopStatusLabel" style="font-size:12px; font-weight:600;"></span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="shopOpenToggle" onchange="setShopOpen(this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+        <div id="shopStatusBanner" style="display:none; margin:8px 0; padding:8px 14px; border-radius:10px; font-size:13px; font-weight:600; text-align:center;"></div>
 
         <!-- Paste order message -->
         <div id="pasteOrderBox" style="background:#f0f7ff; border:1.5px dashed #90c2ff; border-radius:14px; margin-bottom:16px; overflow:hidden;">

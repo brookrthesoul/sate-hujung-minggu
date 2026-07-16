@@ -78,6 +78,8 @@ window.onload = () => {
         setupPrinter();
         // Restore sync bar visibility preference
         initSyncBarToggle();
+        // Restore shop open/close toggle
+        initShopToggle();
         // Start preorder → prepare promotion timer
         if (typeof startPreorderTimer === 'function') startPreorderTimer();
         // Restore paste box collapse state
@@ -179,4 +181,34 @@ function initPasteBox() {
     if (!body || !chevron) return;
     body.style.display      = isOpen ? 'block' : 'none';
     chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
+}
+
+// ─── Shop open/close toggle ───────────────────────────────────────────────────
+const SHOP_OPEN_KEY = 'shmShopOpen';
+
+function setShopOpen(isOpen) {
+    localStorage.setItem(SHOP_OPEN_KEY, isOpen ? '1' : '0');
+    // Sync to Supabase so customer page sees it
+    if (typeof window._writeShopStatus === 'function') window._writeShopStatus(isOpen);
+    _updateShopUI(isOpen);
+}
+
+function _updateShopUI(isOpen) {
+    const toggle  = document.getElementById('shopOpenToggle');
+    const label   = document.getElementById('shopStatusLabel');
+    const banner  = document.getElementById('shopStatusBanner');
+    if (!toggle || !label || !banner) return;
+    toggle.checked        = isOpen;
+    label.textContent     = isOpen ? 'Open' : 'Closed';
+    label.style.color     = isOpen ? '#28a745' : '#dc3545';
+    banner.style.display  = 'block';
+    banner.textContent    = isOpen ? '🟢 We are Open today' : '🔴 We are Closed today';
+    banner.style.background = isOpen ? '#d4edda' : '#f8d7da';
+    banner.style.color      = isOpen ? '#155724' : '#721c24';
+}
+
+function initShopToggle() {
+    const stored = localStorage.getItem(SHOP_OPEN_KEY);
+    const isOpen = stored === null ? true : stored === '1';
+    _updateShopUI(isOpen);
 }

@@ -718,6 +718,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (typeof window._syncStock === 'function') await window._syncStock();
     } catch(e) { console.warn('Stock sync error:', e); }
 
+    // Sync shop status from Supabase
+    try {
+        const remote = await window._readShopStatus();
+        if (remote !== null) {
+            localStorage.setItem('shmShopOpen', remote ? '1' : '0');
+            if (typeof initShopToggle === 'function') initShopToggle();
+        }
+    } catch(e) { console.warn('Shop status sync error:', e); }
+
     // Run day-close check AFTER sync completes — guaranteed fresh data
     try {
         if (typeof autoClosePreviousDay === 'function') {
@@ -844,6 +853,28 @@ window._writeStock = async function(id, qty) {
     } else {
         _stockQueue.push({ id, qty });
     }
+};
+
+
+// ─── Shop status sync ─────────────────────────────────────────────────────────
+// Stored as a single row in Supabase 'settings' table: { key: 'shopOpen', value: 'true'/'false' }
+
+window._writeShopStatus = async function(isOpen) {
+    try {
+        await _sbFetch('settings', {
+            method: 'POST',
+            headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify({ key: 'shopOpen', value: isOpen ? 'true' : 'false' })
+        });
+    } catch(e) { console.warn('Shop status sync failed:', e); }
+};
+
+window._readShopStatus = async function() {
+    try {
+        const rows = await _sbFetch('settings?key=eq.shopOpen&select=value');
+        if (rows && rows.length) return rows[0].value === 'true';
+    } catch(e) { console.warn('Shop status read failed:', e); }
+    return null; // null = not set, treat as open
 };
 
 // ─── Reset all orders ─────────────────────────────────────────────────────────
