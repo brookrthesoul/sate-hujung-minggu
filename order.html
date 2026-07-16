@@ -577,7 +577,14 @@ function renderMyOrderCard(o) {
 
     let statusBadge = '';
     if (o.paid) {
+        // Paid — just needs to collect
+        statusBadge = '<span class="badge badge-ready">✅ READY — Please collect</span>';
+    } else if (o.prepared && o.isReady) {
+        // Prepared + operator tapped Ready — customer needs to come pay & collect
         statusBadge = '<span class="badge badge-ready">✅ READY — Please pay &amp; collect</span>';
+    } else if (o.prepared && !o.isReady) {
+        // Prepared but not yet notified — still preparing from customer's view
+        statusBadge = '<span class="badge badge-preparing">⏳ Preparing...</span>';
     } else if (isStillPreorder && !isNearPickup) {
         // In preorder, not yet close to pickup time — show scheduled badge
         const pickupLabel = new Date(o.pickupTs).toLocaleString([], {weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});

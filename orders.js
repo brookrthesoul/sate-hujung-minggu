@@ -41,6 +41,8 @@ function normalizeOrder(order) {
     if (order.paymentCash    === undefined) order.paymentCash    = 0;
     // Backfill pickupMode
     if (order.pickupMode === undefined) order.pickupMode = null;
+    // Backfill isReady
+    if (order.isReady === undefined) order.isReady = false;
     // For time-only orders, recalculate pickupTs using TODAY's date
     // This ensures the pin logic works correctly each day
     if (order.pickupMode === 'time' && order.pickupTs) {
@@ -728,6 +730,13 @@ function renderOrderCard(card, rawOrder, stage) {
         const printReceiptBtnPrepared = hasPayment
             ? `<button class="print-btn" style="margin-top:8px;width:100%;" onclick="printOrderReceipt(${o.id})">🖨️ Print Receipt</button>` : '';
 
+        const readyBtn = !o.isReady
+            ? `<button class="status-btn" onclick="markReady(${o.id})"
+                style="margin-top:8px;background:#17a2b8;border-color:#17a2b8;">
+                📢 Ready — Notify Customer</button>`
+            : `<div class="status-mark mark-prepared" style="margin-top:8px;background:#17a2b8;color:white;display:inline-block;padding:6px 14px;border-radius:20px;font-size:13px;">
+                📢 Customer Notified</div>`;
+
         card.innerHTML = isExpanded ? `
             ${header}
             <div class="order-details">${itemBadges}${statsBadges}</div>
@@ -740,6 +749,7 @@ function renderOrderCard(card, rawOrder, stage) {
                 <button class="pay-method-btn" onclick="openPaymentModal(${o.id}, ${o.totalCost}, 'prepared')">💳 Payment</button>
             </div>
             ${printReceiptBtnPrepared}
+            ${readyBtn}
             <button class="status-btn paid" onclick="markPaid(${o.id})" style="margin-top:8px;">✅ Mark as Paid</button>`
             : `${header}${payBadge}${miniView}`;
         return;
@@ -887,6 +897,17 @@ async function markPaid(id) {
     order.paid = true;
     await updateOrder(order);
     loadOrders();
+}
+
+// Prepared → Ready (notify customer)
+async function markReady(id) {
+    const all   = await getAllOrders();
+    const order = all.find(o => o.id === id);
+    if (order) {
+        order.isReady = true;
+        await updateOrder(order);
+        loadOrders();
+    }
 }
 
 // Paid → Prepared (undo)
