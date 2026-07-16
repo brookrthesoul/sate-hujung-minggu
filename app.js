@@ -53,6 +53,7 @@ function switchTab(tab) {
                 if (tab === 'ratio')    { if (typeof updateSliderLabel==='function') updateSliderLabel(); if (typeof calculateRatio==='function') calculateRatio(); }
                 if (tab === 'settings') {
                     switchSettingsTab('menu');
+                    if (typeof initBusyThresholds === 'function') initBusyThresholds();
                     const stored = localStorage.getItem(SYNC_BAR_KEY);
                     const toggle = document.getElementById('syncBarToggle');
                     if (toggle) toggle.checked = stored === null ? true : stored === '1';
@@ -80,6 +81,8 @@ window.onload = () => {
         initSyncBarToggle();
         // Restore shop open/close toggle
         initShopToggle();
+        // Restore busy thresholds
+        if (typeof initBusyThresholds === 'function') initBusyThresholds();
         // Start preorder → prepare promotion timer
         if (typeof startPreorderTimer === 'function') startPreorderTimer();
         // Restore paste box collapse state
@@ -211,4 +214,27 @@ function initShopToggle() {
     const stored = localStorage.getItem(SHOP_OPEN_KEY);
     const isOpen = stored === null ? true : stored === '1';
     _updateShopUI(isOpen);
+}
+
+// ─── Busy threshold settings ──────────────────────────────────────────────────
+const BUSY_THRESHOLD_KEY = 'shmNotBusyMax';
+
+function saveBusyThresholds() {
+    const notBusyMax = parseInt(document.getElementById('notBusyMax').value) || 300;
+    const busyFrom   = notBusyMax + 1;
+    document.getElementById('busyFrom').value = busyFrom;
+    localStorage.setItem(BUSY_THRESHOLD_KEY, String(notBusyMax));
+    // Sync to Supabase via sync.js
+    if (typeof window._writeSetting === 'function') {
+        window._writeSetting('notBusyMax', String(notBusyMax));
+    }
+}
+
+function initBusyThresholds() {
+    const stored     = localStorage.getItem(BUSY_THRESHOLD_KEY);
+    const notBusyMax = stored ? parseInt(stored) : 300;
+    const el         = document.getElementById('notBusyMax');
+    const el2        = document.getElementById('busyFrom');
+    if (el)  el.value  = notBusyMax;
+    if (el2) el2.value = notBusyMax + 1;
 }

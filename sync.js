@@ -727,6 +727,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch(e) { console.warn('Shop status sync error:', e); }
 
+    // Sync busy threshold from Supabase
+    try {
+        const threshold = await window._readSetting('notBusyMax');
+        if (threshold !== null) {
+            localStorage.setItem('shmNotBusyMax', threshold);
+            if (typeof initBusyThresholds === 'function') initBusyThresholds();
+        }
+    } catch(e) { console.warn('Threshold sync error:', e); }
+
     // Run day-close check AFTER sync completes — guaranteed fresh data
     try {
         if (typeof autoClosePreviousDay === 'function') {

@@ -159,7 +159,8 @@ const PICKUP_MIN_HOURS = 1;
 
 let menuItems  = [];
 let stockData  = {};
-let shopIsOpen = true; // default open
+let shopIsOpen  = true;  // default open
+let notBusyMax  = 300;   // default threshold
 let myOrderId  = localStorage.getItem(ORDER_ID_KEY); // legacy single order
 let myOrderIds = JSON.parse(localStorage.getItem(ORDER_IDS_KEY) || '[]');
 let myOrder    = null;
@@ -201,12 +202,11 @@ async function init() {
 
 async function loadShopStatus() {
     try {
-        const rows = await sbFetch('settings?key=eq.shopOpen&select=value');
-        if (rows && rows.length) {
-            shopIsOpen = rows[0].value === 'true';
-        } else {
-            shopIsOpen = true; // not set = open
-        }
+        const rows = await sbFetch('settings?key=in.(shopOpen,notBusyMax)&select=key,value');
+        (rows || []).forEach(r => {
+            if (r.key === 'shopOpen')   shopIsOpen  = r.value === 'true';
+            if (r.key === 'notBusyMax') notBusyMax  = parseInt(r.value) || 300;
+        });
     } catch(e) { shopIsOpen = true; }
     updateShopBanner();
 }
@@ -319,9 +319,9 @@ async function loadBusy() {
             });
         });
         const badge = document.getElementById('busyBadge');
-        if (total === 0) { badge.textContent = 'No Order'; badge.className = 'busy-badge busy-none'; }
-        else if (total <= 300) { badge.textContent = 'Not Busy'; badge.className = 'busy-badge busy-ok'; }
-        else { badge.textContent = 'Busy'; badge.className = 'busy-badge busy-busy'; }
+        if (total === 0)            { badge.textContent = 'No Order'; badge.className = 'busy-badge busy-none'; }
+        else if (total <= notBusyMax) { badge.textContent = 'Not Busy'; badge.className = 'busy-badge busy-ok'; }
+        else                         { badge.textContent = 'Busy';     badge.className = 'busy-badge busy-busy'; }
     } catch(e) {}
 }
 

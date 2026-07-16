@@ -275,6 +275,27 @@
                 </div>
             </div>
 
+            <h3 style="margin-top:24px;">📊 Busy Status Thresholds</h3>
+            <p style="font-size:13px;color:#666;margin-bottom:10px;">
+                Adjust when the customer page shows Not Busy or Busy based on skewer count in Prepare tab.
+            </p>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="font-size:13px;font-weight:600;min-width:120px;">🟢 Not Busy up to:</span>
+                    <input type="number" id="notBusyMax" min="1" step="1" value="300"
+                        style="width:80px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;"
+                        onchange="saveBusyThresholds()">
+                    <span style="font-size:12px;color:#888;">skewers</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="font-size:13px;font-weight:600;min-width:120px;">🔴 Busy from:</span>
+                    <input type="number" id="busyFrom" min="1" step="1" value="301"
+                        style="width:80px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;"
+                        disabled style="background:#f5f5f5;">
+                    <span style="font-size:12px;color:#888;">skewers (auto)</span>
+                </div>
+            </div>
+
             <h3 style="margin-top:24px;">🍢 Kitchen Notifications</h3>
             <p style="font-size:13px; color:#6c757d;">
                 Enable this on the <strong>cooking device</strong> to get an alert + sound whenever a new order is placed from another device.
