@@ -57,18 +57,46 @@ function normalizeOrder(order) {
 function renderHomeMenuInputs() {
     const container = document.getElementById('menuInputs');
     if (!container) return;
-    container.innerHTML = getMenuItems().map(item => `
-        <div style="display:flex;flex-direction:column;gap:4px;">
-            <label id="label-${item.id}" style="font-size:13px;font-weight:600;line-height:1.3;">
-                ${escapeHtml(item.name)}<br><span style="font-weight:400;color:#666;">RM${item.price.toFixed(2)}</span>
-            </label>
-            <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0"
-                style="width:100%;box-sizing:border-box;"
-                oninput="checkStockInput('${item.id}', this.value)">
-            <span id="stock-indicator-${item.id}" class="stock-indicator"></span>
-        </div>
-    `).join('');
+    container.innerHTML = getMenuItems().map(item => {
+        const isSate = item.category === 'skewer' || item.category === 'no-kuah';
+        if (isSate) {
+            return `<div style="display:flex;flex-direction:column;gap:4px;">
+                <label id="label-${item.id}" style="font-size:13px;font-weight:600;line-height:1.3;">
+                    ${escapeHtml(item.name)}<br><span style="font-weight:400;color:#666;">RM${item.price.toFixed(2)}</span>
+                </label>
+                <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0"
+                    style="width:100%;box-sizing:border-box;"
+                    oninput="checkStockInput('${item.id}', this.value)">
+                <span id="stock-indicator-${item.id}" class="stock-indicator"></span>
+            </div>`;
+        } else {
+            return `<div style="display:flex;flex-direction:column;gap:4px;">
+                <label id="label-${item.id}" style="font-size:13px;font-weight:600;line-height:1.3;">
+                    ${escapeHtml(item.name)}<br><span style="font-weight:400;color:#666;">RM${item.price.toFixed(2)}</span>
+                </label>
+                <div style="display:flex;align-items:center;gap:4px;">
+                    <button type="button" onclick="adjustQty('${item.id}',-1)"
+                        style="width:32px;height:32px;border-radius:8px;border:1px solid #ddd;background:#f5f5f5;font-size:16px;font-weight:bold;cursor:pointer;flex-shrink:0;">−</button>
+                    <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0"
+                        style="flex:1;min-width:0;box-sizing:border-box;text-align:center;"
+                        oninput="checkStockInput('${item.id}', this.value)">
+                    <button type="button" onclick="adjustQty('${item.id}',+1)"
+                        style="width:32px;height:32px;border-radius:8px;border:1px solid #ddd;background:#f5f5f5;font-size:16px;font-weight:bold;cursor:pointer;flex-shrink:0;">+</button>
+                </div>
+                <span id="stock-indicator-${item.id}" class="stock-indicator"></span>
+            </div>`;
+        }
+    }).join('');
     if (typeof updateStockIndicators === 'function') updateStockIndicators();
+}
+
+function adjustQty(id, delta) {
+    const el  = document.getElementById('qty-' + id);
+    if (!el) return;
+    const val = Math.max(0, (parseInt(el.value) || 0) + delta);
+    el.value  = val;
+    if (typeof checkStockInput === 'function') checkStockInput(id, val);
+    if (typeof calculate === 'function') calculate();
 }
 
 function getQuantitiesFromHome() {

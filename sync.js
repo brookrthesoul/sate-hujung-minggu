@@ -745,25 +745,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch(e) { console.warn('Business name sync error:', e); }
 
-
-    // Sync preorder setting from Supabase
-try {
-    const preorder = await window._readSetting('enablePreorder');
-
-    if (preorder !== null) {
-        localStorage.setItem(
-            'enablePreorder',
-            preorder
-        );
-
-        if (typeof loadPreorderSetting === 'function')
-            loadPreorderSetting();
-    }
-}
-catch(e) {
-    console.warn('Preorder sync error:', e);
-}
-
     // Sync kuah ratio from Supabase
     try {
         const ratio = await window._readSetting('kuahRatio');
@@ -772,6 +753,15 @@ catch(e) {
             if (typeof initKuahRatio === 'function') initKuahRatio();
         }
     } catch(e) { console.warn('Kuah ratio sync error:', e); }
+
+    // Sync preorder enabled from Supabase
+    try {
+        const pre = await window._readSetting('preorderEnabled');
+        if (pre !== null) {
+            localStorage.setItem('shmPreorderEnabled', pre === 'true' ? '1' : '0');
+            if (typeof initPreorderToggle === 'function') initPreorderToggle();
+        }
+    } catch(e) { console.warn('Preorder toggle sync error:', e); }
 
     // Run day-close check AFTER sync completes — guaranteed fresh data
     try {
@@ -921,26 +911,6 @@ window._readShopStatus = async function() {
         if (rows && rows.length) return rows[0].value === 'true';
     } catch(e) { console.warn('Shop status read failed:', e); }
     return null; // null = not set, treat as open
-};
-
-// ─── preorder settings ─────────────────────────────────────────────────────────
-window._writeSetting = async function(key, value) {
-    await _sbFetch('settings', {
-        method: 'POST',
-        headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({
-            key,
-            value: String(value)
-        })
-    });
-};
-
-window._readSetting = async function(key) {
-    const rows = await _sbFetch(
-        `settings?key=eq.${encodeURIComponent(key)}&select=value`
-    );
-
-    return rows.length ? rows[0].value : null;
 };
 
 // ─── Reset all orders ─────────────────────────────────────────────────────────

@@ -56,6 +56,7 @@ function switchTab(tab) {
                     if (typeof initBusyThresholds === 'function') initBusyThresholds();
                     if (typeof initBusinessName   === 'function') initBusinessName();
                     if (typeof initKuahRatio      === 'function') initKuahRatio();
+                    if (typeof initPreorderToggle === 'function') initPreorderToggle();
                     const stored = localStorage.getItem(SYNC_BAR_KEY);
                     const toggle = document.getElementById('syncBarToggle');
                     if (toggle) toggle.checked = stored === null ? true : stored === '1';
@@ -87,10 +88,10 @@ window.onload = () => {
         if (typeof initBusyThresholds === 'function') initBusyThresholds();
         // Restore business name
         if (typeof initBusinessName === 'function') initBusinessName();
-        // restore preorder
-        if (typeof loadPreorderSetting === 'function') loadPreorderSetting();
         // Restore kuah ratio
         if (typeof initKuahRatio === 'function') initKuahRatio();
+        // Restore preorder toggle
+        if (typeof initPreorderToggle === 'function') initPreorderToggle();
         // Start preorder → prepare promotion timer
         if (typeof startPreorderTimer === 'function') startPreorderTimer();
         // Restore paste box collapse state
@@ -278,45 +279,6 @@ function initBusinessName() {
     if (pwTitle) pwTitle.textContent = name;
 }
 
-// ─── preorder toggle settings ────────────────────────────────────────────────
-const PREORDER_SETTING = "enablePreorder";
-
-async function savePreorderSetting() {
-
-    const toggle =
-        document.getElementById("enablePreorderToggle");
-
-    localStorage.setItem(
-        PREORDER_SETTING,
-        toggle.checked
-    );
-
-    if (typeof window._writeSetting === "function") {
-
-        await window._writeSetting(
-            "enablePreorder",
-            String(toggle.checked)
-        );
-
-    }
-
-}
-
-function loadPreorderSetting() {
-
-    const toggle =
-        document.getElementById("enablePreorderToggle");
-
-    if (!toggle) return;
-
-    const saved =
-        localStorage.getItem(PREORDER_SETTING);
-
-    toggle.checked =
-        saved === null ? true : saved === "true";
-
-}
-
 // ─── Kuah kacang ratio setting ────────────────────────────────────────────────
 const KUAH_RATIO_KEY = 'shmKuahRatio';
 
@@ -341,4 +303,23 @@ async function saveKuahRatio() {
 function initKuahRatio() {
     const el = document.getElementById('kuahRatioInput');
     if (el) el.value = getKuahRatio();
+}
+
+// ─── Preorder enabled toggle ──────────────────────────────────────────────────
+const PREORDER_ENABLED_KEY = 'shmPreorderEnabled';
+
+function setPreorderEnabled(enabled) {
+    localStorage.setItem(PREORDER_ENABLED_KEY, enabled ? '1' : '0');
+    if (typeof window._writeSetting === 'function') {
+        window._writeSetting('preorderEnabled', enabled ? 'true' : 'false');
+    }
+    const toggle = document.getElementById('preorderEnabledToggle');
+    if (toggle) toggle.checked = enabled;
+}
+
+function initPreorderToggle() {
+    const stored  = localStorage.getItem(PREORDER_ENABLED_KEY);
+    const enabled = stored === null ? true : stored === '1';
+    const toggle  = document.getElementById('preorderEnabledToggle');
+    if (toggle) toggle.checked = enabled;
 }

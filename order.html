@@ -113,25 +113,13 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 <!-- NEW ORDER TAB -->
 <div class="tab-content active" id="tabContentNew">
     <div class="section-title">📅 Pick-up Time (optional)</div>
-    <div id="preorderSection">
-
     <div class="pickup-row">
         <input type="date" id="pickupDate" min="">
         <input type="time" id="pickupTime">
     </div>
-
-    <div id="preorderNotice"
-         style="display:none;
-                background:#fff3cd;
-                color:#856404;
-                padding:10px;
-                border-radius:8px;
-                font-size:13px;
-                margin-top:8px;">
-        📅 Preorders are currently unavailable.
+    <div id="preorderLabel" style="display:none;font-size:12px;color:#dc3545;font-weight:600;margin-bottom:6px;">
+        ⚠️ Preorder is currently unavailable — you can only order for today.
     </div>
-
-</div>
     <div class="time-hint" id="timeHint"></div>
 
     <div class="section-title">🍢 Your Order</div>
@@ -182,8 +170,8 @@ let menuItems  = [];
 let stockData  = {};
 let shopIsOpen  = true;  // default open
 let notBusyMax  = 300;   // default threshold
-let kuahRatio   = 10;    // default: 1 scoop per 10 skewers
-let preorderEnabled  = true;
+let kuahRatio       = 10;    // default: 1 scoop per 10 skewers
+let preorderEnabled = true;  // default: allowed
 let myOrderId  = localStorage.getItem(ORDER_ID_KEY); // legacy single order
 let myOrderIds = JSON.parse(localStorage.getItem(ORDER_IDS_KEY) || '[]');
 let myOrder    = null;
@@ -225,46 +213,17 @@ async function init() {
 
 async function loadShopStatus() {
     try {
-        const rows = await sbFetch(
-    'settings?key=in.(shopOpen,notBusyMax,businessName,kuahRatio,enablePreorder)&select=key,value'
-);
+        const rows = await sbFetch('settings?key=in.(shopOpen,notBusyMax,businessName,kuahRatio,preorderEnabled)&select=key,value');
         (rows || []).forEach(r => {
             if (r.key === 'shopOpen')      shopIsOpen = r.value === 'true';
             if (r.key === 'notBusyMax')    notBusyMax = parseInt(r.value) || 300;
-            if (r.key === 'kuahRatio')     kuahRatio  = parseInt(r.value) || 10;
+            if (r.key === 'kuahRatio')     kuahRatio      = parseInt(r.value) || 10;
+            if (r.key === 'preorderEnabled') preorderEnabled = r.value !== 'false';
             if (r.key === 'businessName')  updateShopName(r.value);
-            if (r.key === 'enablePreorder') preorderEnabled = r.value === 'true';
         });
     } catch(e) { shopIsOpen = true; }
     updateShopBanner();
-    updatePreorderState();
-}
-
-function updatePreorderState() {
-
-    const dateInput = document.getElementById("pickupDate");
-    const notice    = document.getElementById("preorderNotice");
-
-    const today = new Date().toLocaleDateString("en-CA");
-
-    if (!preorderEnabled) {
-
-        dateInput.style.display = "none";
-        notice.style.display = "block";
-
-        dateInput.value = today;
-        dateInput.min = today;
-
-    } else {
-
-        dateInput.style.display = "";
-        notice.style.display = "none";
-
-        dateInput.min = today;
-        dateInput.removeAttribute("max");
-
-    }
-
+    updatePreorderUI();
 }
 
 function payBadgeHTML(o) {
@@ -304,6 +263,26 @@ function updateShopName(name) {
     const title = document.getElementById('pageTitle');
     if (h1)    h1.textContent    = '🍢 ' + name;
     if (title) title.textContent = name + ' — Order';
+}
+
+function updatePreorderUI() {
+    const dateEl  = document.getElementById('pickupDate');
+    const preLabel = document.getElementById('preorderLabel');
+    if (!dateEl) return;
+    if (preorderEnabled) {
+        dateEl.removeAttribute('disabled');
+        dateEl.style.opacity = '1';
+        if (preLabel) preLabel.style.display = 'none';
+    } else {
+        // Disable date — only today allowed
+        const today = new Date().toLocaleDateString('en-CA');
+        dateEl.value    = today;
+        dateEl.setAttribute('disabled', 'true');
+        dateEl.style.opacity = '0.5';
+        if (preLabel) preLabel.style.display = 'block';
+        // Also clear time min for today
+        updateTimeMin();
+    }
 }
 
 function updateShopBanner() {
@@ -424,15 +403,41 @@ async function loadBusy() {
 function renderMenuGrid(containerId = 'menuGrid', existingItems = {}) {
     const grid = document.getElementById(containerId);
     if (!grid) return;
+    const SATE_CATS = ['skewer', 'no-kuah'];
     grid.innerHTML = menuItems.map(item => {
-        const qty = existingItems[item.id] || 0;
-        return `<div class="menu-cell">
-            <label for="qty_${containerId}_${item.id}">${item.name}<br><span>RM${item.price.toFixed(2)}</span></label>
-            <input type="number" id="qty_${containerId}_${item.id}" min="0" step="1" value="${qty || ''}" placeholder="0"
-                oninput="onQtyInput('${containerId}','${item.id}',this.value)">
-            <span class="stock-hint" id="hint_${containerId}_${item.id}"></span>
-        </div>`;
+        const qty    = existingItems[item.id] || 0;
+        const isSate = SATE_CATS.includes(item.category);
+        if (isSate) {
+            return `<div class="menu-cell">
+                <label for="qty_${containerId}_${item.id}">${item.name}<br><span>RM${item.price.toFixed(2)}</span></label>
+                <input type="number" id="qty_${containerId}_${item.id}" min="0" step="1" value="${qty || ''}" placeholder="0"
+                    oninput="onQtyInput('${containerId}','${item.id}',this.value)">
+                <span class="stock-hint" id="hint_${containerId}_${item.id}"></span>
+            </div>`;
+        } else {
+            return `<div class="menu-cell">
+                <label for="qty_${containerId}_${item.id}">${item.name}<br><span>RM${item.price.toFixed(2)}</span></label>
+                <div style="display:flex;align-items:center;gap:4px;">
+                    <button type="button" onclick="adjQty('${containerId}','${item.id}',-1)"
+                        style="width:30px;height:30px;border-radius:7px;border:1px solid #ddd;background:#f5f5f5;font-size:15px;font-weight:bold;cursor:pointer;flex-shrink:0;padding:0;">−</button>
+                    <input type="number" id="qty_${containerId}_${item.id}" min="0" step="1" value="${qty || ''}" placeholder="0"
+                        style="flex:1;min-width:0;text-align:center;"
+                        oninput="onQtyInput('${containerId}','${item.id}',this.value)">
+                    <button type="button" onclick="adjQty('${containerId}','${item.id}',+1)"
+                        style="width:30px;height:30px;border-radius:7px;border:1px solid #ddd;background:#f5f5f5;font-size:15px;font-weight:bold;cursor:pointer;flex-shrink:0;padding:0;">+</button>
+                </div>
+                <span class="stock-hint" id="hint_${containerId}_${item.id}"></span>
+            </div>`;
+        }
     }).join('');
+}
+
+function adjQty(gridId, itemId, delta) {
+    const el  = document.getElementById('qty_' + gridId + '_' + itemId);
+    if (!el) return;
+    const val = Math.max(0, (parseInt(el.value) || 0) + delta);
+    el.value  = val;
+    onQtyInput(gridId, itemId, val);
 }
 
 function onQtyInput(gridId, itemId, value) {
@@ -544,23 +549,16 @@ document.addEventListener('DOMContentLoaded', () => {
 async function placeOrder() {
     // Get pickup time once and reuse throughout
     const { ts, mode } = getPickupTs();
-    const today = new Date().toLocaleDateString("en-CA");
-
-if (!preorderEnabled && ts) {
-
-    const selected =
-        new Date(ts).toLocaleDateString("en-CA");
-
-    if (selected > today) {
-
-        alert("Preorders are temporarily unavailable.");
-
-        return;
-
-    }
-
-}
     const hint = document.getElementById('timeHint');
+
+    // Block preorder if disabled
+    if (!preorderEnabled && ts) {
+        const today6 = new Date().toLocaleDateString('en-CA');
+        if ((mode === 'datetime' || mode === 'date') && new Date(ts).toLocaleDateString('en-CA') > today6) {
+            alert('⚠️ Preorder is currently unavailable. You can only order for today.');
+            return;
+        }
+    }
 
     // Check if shop is closed — block today orders, allow preorders (future date)
     if (!shopIsOpen) {
