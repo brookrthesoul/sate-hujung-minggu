@@ -5,6 +5,20 @@ let currentTabIndex = 0;
 
 function getVP() { return document.getElementById('panelsTrack'); }
 
+// ─── Quantity increment/decrement for side/kuah items ────────────────────
+function changeQty(id, delta) {
+    const el = document.getElementById(`qty-${id}`);
+    if (!el) return;
+    let val = parseInt(el.value) || 0;
+    val = Math.max(0, val + delta);
+    el.value = val;
+    checkStockInput(id, val);  // update stock hint
+    // Re‑calculate if the results panel is visible
+    if (document.getElementById('results') && document.getElementById('results').style.display === 'block') {
+        calculate();
+    }
+}
+
 // ── Slide to tab by index ─────────────────────────────────────────────────
 function slideTo(index, smooth) {
     const vp = getVP();
