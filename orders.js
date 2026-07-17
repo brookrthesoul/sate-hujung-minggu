@@ -987,26 +987,69 @@ function onPayMethodChange(el) {
 }
 
 function _renderPayInputs(method, existingOrder) {
-    const box   = document.getElementById('paymentInputsBox');
-    const total = _pmTotal;
+    const box    = document.getElementById('paymentInputsBox');
+    const total  = _pmTotal;
+    const DIGITAL = ['online', 'card', 'boost', 'tng'];
+    const LABELS  = { online:'Online', card:'Card', boost:'Boost', tng:'T&G' };
 
-    const ONLINE_METHODS = ['online', 'card', 'boost', 'tng'];
-    const METHOD_LABELS  = { online:'Online', card:'Card', boost:'Boost', tng:'T&G' };
+    if (method === 'cash') {
+        const val = (existingOrder && existingOrder.paymentMethod === 'cash') ? existingOrder.paymentCash : 0;
+        box.innerHTML =
+            '<div class="pay-total-hint">Bill total: <strong>RM' + total.toFixed(2) + '</strong></div>' +
+            '<label class="pay-label">Cash Given by Customer (RM)</label>' +
+            '<input type="number" id="payCashInput" step="0.01" min="0" class="pay-input" placeholder="How much did they give?">' +
+            '<div id="changeDisplay" class="change-display" style="display:none;"></div>';
+        document.getElementById('payCashInput').value = val > 0 ? val.toFixed(2) : '';
+        document.getElementById('payCashInput').addEventListener('input', function() {
+            const given = parseFloat(this.value) || 0;
+            const disp  = document.getElementById('changeDisplay');
+            if (given <= 0) { disp.style.display = 'none'; return; }
+            const diff = given - total;
+            disp.style.display = 'block';
+            if (diff < -0.005) {
+                disp.className = 'change-display change-short';
+                disp.innerHTML = '&#9888; Short by <strong>RM' + Math.abs(diff).toFixed(2) + '</strong>';
+            } else {
+                disp.className = 'change-display change-ok';
+                disp.innerHTML = 'Change: <strong>RM' + diff.toFixed(2) + '</strong>';
+            }
+        });
+        if (val > 0) document.getElementById('payCashInput').dispatchEvent(new Event('input'));
+        return;
+    }
 
-    if (ONLINE_METHODS.includes(method)) {
-        const val = (existingOrder && ONLINE_METHODS.includes(existingOrder.paymentMethod))
-            ? existingOrder.paymentOnline : total;
-        const label = METHOD_LABELS[method] || 'Online';
+    if (DIGITAL.includes(method)) {
+        const label   = LABELS[method] || method;
+        const exM     = existingOrder && existingOrder.paymentMethod;
+        const exDig   = existingOrder && existingOrder._digitalMethod;
+        const isBoth  = exM === 'both' && exDig === method;
+        const dVal    = isBoth ? existingOrder.paymentOnline
+                      : (existingOrder && DIGITAL.includes(exM)) ? existingOrder.paymentOnline : total;
+        const cVal    = isBoth ? existingOrder.paymentCash : 0;
+
         box.innerHTML =
             '<div class="pay-total-hint">Bill total: <strong>RM' + total.toFixed(2) + '</strong></div>' +
             '<label class="pay-label">' + label + ' Amount (RM)</label>' +
             '<input type="number" id="payOnlineInput" step="0.01" min="0" class="pay-input">' +
-            '<div id="onlineDepositHint" class="change-display" style="display:none;"></div>';
-        document.getElementById('payOnlineInput').value = val.toFixed(2);
+            '<div id="onlineDepositHint" class="change-display" style="display:none;"></div>' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-top:12px;">' +
+                '<span style="font-size:13px;font-weight:600;">+ Cash as well?</span>' +
+                '<label class="toggle-switch">' +
+                    '<input type="checkbox" id="withCashToggle" onchange="_toggleCashSection(this.checked)">' +
+                    '<span class="toggle-slider"></span>' +
+                '</label>' +
+            '</div>' +
+            '<div id="cashSection" style="display:none;margin-top:10px;">' +
+                '<label class="pay-label">Cash Given by Customer (RM)</label>' +
+                '<input type="number" id="payCashInput" step="0.01" min="0" class="pay-input" placeholder="How much did they give?">' +
+                '<div id="changeDisplayBoth" class="change-display" style="display:none;"></div>' +
+            '</div>';
 
-        function calcOnlineDeposit() {
-            const paid    = parseFloat(document.getElementById('payOnlineInput').value) || 0;
-            const hint    = document.getElementById('onlineDepositHint');
+        document.getElementById('payOnlineInput').value = dVal.toFixed(2);
+
+        document.getElementById('payOnlineInput').addEventListener('input', function() {
+            const paid  = parseFloat(this.value) || 0;
+            const hint  = document.getElementById('onlineDepositHint');
             const balance = total - paid;
             if (paid <= 0) { hint.style.display = 'none'; return; }
             hint.style.display = 'block';
@@ -1017,80 +1060,39 @@ function _renderPayInputs(method, existingOrder) {
                 hint.className = 'change-display change-ok';
                 hint.innerHTML = '&#10003; Full payment — RM' + paid.toFixed(2);
             }
-        }
-        document.getElementById('payOnlineInput').addEventListener('input', calcOnlineDeposit);
-        calcOnlineDeposit();
-
-    } else if (method === 'cash') {
-        const val = (existingOrder && existingOrder.paymentMethod === 'cash')
-            ? existingOrder.paymentCash : 0;
-        box.innerHTML =
-            '<div class="pay-total-hint">Bill total: <strong>RM' + total.toFixed(2) + '</strong></div>' +
-            '<label class="pay-label">💵 Cash Given by Customer (RM)</label>' +
-            '<input type="number" id="payCashInput" step="0.01" min="0" class="pay-input" placeholder="How much did they give?">' +
-            '<div id="changeDisplay" class="change-display" style="display:none;"></div>';
-        document.getElementById('payCashInput').value = val > 0 ? val.toFixed(2) : '';
-
-        // Live change / short calculator
-        function calcChange() {
-            const given   = parseFloat(document.getElementById('payCashInput').value) || 0;
-            const display = document.getElementById('changeDisplay');
-            if (given <= 0) { display.style.display = 'none'; return; }
-            const diff = given - total;
-            display.style.display = 'block';
-            if (diff < -0.005) {
-                display.className = 'change-display change-short';
-                display.innerHTML = '&#9888; Short by <strong>RM' + Math.abs(diff).toFixed(2) + '</strong>';
-            } else {
-                display.className = 'change-display change-ok';
-                display.innerHTML = 'Change: <strong>RM' + diff.toFixed(2) + '</strong>';
-            }
-        }
-        document.getElementById('payCashInput').addEventListener('input', calcChange);
-        if (val > 0) calcChange();
-
-    } else { // both
-        const oVal = (existingOrder && existingOrder.paymentMethod === 'both') ? existingOrder.paymentOnline : 0;
-        const cVal = (existingOrder && existingOrder.paymentMethod === 'both') ? existingOrder.paymentCash   : 0;
-        box.innerHTML =
-            '<div class="pay-total-hint">Total: <strong>RM' + total.toFixed(2) + '</strong> — type one amount, the other fills automatically.</div>' +
-            '<label class="pay-label">💳 Online Amount (RM)</label>' +
-            '<input type="number" id="payOnlineInput" step="0.01" min="0" class="pay-input">' +
-            '<label class="pay-label" style="margin-top:12px;">💵 Cash Amount (RM)</label>' +
-            '<input type="number" id="payCashInput" step="0.01" min="0" class="pay-input">' +
-            '<label class="pay-label" style="margin-top:12px;">💴 Cash Given by Customer (RM)</label>' +
-            '<input type="number" id="cashGivenBothInput" step="0.01" min="0" class="pay-input" placeholder="e.g. 20.00">' +
-            '<div id="changeDisplayBoth" class="change-display" style="display:none;"></div>';
-        document.getElementById('payOnlineInput').value = oVal.toFixed(2);
-        document.getElementById('payCashInput').value   = cVal.toFixed(2);
-        // Attach autofill listeners after elements exist in DOM
-        document.getElementById('payOnlineInput').addEventListener('input', function() {
-            const online = parseFloat(this.value) || 0;
-            document.getElementById('payCashInput').value = Math.max(0, _pmTotal - online).toFixed(2);
-            calcChangeBoth();
         });
-        document.getElementById('payCashInput').addEventListener('input', function() {
-            const cash = parseFloat(this.value) || 0;
-            document.getElementById('payOnlineInput').value = Math.max(0, _pmTotal - cash).toFixed(2);
-            calcChangeBoth();
-        });
-        document.getElementById('cashGivenBothInput').addEventListener('input', calcChangeBoth);
 
-        function calcChangeBoth() {
-            const cashPart = parseFloat(document.getElementById('payCashInput').value)       || 0;
-            const given    = parseFloat(document.getElementById('cashGivenBothInput').value) || 0;
-            const display  = document.getElementById('changeDisplayBoth');
-            if (given <= 0) { display.style.display = 'none'; return; }
-            const change   = given - cashPart;
-            display.style.display = 'block';
-            if (change < 0) {
-                display.className = 'change-display change-short';
-                display.innerHTML = '&#9888; Short by <strong>RM' + Math.abs(change).toFixed(2) + '</strong> — not enough!';
-            } else {
-                display.className = 'change-display change-ok';
-                display.innerHTML = 'Change: <strong>RM' + change.toFixed(2) + '</strong>';
-            }
+        if (isBoth && cVal > 0) {
+            document.getElementById('withCashToggle').checked = true;
+            _toggleCashSection(true, cVal);
         }
+        document.getElementById('payOnlineInput').dispatchEvent(new Event('input'));
+    }
+}
+
+function _toggleCashSection(show, prefillVal) {
+    const section = document.getElementById('cashSection');
+    if (!section) return;
+    section.style.display = show ? 'block' : 'none';
+    if (!show) return;
+    const cashEl = document.getElementById('payCashInput');
+    if (cashEl && prefillVal !== undefined) cashEl.value = prefillVal.toFixed(2);
+    if (cashEl) {
+        cashEl.addEventListener('input', function() {
+            const cashGiven = parseFloat(this.value) || 0;
+            const disp      = document.getElementById('changeDisplayBoth');
+            if (cashGiven <= 0) { disp.style.display = 'none'; return; }
+            const totalPaid = (parseFloat(document.getElementById('payOnlineInput').value)||0) + cashGiven;
+            const change    = totalPaid - _pmTotal;
+            disp.style.display = 'block';
+            if (change < -0.005) {
+                disp.className = 'change-display change-short';
+                disp.innerHTML = '&#9888; Short by <strong>RM' + Math.abs(change).toFixed(2) + '</strong>';
+            } else {
+                disp.className = 'change-display change-ok';
+                disp.innerHTML = 'Change: <strong>RM' + change.toFixed(2) + '</strong>';
+            }
+        });
     }
 }
 
