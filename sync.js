@@ -745,6 +745,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch(e) { console.warn('Business name sync error:', e); }
 
+
+    // Sync preorder setting from Supabase
+try {
+    const preorder = await window._readSetting('enablePreorder');
+
+    if (preorder !== null) {
+        localStorage.setItem(
+            'enablePreorder',
+            preorder
+        );
+
+        if (typeof loadPreorderSetting === 'function')
+            loadPreorderSetting();
+    }
+}
+catch(e) {
+    console.warn('Preorder sync error:', e);
+}
+
     // Sync kuah ratio from Supabase
     try {
         const ratio = await window._readSetting('kuahRatio');
