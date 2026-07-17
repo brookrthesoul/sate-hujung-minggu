@@ -113,10 +113,25 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 <!-- NEW ORDER TAB -->
 <div class="tab-content active" id="tabContentNew">
     <div class="section-title">📅 Pick-up Time (optional)</div>
+    <div id="preorderSection">
+
     <div class="pickup-row">
         <input type="date" id="pickupDate" min="">
         <input type="time" id="pickupTime">
     </div>
+
+    <div id="preorderNotice"
+         style="display:none;
+                background:#fff3cd;
+                color:#856404;
+                padding:10px;
+                border-radius:8px;
+                font-size:13px;
+                margin-top:8px;">
+        📅 Preorders are currently unavailable.
+    </div>
+
+</div>
     <div class="time-hint" id="timeHint"></div>
 
     <div class="section-title">🍢 Your Order</div>
@@ -228,16 +243,22 @@ async function loadShopStatus() {
 function updatePreorderState() {
 
     const dateInput = document.getElementById("pickupDate");
+    const notice    = document.getElementById("preorderNotice");
 
     const today = new Date().toLocaleDateString("en-CA");
 
     if (!preorderEnabled) {
 
-        dateInput.min = today;
-        dateInput.max = today;
+        dateInput.style.display = "none";
+        notice.style.display = "block";
+
         dateInput.value = today;
+        dateInput.min = today;
 
     } else {
+
+        dateInput.style.display = "";
+        notice.style.display = "none";
 
         dateInput.min = today;
         dateInput.removeAttribute("max");
