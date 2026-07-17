@@ -591,17 +591,30 @@ function paymentBadgeHTML(order) {
                 ' &nbsp;|&nbsp; Paid: RM' + cash.toFixed(2) +
                 '</div>';
         }
-        return '<div class="payment-badge badge-cash">💵 Cash — RM' + cash.toFixed(2) + '</div>';
+        const given  = order.cashGiven || cash;
+        const change = order.cashChange || 0;
+        let badge = '<div class="payment-badge badge-cash">💵 Cash — RM' + cash.toFixed(2);
+        if (given > cash + 0.005) {
+            badge += ' &nbsp;|&nbsp; Given: RM' + given.toFixed(2) + ' &nbsp;|&nbsp; Change: RM' + change.toFixed(2);
+        }
+        badge += '</div>';
+        return badge;
     }
 
     if (m === 'both') {
-        const dm    = order._digitalMethod || 'online';
-        const dIcon = _METHOD_ICONS[dm] || '💳';
-        const dName = _METHOD_NAMES[dm] || 'Online';
-        return '<div class="payment-badge badge-both">' +
+        const dm     = order._digitalMethod || 'online';
+        const dIcon  = _METHOD_ICONS[dm] || '💳';
+        const dName  = _METHOD_NAMES[dm] || 'Online';
+        const given  = order.cashGiven  || cash;
+        const change = order.cashChange || 0;
+        let badge = '<div class="payment-badge badge-both">' +
             dIcon + ' ' + dName + ': RM' + online.toFixed(2) +
-            ' &nbsp;|&nbsp; 💵 Cash: RM' + cash.toFixed(2) +
-            '</div>';
+            ' &nbsp;|&nbsp; 💵 Cash: RM' + cash.toFixed(2);
+        if (given > cash + 0.005) {
+            badge += ' &nbsp;|&nbsp; Given: RM' + given.toFixed(2) + ' &nbsp;|&nbsp; Change: RM' + change.toFixed(2);
+        }
+        badge += '</div>';
+        return badge;
     }
     return '';
 }
@@ -1032,12 +1045,11 @@ function _renderPayInputs(method, existingOrder) {
             '<label class="pay-label">' + label + ' Amount (RM)</label>' +
             '<input type="number" id="payOnlineInput" step="0.01" min="0" class="pay-input">' +
             '<div id="onlineDepositHint" class="change-display" style="display:none;"></div>' +
-            '<div style="display:flex;align-items:center;gap:8px;margin-top:12px;">' +
-                '<span style="font-size:13px;font-weight:600;">+ Cash as well?</span>' +
-                '<label class="toggle-switch">' +
-                    '<input type="checkbox" id="withCashToggle" onchange="_toggleCashSection(this.checked)">' +
-                    '<span class="toggle-slider"></span>' +
-                '</label>' +
+            '<div style="display:flex;align-items:center;gap:10px;margin-top:14px;padding:10px;background:#f8f9fa;border-radius:10px;">' +
+                '<span style="font-size:13px;font-weight:600;flex:1;">+ Cash as well?</span>' +
+                '<button type="button" id="withCashToggle" onclick="_toggleCashSection()" ' +
+                    'style="padding:6px 16px;border-radius:20px;border:2px solid #6c757d;background:white;font-size:13px;font-weight:600;cursor:pointer;color:#6c757d;"' +
+                    '>OFF</button>' +
             '</div>' +
             '<div id="cashSection" style="display:none;margin-top:10px;">' +
                 '<label class="pay-label">Cash Given by Customer (RM)</label>' +
@@ -1063,21 +1075,31 @@ function _renderPayInputs(method, existingOrder) {
         });
 
         if (isBoth && cVal > 0) {
-            document.getElementById('withCashToggle').checked = true;
-            _toggleCashSection(true, cVal);
+            // Auto-enable cash section for existing both orders
+            setTimeout(() => {
+                const btn = document.getElementById('withCashToggle');
+                if (btn && btn.textContent === 'OFF') _toggleCashSection(cVal);
+            }, 50);
         }
         document.getElementById('payOnlineInput').dispatchEvent(new Event('input'));
     }
 }
 
-function _toggleCashSection(show, prefillVal) {
+function _toggleCashSection(prefillVal) {
+    const btn     = document.getElementById('withCashToggle');
     const section = document.getElementById('cashSection');
-    if (!section) return;
-    section.style.display = show ? 'block' : 'none';
-    if (!show) return;
+    if (!btn || !section) return;
+    const isOn = btn.textContent === 'OFF';
+    btn.textContent      = isOn ? 'ON' : 'OFF';
+    btn.style.background = isOn ? '#28a745' : 'white';
+    btn.style.color      = isOn ? 'white'   : '#6c757d';
+    btn.style.borderColor= isOn ? '#28a745' : '#6c757d';
+    section.style.display = isOn ? 'block' : 'none';
+    if (!isOn) return;
     const cashEl = document.getElementById('payCashInput');
     if (cashEl && prefillVal !== undefined) cashEl.value = prefillVal.toFixed(2);
-    if (cashEl) {
+    if (cashEl && !cashEl._hasListener) {
+        cashEl._hasListener = true;
         cashEl.addEventListener('input', function() {
             const cashGiven = parseFloat(this.value) || 0;
             const disp      = document.getElementById('changeDisplayBoth');
@@ -1118,16 +1140,22 @@ async function confirmPayment() {
 
     const _ONLINE_METHODS = ['online', 'card', 'boost', 'tng'];
     const withCashToggle  = document.getElementById('withCashToggle');
-    const hasCashSection  = withCashToggle && withCashToggle.checked;
+    const hasCashSection  = withCashToggle && withCashToggle.textContent === 'ON';
 
     // If digital + cash toggle is on → treat as 'both' but store which digital method
     if (_ONLINE_METHODS.includes(method) && hasCashSection) {
+        // cashAmt = what customer gave in cash for the cash portion
+        // The cash portion they owe = total - onlineAmt
+        const cashOwed   = Math.max(0, _pmTotal - onlineAmt);
+        const cashChange = cashAmt - cashOwed;
         order.paymentMethod  = 'both';
-        order._digitalMethod = method; // remember which digital method
+        order._digitalMethod = method;
         order.paymentOnline  = onlineAmt;
-        order.paymentCash    = cashAmt;
+        order.paymentCash    = cashChange > 0 ? cashOwed : cashAmt; // only keep what we're owed
+        order.cashGiven      = cashAmt;
+        order.cashChange     = cashChange > 0 ? cashChange : 0;
         order.isDeposit      = false;
-        order.isCashShort    = cashAmt < 0 ? true : false;
+        order.isCashShort    = cashAmt < cashOwed - 0.005;
         await updateOrder(order);
         closePaymentModal();
         loadOrders();
@@ -1144,10 +1172,14 @@ async function confirmPayment() {
         order.isDeposit   = onlineAmt < (_pmTotal - 0.005);
         order.isCashShort = false;
     } else if (method === 'cash') {
-        // cashAmt = what customer physically gave (payCashInput)
-        // paymentCash saved = actual payment (capped at total, can be less = short)
+        // cashAmt = what customer physically gave
+        // paymentCash = actual amount we receive (capped at total if they overpay)
+        const cashChange  = cashAmt - _pmTotal;
         order.isCashShort = cashAmt < (_pmTotal - 0.005);
         order.cashGiven   = cashAmt;
+        order.cashChange  = cashChange > 0 ? cashChange : 0;
+        // paymentCash stores only what we actually keep (not the change we give back)
+        order.paymentCash = order.isCashShort ? cashAmt : _pmTotal;
         order.isDeposit   = false;
     } else {
         order.isDeposit   = false;
