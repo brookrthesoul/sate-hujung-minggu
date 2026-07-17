@@ -281,24 +281,39 @@ function initBusinessName() {
 // ─── preorder toggle settings ────────────────────────────────────────────────
 const PREORDER_SETTING = "enablePreorder";
 
+async function savePreorderSetting() {
+
+    const toggle =
+        document.getElementById("enablePreorderToggle");
+
+    localStorage.setItem(
+        PREORDER_SETTING,
+        toggle.checked
+    );
+
+    if (typeof window._writeSetting === "function") {
+
+        await window._writeSetting(
+            "enablePreorder",
+            String(toggle.checked)
+        );
+
+    }
+
+}
+
 function loadPreorderSetting() {
 
-    const toggle = document.getElementById("enablePreorderToggle");
+    const toggle =
+        document.getElementById("enablePreorderToggle");
 
     if (!toggle) return;
 
-    const saved = localStorage.getItem(PREORDER_SETTING);
+    const saved =
+        localStorage.getItem(PREORDER_SETTING);
 
-    toggle.checked = saved === null ? true : saved === "true";
-
-    toggle.addEventListener("change", () => {
-
-        localStorage.setItem(
-            PREORDER_SETTING,
-            toggle.checked
-        );
-
-    });
+    toggle.checked =
+        saved === null ? true : saved === "true";
 
 }
 
