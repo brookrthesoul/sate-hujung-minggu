@@ -57,37 +57,17 @@ function normalizeOrder(order) {
 function renderHomeMenuInputs() {
     const container = document.getElementById('menuInputs');
     if (!container) return;
-    container.innerHTML = getMenuItems().map(item => {
-        const isSideOrKuah = ['side', 'kuah-only'].includes(item.category);
-        // Build the input row
-        let inputHtml;
-        if (isSideOrKuah) {
-            inputHtml = `
-                <div style="display:flex; align-items:center; gap:4px;">
-                    <button type="button" class="qty-btn" onclick="changeQty('${item.id}', -1)" style="width:32px; height:32px; border:1px solid #ced4da; border-radius:8px; background:white; font-size:18px; cursor:pointer; line-height:1;">−</button>
-                    <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0"
-                        style="flex:1; min-width:0; padding:8px; border:1px solid #ced4da; border-radius:8px; font-size:16px; text-align:center;"
-                        oninput="checkStockInput('${item.id}', this.value)">
-                    <button type="button" class="qty-btn" onclick="changeQty('${item.id}', 1)" style="width:32px; height:32px; border:1px solid #ced4da; border-radius:8px; background:white; font-size:18px; cursor:pointer; line-height:1;">+</button>
-                </div>
-            `;
-        } else {
-            inputHtml = `
-                <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0"
-                    style="width:100%; box-sizing:border-box;"
-                    oninput="checkStockInput('${item.id}', this.value)">
-            `;
-        }
-        return `
-            <div style="display:flex; flex-direction:column; gap:4px;">
-                <label id="label-${item.id}" style="font-size:13px; font-weight:600; line-height:1.3;">
-                    ${escapeHtml(item.name)}<br><span style="font-weight:400; color:#666;">RM${item.price.toFixed(2)}</span>
-                </label>
-                ${inputHtml}
-                <span id="stock-indicator-${item.id}" class="stock-indicator"></span>
-            </div>
-        `;
-    }).join('');
+    container.innerHTML = getMenuItems().map(item => `
+        <div style="display:flex;flex-direction:column;gap:4px;">
+            <label id="label-${item.id}" style="font-size:13px;font-weight:600;line-height:1.3;">
+                ${escapeHtml(item.name)}<br><span style="font-weight:400;color:#666;">RM${item.price.toFixed(2)}</span>
+            </label>
+            <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0"
+                style="width:100%;box-sizing:border-box;"
+                oninput="checkStockInput('${item.id}', this.value)">
+            <span id="stock-indicator-${item.id}" class="stock-indicator"></span>
+        </div>
+    `).join('');
     if (typeof updateStockIndicators === 'function') updateStockIndicators();
 }
 
@@ -615,8 +595,11 @@ function paymentBadgeHTML(order) {
     }
 
     if (m === 'both') {
+        const dm    = order._digitalMethod || 'online';
+        const dIcon = _METHOD_ICONS[dm] || '💳';
+        const dName = _METHOD_NAMES[dm] || 'Online';
         return '<div class="payment-badge badge-both">' +
-            '💳 Online: RM' + online.toFixed(2) +
+            dIcon + ' ' + dName + ': RM' + online.toFixed(2) +
             ' &nbsp;|&nbsp; 💵 Cash: RM' + cash.toFixed(2) +
             '</div>';
     }
@@ -1132,6 +1115,24 @@ async function confirmPayment() {
     if (!order) return;
 
     const _ONLINE_METHODS = ['online', 'card', 'boost', 'tng'];
+    const withCashToggle  = document.getElementById('withCashToggle');
+    const hasCashSection  = withCashToggle && withCashToggle.checked;
+
+    // If digital + cash toggle is on → treat as 'both' but store which digital method
+    if (_ONLINE_METHODS.includes(method) && hasCashSection) {
+        order.paymentMethod  = 'both';
+        order._digitalMethod = method; // remember which digital method
+        order.paymentOnline  = onlineAmt;
+        order.paymentCash    = cashAmt;
+        order.isDeposit      = false;
+        order.isCashShort    = cashAmt < 0 ? true : false;
+        await updateOrder(order);
+        closePaymentModal();
+        loadOrders();
+        if (typeof loadPreorders === 'function') loadPreorders();
+        return;
+    }
+
     order.paymentMethod = method;
     order.paymentOnline = (method === 'cash')              ? 0 : onlineAmt;
     order.paymentCash   = _ONLINE_METHODS.includes(method) ? 0 : cashAmt;
@@ -1372,7 +1373,10 @@ function _buildPDF(title, subtitle, orders) {
         let payStr = '';
         if (['online','card','boost','tng'].includes(_PM)) payStr = (_MN[_PM]||_PM) + ' RM' + (order.paymentOnline||0).toFixed(2);
         else if (_PM==='cash') payStr = 'Cash RM' + (order.paymentCash||0).toFixed(2);
-        else if (_PM==='both') payStr = 'O:RM' + (order.paymentOnline||0).toFixed(2) + ' C:RM' + (order.paymentCash||0).toFixed(2);
+        else if (_PM==='both') {
+            const dm = order._digitalMethod || 'online';
+            payStr = (_MN[dm]||dm) + ':RM' + (order.paymentOnline||0).toFixed(2) + ' C:RM' + (order.paymentCash||0).toFixed(2);
+        }
 
         const wrappedItems = doc.splitTextToSize(itemSummary, 58);
         const rowH = Math.max(LINE_H, wrappedItems.length*4+3);
