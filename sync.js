@@ -923,6 +923,26 @@ window._readShopStatus = async function() {
     return null; // null = not set, treat as open
 };
 
+// ─── preorder settings ─────────────────────────────────────────────────────────
+window._writeSetting = async function(key, value) {
+    await _sbFetch('settings', {
+        method: 'POST',
+        headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({
+            key,
+            value: String(value)
+        })
+    });
+};
+
+window._readSetting = async function(key) {
+    const rows = await _sbFetch(
+        `settings?key=eq.${encodeURIComponent(key)}&select=value`
+    );
+
+    return rows.length ? rows[0].value : null;
+};
+
 // ─── Reset all orders ─────────────────────────────────────────────────────────
 // Deletes all orders from Supabase + IndexedDB and resets the ID sequence to 1.
 // Stock, menu, and prices are kept untouched.
