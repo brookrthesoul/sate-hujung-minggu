@@ -87,6 +87,8 @@ window.onload = () => {
         if (typeof initBusyThresholds === 'function') initBusyThresholds();
         // Restore business name
         if (typeof initBusinessName === 'function') initBusinessName();
+        // restore preorder
+        if (typeof loadPreorderSetting === 'function') loadPreorderSetting();
         // Restore kuah ratio
         if (typeof initKuahRatio === 'function') initKuahRatio();
         // Start preorder → prepare promotion timer
@@ -274,6 +276,30 @@ function initBusinessName() {
     // Update password screen name if visible
     const pwTitle = document.querySelector('#passwordScreen h2');
     if (pwTitle) pwTitle.textContent = name;
+}
+
+// ─── preorder toggle settings ────────────────────────────────────────────────
+const PREORDER_SETTING = "enablePreorder";
+
+function loadPreorderSetting() {
+
+    const toggle = document.getElementById("enablePreorderToggle");
+
+    if (!toggle) return;
+
+    const saved = localStorage.getItem(PREORDER_SETTING);
+
+    toggle.checked = saved === null ? true : saved === "true";
+
+    toggle.addEventListener("change", () => {
+
+        localStorage.setItem(
+            PREORDER_SETTING,
+            toggle.checked
+        );
+
+    });
+
 }
 
 // ─── Kuah kacang ratio setting ────────────────────────────────────────────────
