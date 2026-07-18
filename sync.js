@@ -773,6 +773,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 
+// ─── Generic settings helper ─────────────────────────────────────────────────
+window._writeSetting = async function(key, value) {
+    try {
+        await _sbFetch('settings', {
+            method: 'POST',
+            headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify({ key, value })
+        });
+    } catch(e) { console.warn('Setting write failed (' + key + '):', e); }
+};
+
+window._readSetting = async function(key) {
+    try {
+        const rows = await _sbFetch('settings?key=eq.' + key + '&select=value');
+        if (rows && rows.length) return rows[0].value;
+    } catch(e) { console.warn('Setting read failed (' + key + '):', e); }
+    return null;
+};
+
 // ─── Stock sync ───────────────────────────────────────────────────────────────
 // Stock is stored in Supabase `stock` table AND in IndexedDB `stockStore`.
 // Reads: IDB first (instant), then Supabase (fresh). Writes: both.
