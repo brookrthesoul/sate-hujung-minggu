@@ -45,6 +45,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 /* ── Description ── */
 textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10px; font-size: 14px; resize: none; }
 
+/* ── Menu / Info tab ── */
+.info-header { font-size: 20px; font-weight: 700; color: #1a1a1a; margin: 4px 0 18px; text-align: center; }
+.info-row { display: flex; gap: 14px; align-items: center; margin-bottom: 22px; }
+.info-row .info-img { flex: 0 0 42%; }
+.info-row .info-img img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: block; }
+.info-row .info-desc { flex: 1; font-size: 14px; color: #444; line-height: 1.6; }
+.info-other { font-size: 14px; color: #444; line-height: 1.7; white-space: pre-wrap; background: white; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-top: 8px; }
+.info-empty { text-align: center; color: #aaa; padding: 40px 16px; font-size: 14px; }
+
 /* ── Results ── */
 .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
 .result-item { background: white; border-radius: 10px; padding: 10px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
@@ -115,17 +124,23 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 </div>
 
 <div class="tab-bar">
-    <div class="tab-btn active" id="tabNewOrder" onclick="switchTab('new')">New Order</div>
+    <div class="tab-btn active" id="tabMenu"     onclick="switchTab('menu')">Menu</div>
+    <div class="tab-btn"        id="tabNewOrder" onclick="switchTab('new')">New Order</div>
     <div class="tab-btn"        id="tabMyOrder"  onclick="switchTab('my')">My Order</div>
 </div>
 
 <!-- SHOP STATUS BANNER -->
-<div id="shopBanner" style="padding:10px 16px; text-align:center; font-size:13px; font-weight:600; background:#d4edda; color:#155724;">
+<div id="shopBanner" style="display:none; padding:10px 16px; text-align:center; font-size:13px; font-weight:600; background:#d4edda; color:#155724;">
     🟢 We are Open — Place your order below!
 </div>
 
+<!-- MENU TAB (landing page) -->
+<div class="tab-content active" id="tabContentMenu">
+    <div id="menuInfoContent"><div class="spinner">Loading...</div></div>
+</div>
+
 <!-- NEW ORDER TAB -->
-<div class="tab-content active" id="tabContentNew">
+<div class="tab-content" id="tabContentNew">
     <div class="section-title">📅 Pick-up Time (optional)</div>
     <div class="pickup-row">
         <input type="date" id="pickupDate" min="">
@@ -202,8 +217,9 @@ let myOrderId  = localStorage.getItem(ORDER_ID_KEY); // legacy single order
 let myOrderIds = JSON.parse(localStorage.getItem(ORDER_IDS_KEY) || '[]');
 let myOrder    = null;
 let realtimeWs = null;
-let currentTab = 'new';
+let currentTab = 'menu';
 let pendingOrderData = null;
+let menuInfoLoaded = false;
 
 // ── Supabase helpers ──────────────────────────────────────────────────────────
 function headers(extra = {}) {
@@ -225,7 +241,7 @@ async function sbRpc(fn, body) {
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
     setPickupDateMin();
-    await Promise.all([loadMenu(), loadStock(), loadBusy(), loadShopStatus()]);
+    await Promise.all([loadMenu(), loadStock(), loadBusy(), loadShopStatus(), loadMenuInfoTab()]);
     renderMenuGrid();
     if (myOrderId && !myOrderIds.includes(myOrderId)) {
         myOrderIds.push(myOrderId);
@@ -1010,7 +1026,7 @@ function connectRealtime() {
             if (f.event === 'postgres_changes' || f.payload?.data?.type) {
                 const tbl = f.payload?.data?.table || '';
                 if (tbl === 'stock')    { loadStock(); return; }
-                if (tbl === 'settings') { loadShopStatus(); return; }
+                if (tbl === 'settings') { loadShopStatus(); loadMenuInfoTab(); return; }
                 loadBusy();
                 if (myOrderIds.length > 0) loadMyOrders();
             }
@@ -1022,11 +1038,68 @@ function connectRealtime() {
 // ── Tab switch ────────────────────────────────────────────────────────────────
 function switchTab(tab) {
     currentTab = tab;
+    document.getElementById('tabMenu').classList.toggle('active',     tab === 'menu');
     document.getElementById('tabNewOrder').classList.toggle('active', tab === 'new');
     document.getElementById('tabMyOrder').classList.toggle('active',  tab === 'my');
-    document.getElementById('tabContentNew').classList.toggle('active', tab === 'new');
-    document.getElementById('tabContentMy').classList.toggle('active',  tab === 'my');
+    document.getElementById('tabContentMenu').classList.toggle('active', tab === 'menu');
+    document.getElementById('tabContentNew').classList.toggle('active',  tab === 'new');
+    document.getElementById('tabContentMy').classList.toggle('active',   tab === 'my');
+    // Shop banner is only relevant while ordering, not on the info Menu tab
+    document.getElementById('shopBanner').style.display = (tab === 'menu') ? 'none' : 'block';
+    if (tab === 'menu' && !menuInfoLoaded) loadMenuInfoTab();
     if (tab === 'my') loadMyOrders();
+}
+
+// ── Menu (info) tab ──────────────────────────────────────────────────────────
+async function loadMenuInfoTab() {
+    const box = document.getElementById('menuInfoContent');
+    try {
+        const rows = await sbFetch('settings?key=eq.customerInfo&select=value');
+        let info = { header: '', items: [], otherInfo: '' };
+        if (rows && rows.length) {
+            try { info = JSON.parse(rows[0].value); } catch(_) {}
+        }
+        renderMenuInfoTab(info);
+        menuInfoLoaded = true;
+    } catch(e) {
+        console.warn('Could not load menu info:', e);
+        if (box) box.innerHTML = '<div class="info-empty">Unable to load menu info right now.</div>';
+    }
+}
+
+function renderMenuInfoTab(info) {
+    const box = document.getElementById('menuInfoContent');
+    if (!box) return;
+    const items = (info.items || []).filter(it => it.imageUrl || (it.description && it.description.trim()));
+
+    if (!info.header && items.length === 0 && !(info.otherInfo && info.otherInfo.trim())) {
+        box.innerHTML = '<div class="info-empty">Menu info coming soon 🍢</div>';
+        return;
+    }
+
+    let html = '';
+    if (info.header) html += `<div class="info-header">${escapeHtmlOrder(info.header)}</div>`;
+
+    items.forEach((item, idx) => {
+        const imgHtml  = item.imageUrl ? `<div class="info-img"><img src="${item.imageUrl}" alt=""></div>` : '';
+        const descHtml = `<div class="info-desc">${escapeHtmlOrder(item.description || '')}</div>`;
+        // Even rows: picture | description — Odd rows: description | picture
+        html += (idx % 2 === 0)
+            ? `<div class="info-row">${imgHtml}${descHtml}</div>`
+            : `<div class="info-row">${descHtml}${imgHtml}</div>`;
+    });
+
+    if (info.otherInfo && info.otherInfo.trim()) {
+        html += `<div class="info-other">${escapeHtmlOrder(info.otherInfo.trim())}</div>`;
+    }
+
+    box.innerHTML = html;
+}
+
+function escapeHtmlOrder(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML.replace(/\n/g, '<br>');
 }
 
 init();
