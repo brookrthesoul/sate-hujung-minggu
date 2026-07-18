@@ -91,6 +91,20 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 .modal-cancel-btn { padding: 12px 16px; background: #6c757d; color: white; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; }
 
 .spinner { text-align: center; padding: 30px; color: #aaa; font-size: 14px; }
+
+/* ── Summary modal ── */
+.summary-section { margin-bottom: 14px; }
+.summary-section:last-of-type { margin-bottom: 0; }
+.summary-label { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 6px; }
+.summary-row { display: flex; justify-content: space-between; font-size: 14px; color: #333; padding: 5px 0; border-bottom: 1px solid #f0f0f0; }
+.summary-row:last-child { border-bottom: none; }
+.summary-row .qty { color: #888; margin-right: 6px; }
+.summary-total-row { display: flex; justify-content: space-between; font-size: 17px; font-weight: 700; padding-top: 10px; margin-top: 4px; border-top: 2px solid #eee; }
+.summary-note { font-size: 13px; color: #555; background: #f8f9fa; border-radius: 8px; padding: 8px 10px; margin-top: 4px; }
+.summary-pickup { font-size: 13px; color: #1a6abf; background: #e8f4fd; border-radius: 8px; padding: 8px 10px; }
+.modal-place-btn { flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
+.modal-place-btn:disabled { background: #aaa; cursor: not-allowed; }
+.modal-back-btn { padding: 12px 16px; background: #6c757d; color: white; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -134,13 +148,25 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
     </div>
 
     <div class="sticky-save">
-        <button class="save-btn" id="saveBtn" onclick="placeOrder()">Place Order</button>
+        <button class="save-btn" id="saveBtn" onclick="showOrderSummary()">Next</button>
     </div>
 </div>
 
 <!-- MY ORDER TAB -->
 <div class="tab-content" id="tabContentMy">
     <div id="myOrderContent"><div class="spinner">Loading...</div></div>
+</div>
+
+<!-- ORDER SUMMARY MODAL -->
+<div class="modal-overlay" id="summaryModal">
+    <div class="modal-box">
+        <div class="modal-title">🧾 Order Summary</div>
+        <div id="summaryContent"></div>
+        <div class="modal-actions">
+            <button class="modal-place-btn" id="confirmPlaceBtn" onclick="confirmPlaceOrder()">✅ Place Order</button>
+            <button class="modal-back-btn" onclick="closeSummary()">Back</button>
+        </div>
+    </div>
 </div>
 
 <!-- EDIT MODAL -->
@@ -177,6 +203,7 @@ let myOrderIds = JSON.parse(localStorage.getItem(ORDER_IDS_KEY) || '[]');
 let myOrder    = null;
 let realtimeWs = null;
 let currentTab = 'new';
+let pendingOrderData = null;
 
 // ── Supabase helpers ──────────────────────────────────────────────────────────
 function headers(extra = {}) {
@@ -545,8 +572,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// ── Place order ───────────────────────────────────────────────────────────────
-async function placeOrder() {
+// ── Show order summary (validation + preview, no submission yet) ──────────────
+function showOrderSummary() {
     // Get pickup time once and reuse throughout
     const { ts, mode } = getPickupTs();
     const hint = document.getElementById('timeHint');
@@ -602,15 +629,12 @@ async function placeOrder() {
         if (item.category === 'kuah-only') scoops += qty;
     });
 
-    // Determine if this is a preorder (future date)
-    const today2 = new Date().toLocaleDateString('en-CA');
-    const isPreorder = ts && (mode === 'datetime' || mode === 'date') &&
-        new Date(ts).toLocaleDateString('en-CA') > today2;
+    const note = document.getElementById('orderNote').value.trim();
 
     const orderData = {
         items, totalCost, skewerQty, scoops,
         prepared: false, paid: false, pickedUp: false,
-        description: document.getElementById('orderNote').value.trim(),
+        description: note,
         paymentMethod: null, paymentOnline: 0, paymentCash: 0,
         pickupTs: ts || null,
         pickupMode: mode === 'date-today' ? 'date' : (mode || null),
@@ -618,7 +642,53 @@ async function placeOrder() {
         source: 'customer'
     };
 
-    const btn = document.getElementById('saveBtn');
+    // Stash for submission when customer confirms
+    pendingOrderData = { orderData, qtys };
+
+    // Build summary preview HTML
+    let itemsHtml = '';
+    Object.values(items).forEach(it => {
+        itemsHtml += `<div class="summary-row"><span><span class="qty">×${it.qty}</span>${it.name}</span><span>RM${it.cost.toFixed(2)}</span></div>`;
+    });
+
+    let pickupHtml = '';
+    if (ts) {
+        const d = new Date(ts);
+        const label = orderData.pickupMode === 'date'
+            ? d.toLocaleDateString()
+            : d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+        pickupHtml = `<div class="summary-section"><div class="summary-label">Pick-up</div><div class="summary-pickup">📅 ${label}</div></div>`;
+    }
+
+    let noteHtml = '';
+    if (note) {
+        noteHtml = `<div class="summary-section"><div class="summary-label">Note</div><div class="summary-note">${note.replace(/</g,'&lt;')}</div></div>`;
+    }
+
+    document.getElementById('summaryContent').innerHTML = `
+        ${pickupHtml}
+        <div class="summary-section">
+            <div class="summary-label">Items</div>
+            ${itemsHtml}
+        </div>
+        ${noteHtml}
+        <div class="summary-total-row"><span>Total</span><span>RM${totalCost.toFixed(2)}</span></div>
+        <div style="font-size:12px;color:#888;margin-top:4px;">Cucuk / Senduk: ${skewerQty} / ${scoops}</div>
+    `;
+
+    document.getElementById('summaryModal').classList.add('open');
+}
+
+function closeSummary() {
+    document.getElementById('summaryModal').classList.remove('open');
+}
+
+// ── Confirm + submit order ─────────────────────────────────────────────────────
+async function confirmPlaceOrder() {
+    if (!pendingOrderData) return;
+    const { orderData, qtys } = pendingOrderData;
+
+    const btn = document.getElementById('confirmPlaceBtn');
     btn.disabled = true;
     btn.textContent = 'Placing order...';
 
@@ -632,6 +702,7 @@ async function placeOrder() {
             } else {
                 alert(`❌ Insufficient stock: ${name} — only ${result.available} left`);
             }
+            closeSummary();
             await loadStock();
             renderMenuGrid('menuGrid', qtys);
             return;
@@ -645,6 +716,8 @@ async function placeOrder() {
             myOrderIds.push(newId);
             localStorage.setItem(ORDER_IDS_KEY, JSON.stringify(myOrderIds));
         }
+        pendingOrderData = null;
+        closeSummary();
         resetForm();
         switchTab('my');
         loadMyOrders();
@@ -653,7 +726,7 @@ async function placeOrder() {
         alert('Failed to place order: ' + e.message);
     } finally {
         btn.disabled = false;
-        btn.textContent = 'Place Order';
+        btn.textContent = '✅ Place Order';
     }
 }
 
