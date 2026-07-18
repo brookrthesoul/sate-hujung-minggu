@@ -255,12 +255,26 @@ function getBusinessName() {
     return localStorage.getItem(BIZ_NAME_KEY) || 'Sate Hujung Minggu';
 }
 
+
+
+function initBusinessName() {
+    const name  = getBusinessName();
+    const input = document.getElementById('businessNameInput');
+    if (input) input.value = name;
+    // Update password screen title
+    const pwTitle = document.getElementById('pwScreenTitle');
+    if (pwTitle) pwTitle.textContent = name;
+    // Update page/document title
+    document.title = name;
+}
+
 async function saveBusinessName() {
     const input  = document.getElementById('businessNameInput');
     const status = document.getElementById('businessNameStatus');
-    const name   = input.value.trim();
+    const name   = input ? input.value.trim() : '';
     if (!name) { status.style.color = '#dc3545'; status.textContent = '⚠️ Name cannot be empty.'; return; }
     localStorage.setItem(BIZ_NAME_KEY, name);
+    initBusinessName();
     // Sync to Supabase
     if (typeof window._writeSetting === 'function') {
         await window._writeSetting('businessName', name);
@@ -268,15 +282,6 @@ async function saveBusinessName() {
     status.style.color = '#28a745';
     status.textContent = '✅ Saved!';
     setTimeout(() => { status.textContent = ''; }, 3000);
-}
-
-function initBusinessName() {
-    const name  = getBusinessName();
-    const input = document.getElementById('businessNameInput');
-    if (input) input.value = name;
-    // Update password screen name if visible
-    const pwTitle = document.querySelector('#passwordScreen h2');
-    if (pwTitle) pwTitle.textContent = name;
 }
 
 // ─── Kuah kacang ratio setting ────────────────────────────────────────────────
