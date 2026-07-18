@@ -787,6 +787,32 @@ window._writeShopStatus = async function(isOpen) {
     } catch(e) { console.warn('Shop status sync failed:', e); }
 };
 
+
+// ─── Generic settings sync ──────────────────────────────────────────────────
+
+window._writeSetting = async function(key, value) {
+    try {
+        await _sbFetch('settings', {
+            method: 'POST',
+            headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify({ key, value })
+        });
+        console.log(`[Settings] ${key} = ${value} synced to Supabase`);
+    } catch(e) {
+        console.warn(`[Settings] Failed to write ${key}:`, e);
+    }
+};
+
+window._readSetting = async function(key) {
+    try {
+        const rows = await _sbFetch(`settings?key=eq.${key}&select=value`);
+        if (rows && rows.length) return rows[0].value;
+    } catch(e) {
+        console.warn(`[Settings] Failed to read ${key}:`, e);
+    }
+    return null;
+};
+
 window._readShopStatus = async function() {
     try {
         const rows = await _sbFetch('settings?key=eq.shopOpen&select=value');
