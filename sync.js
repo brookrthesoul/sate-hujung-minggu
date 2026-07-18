@@ -656,123 +656,6 @@ function showSyncToast(msg) {
     _toastTimer = setTimeout(() => { t.className = 'sync-toast'; }, 4000);
 }
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
-
-document.addEventListener('DOMContentLoaded', async () => {
-    updateOnlineBadge(navigator.onLine);
-
-    // Listen for NEW_ORDER messages from the service worker (background detection)
-    if (navigator.serviceWorker) {
-        navigator.serviceWorker.addEventListener('message', event => {
-            console.log('[Page] SW message received:', event.data);
-            if (event.data && event.data.type === 'NEW_ORDER') {
-                playOrderBeep();
-                showOrderBanner('🍢 New Order!', event.data.body);
-            }
-            if (event.data && event.data.type === 'GOTO_ORDERS') {
-                _gotoOrdersTab();
-            }
-        });
-
-    // If opened via notification click (?tab=orders), navigate there
-    if (new URLSearchParams(window.location.search).get('tab') === 'orders') {
-        // Delay to allow all scripts and DOM to fully initialize
-        setTimeout(_gotoOrdersTab, 800);
-    }
-    }
-
-    // Restore toggle states
-    setSyncToastEnabled(isSyncToastEnabled());
-
-    // Restore order noti toggle UI — but only re-subscribe if was enabled
-    const _wasEnabled = isOrderNotiEnabled();
-    const _notiToggle = document.getElementById('orderNotiToggle');
-    const _notiHint   = document.getElementById('orderNotiHint');
-    if (_notiToggle) _notiToggle.checked = _wasEnabled;
-    if (_wasEnabled) {
-        if (_notiHint) _notiHint.textContent = '🔔 Kitchen alerts ON (works when closed)';
-        // Silently ensure subscription is still valid
-        navigator.serviceWorker && navigator.serviceWorker.ready.then(async reg => {
-            const sub = await reg.pushManager.getSubscription();
-            if (!sub) {
-                console.log('[Push] subscription lost, re-subscribing...');
-                setOrderNotiEnabled(true);
-            } else {
-                console.log('[Push] subscription still active');
-            }
-        }).catch(console.warn);
-    } else {
-        if (_notiHint) _notiHint.textContent = '🔕 Kitchen alerts OFF';
-    }
-
-    if (navigator.onLine) {
-        await syncNow();
-        connectRealtime();
-    } else {
-        setSyncStatus('offline');
-        _rerender();
-    }
-
-    // Sync stock from Supabase
-    try {
-        if (typeof window._syncStock === 'function') await window._syncStock();
-    } catch(e) { console.warn('Stock sync error:', e); }
-
-    // Sync shop status from Supabase
-    try {
-        const remote = await window._readShopStatus();
-        if (remote !== null) {
-            localStorage.setItem('shmShopOpen', remote ? '1' : '0');
-            if (typeof initShopToggle === 'function') initShopToggle();
-        }
-    } catch(e) { console.warn('Shop status sync error:', e); }
-
-    // Sync busy threshold from Supabase
-    try {
-        const threshold = await window._readSetting('notBusyMax');
-        if (threshold !== null) {
-            localStorage.setItem('shmNotBusyMax', threshold);
-            if (typeof initBusyThresholds === 'function') initBusyThresholds();
-        }
-    } catch(e) { console.warn('Threshold sync error:', e); }
-
-    // Sync business name from Supabase
-    try {
-        const name = await window._readSetting('businessName');
-        if (name) {
-            localStorage.setItem('shmBusinessName', name);
-            if (typeof initBusinessName === 'function') initBusinessName();
-        }
-    } catch(e) { console.warn('Business name sync error:', e); }
-
-    // Sync kuah ratio from Supabase
-    try {
-        const ratio = await window._readSetting('kuahRatio');
-        if (ratio) {
-            localStorage.setItem('shmKuahRatio', ratio);
-            if (typeof initKuahRatio === 'function') initKuahRatio();
-        }
-    } catch(e) { console.warn('Kuah ratio sync error:', e); }
-
-    // Sync preorder enabled from Supabase
-    try {
-        const pre = await window._readSetting('preorderEnabled');
-        if (pre !== null) {
-            localStorage.setItem('shmPreorderEnabled', pre === 'true' ? '1' : '0');
-            if (typeof initPreorderToggle === 'function') initPreorderToggle();
-        }
-    } catch(e) { console.warn('Preorder toggle sync error:', e); }
-
-    // Run day-close check AFTER sync completes — guaranteed fresh data
-    try {
-        if (typeof autoClosePreviousDay === 'function') {
-            await autoClosePreviousDay();
-            if (typeof loadOrders === 'function') loadOrders();
-        }
-    } catch(e) { console.error('Day-close error:', e); }
-});
-
-
 // ─── Stock sync ───────────────────────────────────────────────────────────────
 // Stock is stored in Supabase `stock` table AND in IndexedDB `stockStore`.
 // Reads: IDB first (instant), then Supabase (fresh). Writes: both.
@@ -891,7 +774,6 @@ window._writeStock = async function(id, qty) {
     }
 };
 
-
 // ─── Shop status sync ─────────────────────────────────────────────────────────
 // Stored as a single row in Supabase 'settings' table: { key: 'shopOpen', value: 'true'/'false' }
 
@@ -911,6 +793,18 @@ window._readShopStatus = async function() {
         if (rows && rows.length) return rows[0].value === 'true';
     } catch(e) { console.warn('Shop status read failed:', e); }
     return null; // null = not set, treat as open
+};
+
+// ─── Generic setting read ─────────────────────────────────────────────────────
+// 🔽 ADD THIS FUNCTION 🔽
+window._readSetting = async function(key) {
+    try {
+        const rows = await _sbFetch(`settings?key=eq.${key}&select=value`);
+        if (rows && rows.length) return rows[0].value;
+    } catch(e) {
+        console.warn(`Setting "${key}" read failed:`, e);
+    }
+    return null;
 };
 
 // ─── Reset all orders ─────────────────────────────────────────────────────────
@@ -949,3 +843,119 @@ window._resetAllOrders = async function() {
     // 4. Re-render
     if (typeof loadOrders === 'function') loadOrders();
 };
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', async () => {
+    updateOnlineBadge(navigator.onLine);
+
+    // Listen for NEW_ORDER messages from the service worker (background detection)
+    if (navigator.serviceWorker) {
+        navigator.serviceWorker.addEventListener('message', event => {
+            console.log('[Page] SW message received:', event.data);
+            if (event.data && event.data.type === 'NEW_ORDER') {
+                playOrderBeep();
+                showOrderBanner('🍢 New Order!', event.data.body);
+            }
+            if (event.data && event.data.type === 'GOTO_ORDERS') {
+                _gotoOrdersTab();
+            }
+        });
+
+    // If opened via notification click (?tab=orders), navigate there
+    if (new URLSearchParams(window.location.search).get('tab') === 'orders') {
+        // Delay to allow all scripts and DOM to fully initialize
+        setTimeout(_gotoOrdersTab, 800);
+    }
+    }
+
+    // Restore toggle states
+    setSyncToastEnabled(isSyncToastEnabled());
+
+    // Restore order noti toggle UI — but only re-subscribe if was enabled
+    const _wasEnabled = isOrderNotiEnabled();
+    const _notiToggle = document.getElementById('orderNotiToggle');
+    const _notiHint   = document.getElementById('orderNotiHint');
+    if (_notiToggle) _notiToggle.checked = _wasEnabled;
+    if (_wasEnabled) {
+        if (_notiHint) _notiHint.textContent = '🔔 Kitchen alerts ON (works when closed)';
+        // Silently ensure subscription is still valid
+        navigator.serviceWorker && navigator.serviceWorker.ready.then(async reg => {
+            const sub = await reg.pushManager.getSubscription();
+            if (!sub) {
+                console.log('[Push] subscription lost, re-subscribing...');
+                setOrderNotiEnabled(true);
+            } else {
+                console.log('[Push] subscription still active');
+            }
+        }).catch(console.warn);
+    } else {
+        if (_notiHint) _notiHint.textContent = '🔕 Kitchen alerts OFF';
+    }
+
+    if (navigator.onLine) {
+        await syncNow();
+        connectRealtime();
+    } else {
+        setSyncStatus('offline');
+        _rerender();
+    }
+
+    // Sync stock from Supabase
+    try {
+        if (typeof window._syncStock === 'function') await window._syncStock();
+    } catch(e) { console.warn('Stock sync error:', e); }
+
+    // Sync shop status from Supabase
+    try {
+        const remote = await window._readShopStatus();
+        if (remote !== null) {
+            localStorage.setItem('shmShopOpen', remote ? '1' : '0');
+            if (typeof initShopToggle === 'function') initShopToggle();
+        }
+    } catch(e) { console.warn('Shop status sync error:', e); }
+
+    // Sync busy threshold from Supabase
+    try {
+        const threshold = await window._readSetting('notBusyMax');
+        if (threshold !== null) {
+            localStorage.setItem('shmNotBusyMax', threshold);
+            if (typeof initBusyThresholds === 'function') initBusyThresholds();
+        }
+    } catch(e) { console.warn('Threshold sync error:', e); }
+
+    // Sync business name from Supabase
+    try {
+        const name = await window._readSetting('businessName');
+        if (name) {
+            localStorage.setItem('shmBusinessName', name);
+            if (typeof initBusinessName === 'function') initBusinessName();
+        }
+    } catch(e) { console.warn('Business name sync error:', e); }
+
+    // Sync kuah ratio from Supabase
+    try {
+        const ratio = await window._readSetting('kuahRatio');
+        if (ratio) {
+            localStorage.setItem('shmKuahRatio', ratio);
+            if (typeof initKuahRatio === 'function') initKuahRatio();
+        }
+    } catch(e) { console.warn('Kuah ratio sync error:', e); }
+
+    // Sync preorder enabled from Supabase
+    try {
+        const pre = await window._readSetting('preorderEnabled');
+        if (pre !== null) {
+            localStorage.setItem('shmPreorderEnabled', pre === 'true' ? '1' : '0');
+            if (typeof initPreorderToggle === 'function') initPreorderToggle();
+        }
+    } catch(e) { console.warn('Preorder toggle sync error:', e); }
+
+    // Run day-close check AFTER sync completes — guaranteed fresh data
+    try {
+        if (typeof autoClosePreviousDay === 'function') {
+            await autoClosePreviousDay();
+            if (typeof loadOrders === 'function') loadOrders();
+        }
+    } catch(e) { console.error('Day-close error:', e); }
+});
