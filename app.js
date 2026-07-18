@@ -139,6 +139,22 @@ function switchSettingsTab(tab) {
         if (typeof renderSettingsMenuList === 'function') renderSettingsMenuList();
         if (typeof renderStockManager    === 'function') renderStockManager();
     }
+    if (tab === 'others') {
+        if (typeof initBusinessName    === 'function') initBusinessName();
+        if (typeof initBusyThresholds  === 'function') initBusyThresholds();
+        if (typeof initPreorderToggle  === 'function') initPreorderToggle();
+        if (typeof initKuahRatio       === 'function') initKuahRatio();
+        // Restore sync bar and paste box toggles
+        const stored = localStorage.getItem(SYNC_BAR_KEY);
+        const toggle = document.getElementById('syncBarToggle');
+        if (toggle) toggle.checked = stored === null ? true : stored === '1';
+        const pStored = localStorage.getItem('shmPasteBoxEnabled');
+        const pToggle = document.getElementById('pasteBoxToggle');
+        if (pToggle) pToggle.checked = pStored === null ? true : pStored === '1';
+        const preStored = localStorage.getItem('shmPreorderEnabled');
+        const preToggle = document.getElementById('preorderEnabledToggle');
+        if (preToggle) preToggle.checked = preStored === null ? true : preStored === '1';
+    }
 }
 
 // ─── Sync bar toggle ──────────────────────────────────────────────────────────
@@ -318,8 +334,10 @@ function setPreorderEnabled(enabled) {
     if (typeof window._writeSetting === 'function') {
         window._writeSetting('preorderEnabled', enabled ? 'true' : 'false');
     }
+    // Update toggle UI
     const toggle = document.getElementById('preorderEnabledToggle');
     if (toggle) toggle.checked = enabled;
+    console.log('Preorder enabled:', enabled, '→ saved to localStorage and Supabase');
 }
 
 function initPreorderToggle() {
