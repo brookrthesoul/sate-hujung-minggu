@@ -392,7 +392,7 @@ function updateShopBanner() {
     } else {
         banner.style.background = '#f8d7da';
         banner.style.color      = '#721c24';
-        banner.textContent      = '🔴 We are Closed today. You can still place a preorder for a future date.';
+        banner.textContent      = '🔴 We are Closed. You can still place a preorder for a future date.';
     }
 }
 
@@ -721,7 +721,7 @@ function showOrderSummary() {
         const isToday = !ts || (mode !== 'datetime' && mode !== 'date') ||
             new Date(ts).toLocaleDateString('en-CA') === today5;
         if (isToday) {
-            alert('🔴 We are closed today. You can still place a preorder by setting a future date.');
+            alert('🔴 We are closed. You can still place a preorder by setting a future date.');
             return;
         }
     }
