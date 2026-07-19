@@ -88,6 +88,7 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 .badge-preparing { background: #e2e3e5; color: #383d41; }
 .badge-ready     { background: #d4edda; color: #155724; }
 .badge-preorder  { background: #e8f4fd; color: #1a6abf; }
+.badge-received  { background: #fff3cd; color: #856404; }
 .pay-badge-cust  { font-size:12px; font-weight:600; padding:4px 10px; border-radius:14px; margin:4px 0; display:inline-block; }
 .pay-cust-online { background:#cce5ff; color:#004085; }
 .pay-cust-cash   { background:#d4edda; color:#155724; }
@@ -771,7 +772,6 @@ function showOrderSummary() {
         </div>
         ${noteHtml}
         <div class="summary-total-row"><span>Total</span><span>RM${totalCost.toFixed(2)}</span></div>
-        <div style="font-size:12px;color:#888;margin-top:4px;">Cucuk / Senduk: ${skewerQty} / ${scoops}</div>
     `;
 
     document.getElementById('summaryModal').classList.add('open');
@@ -922,46 +922,9 @@ function renderMyOrderCard(o) {
         const pickupLabel = new Date(o.pickupTs).toLocaleString([], {weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
         statusBadge = `<span class="badge badge-preorder">📅 Scheduled: ${pickupLabel}</span>`;
     } else {
-        // In prepare tab or within 15min of pickup — show preparing
-        statusBadge = '<span class="badge badge-preparing">⏳ Preparing...</span>';
+        // Order just placed / queued — kitchen hasn't started on it yet
+        statusBadge = '<span class="badge badge-received">📩 Order Received — will start preparing soon</span>';
     }
-
-    const now          = Date.now();
-    const created      = o.createdAt || now;
-    const lockMs       = EDIT_LOCK_MINS * 60 * 1000;
-    const editDeadline = created + lockMs;
-    let canEdit = false, lockNote = '';
-
-    if (o.prepared || o.paid) {
-        lockNote = 'Order is being prepared — editing not available.';
-    } else if (o.pickupTs && o.pickupMode !== 'time') {
-        const cutoff = o.pickupTs - PICKUP_EDIT_MINS * 60 * 1000;
-        if (now >= cutoff) lockNote = `Edit unavailable within ${PICKUP_EDIT_MINS} min of pick-up time.`;
-        else canEdit = true;
-    } else if (o.pickupMode === 'time') {
-        const cutoff = o.pickupTs - PICKUP_EDIT_MINS * 60 * 1000;
-        if (now >= cutoff) lockNote = `Edit unavailable within ${PICKUP_EDIT_MINS} min of pick-up time.`;
-        else if (now >= editDeadline) lockNote = `Edit locked after ${EDIT_LOCK_MINS} min.`;
-        else {
-            canEdit = true;
-            const s = Math.ceil((editDeadline - now) / 1000);
-            lockNote = `Edit available for ${s > 60 ? Math.ceil(s/60) + ' min' : s + ' sec'} more.`;
-        }
-    } else {
-        if (now >= editDeadline) lockNote = `Edit locked after ${EDIT_LOCK_MINS} min.`;
-        else {
-            canEdit = true;
-            const s = Math.ceil((editDeadline - now) / 1000);
-            lockNote = `Edit available for ${s > 60 ? Math.ceil(s/60) + ' min' : s + ' sec'} more.`;
-        }
-    }
-
-    const actionBtns = (canEdit && !o.prepared && !o.paid) ? `
-        <div class="action-row">
-            <button class="btn-edit"   onclick="openEdit('${oid}')">✏️ Edit</button>
-            <button class="btn-cancel" onclick="cancelOrder('${oid}')">🗑️ Cancel</button>
-        </div>` : '';
-    const lockDiv  = lockNote ? `<div class="edit-lock-note">${lockNote}</div>` : '';
 
     // Fix 4: Show note
     const noteDiv  = o.description ? `<div style="font-size:12px;color:#666;margin-top:4px;">📝 ${o.description}</div>` : '';
@@ -992,8 +955,6 @@ function renderMyOrderCard(o) {
         <div class="order-total" style="margin-top:4px;">Total: RM${(o.totalCost||0).toFixed(2)}</div>
         ${o.paymentMethod ? payBadgeHTML(o) : ''}
         <div class="status-row">${statusBadge}</div>
-        ${actionBtns}
-        ${lockDiv}
     </div>`;
 }
 
