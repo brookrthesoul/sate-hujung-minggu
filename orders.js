@@ -173,7 +173,7 @@ async function saveOrder() {
     const totals      = calculateTotals(quantities);
     const description = document.getElementById('orderDescription').value.trim() || '';
     const customerName  = (document.getElementById('customerNameInput')  || {}).value?.trim()  || '';
-    const customerPhone = (document.getElementById('customerPhoneInput') || {}).value?.trim()  || '';
+    const customerPhone = ((document.getElementById('customerPhoneInput') || {}).value || '').replace(/\D/g, '');
 
     // Pick-up date/time (optional)
     const pickupDateEl = document.getElementById('pickupDate');
