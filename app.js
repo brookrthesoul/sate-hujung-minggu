@@ -131,7 +131,7 @@ async function handleResetAllOrders() {
 
 // ─── Settings sub-tabs ────────────────────────────────────────────────────────
 function switchSettingsTab(tab) {
-    ['menu','info','others','danger'].forEach(t => {
+    ['menu','info','others','policies','danger'].forEach(t => {
         document.getElementById(`stab-${t}`).classList.toggle('active', t === tab);
         document.getElementById(`stab-${t}-content`).classList.toggle('active', t === tab);
     });
@@ -141,6 +141,9 @@ function switchSettingsTab(tab) {
     }
     if (tab === 'info') {
         if (typeof loadCustomerInfo === 'function') loadCustomerInfo();
+    }
+    if (tab === 'policies') {
+        if (typeof loadPolicies === 'function') loadPolicies();
     }
     if (tab === 'others') {
         if (typeof initBusinessName    === 'function') initBusinessName();

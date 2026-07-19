@@ -194,8 +194,9 @@
         <div class="sub-tab-bar" style="margin-bottom:0;">
             <div class="sub-tab active" id="stab-menu"   onclick="switchSettingsTab('menu')">Menu</div>
             <div class="sub-tab"        id="stab-info"   onclick="switchSettingsTab('info')">Info</div>
-            <div class="sub-tab"        id="stab-others" onclick="switchSettingsTab('others')">Others</div>
-            <div class="sub-tab"        id="stab-danger" onclick="switchSettingsTab('danger')" style="color:#dc3545;">Danger</div>
+            <div class="sub-tab"        id="stab-others"   onclick="switchSettingsTab('others')">Others</div>
+            <div class="sub-tab"        id="stab-policies" onclick="switchSettingsTab('policies')">Policies</div>
+            <div class="sub-tab"        id="stab-danger"   onclick="switchSettingsTab('danger')" style="color:#dc3545;">Danger</div>
         </div>
 
         <!-- Menu | Prices | Stock -->
@@ -404,6 +405,25 @@
             </div>
         </div>
 
+        <!-- Policies -->
+        <div id="stab-policies-content" class="settings-subtab-content">
+            <h3 style="margin-top:20px;">📄 Privacy Policy &amp; Terms and Conditions</h3>
+            <p style="font-size:13px;color:#666;margin-bottom:12px;">
+                Shown to customers on the order page (near the Name/Phone fields). Edit anytime — changes save here and appear for customers immediately.
+            </p>
+
+            <label style="display:block;font-weight:600;font-size:14px;margin-bottom:6px;">🔒 Privacy Policy</label>
+            <textarea id="privacyPolicyInput" rows="14"
+                style="width:100%;padding:10px;border:1px solid #ddd;border-radius:10px;font-size:13px;resize:vertical;font-family:inherit;line-height:1.5;"></textarea>
+
+            <label style="display:block;font-weight:600;font-size:14px;margin:18px 0 6px;">📋 Terms &amp; Conditions</label>
+            <textarea id="termsInput" rows="14"
+                style="width:100%;padding:10px;border:1px solid #ddd;border-radius:10px;font-size:13px;resize:vertical;font-family:inherit;line-height:1.5;"></textarea>
+
+            <button onclick="savePolicies()" style="margin-top:16px;">💾 Save Policies</button>
+            <p id="policiesSaveStatus" style="font-size:12px;color:#28a745;min-height:16px;margin-top:6px;"></p>
+        </div>
+
         <!-- Danger Zone -->
         <div id="stab-danger-content" class="settings-subtab-content">
             <div style="background:#fff5f5;border:1.5px solid #f5c6cb;border-radius:12px;padding:18px;margin-top:20px;">
@@ -496,6 +516,7 @@
     <script src="./sync.js"></script>
     <script src="./menu.js"></script>
     <script src="./info.js"></script>
+    <script src="./policies.js"></script>
     <script src="./db.js"></script>
     <script src="./orders.js"></script>
     <script src="./ratio.js"></script>

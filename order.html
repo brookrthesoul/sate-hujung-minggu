@@ -168,6 +168,10 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
             <div class="field-error" id="phoneError"></div>
         </div>
     </div>
+    <p style="font-size:12px;color:#888;margin:-4px 0 4px;">
+        By placing an order you agree to our
+        <a href="#" onclick="openPoliciesModal();return false;" style="color:#1a6abf;font-weight:600;text-decoration:none;">Privacy Policy &amp; Terms</a>.
+    </p>
 
     <div class="section-title">📅 Pick-up Time (optional)</div>
     <div class="pickup-row">
@@ -198,6 +202,19 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 <!-- MY ORDER TAB -->
 <div class="tab-content" id="tabContentMy">
     <div id="myOrderContent"><div class="spinner">Loading...</div></div>
+</div>
+
+<!-- PRIVACY POLICY & TERMS MODAL -->
+<div class="modal-overlay" id="policiesModal">
+    <div class="modal-box">
+        <div class="modal-title">📄 Privacy Policy &amp; Terms</div>
+        <div id="policiesModalContent" style="max-height:60vh;overflow-y:auto;font-size:13px;color:#444;line-height:1.6;white-space:pre-wrap;">
+            <div class="spinner">Loading...</div>
+        </div>
+        <div class="modal-actions">
+            <button class="modal-back-btn" style="flex:1;" onclick="closePoliciesModal()">Close</button>
+        </div>
+    </div>
 </div>
 
 <!-- ORDER SUMMARY MODAL -->
@@ -800,6 +817,38 @@ function showOrderSummary() {
 
 function closeSummary() {
     document.getElementById('summaryModal').classList.remove('open');
+}
+
+// ── Privacy Policy & Terms modal ────────────────────────────────────────────
+let _policiesCache = null;
+async function openPoliciesModal() {
+    document.getElementById('policiesModal').classList.add('open');
+    const box = document.getElementById('policiesModalContent');
+    if (_policiesCache) { renderPoliciesModal(_policiesCache); return; }
+    box.innerHTML = '<div class="spinner">Loading...</div>';
+    try {
+        const rows = await sbFetch('settings?key=eq.legalPolicies&select=value');
+        let policies = { privacyPolicy: 'Not set yet.', terms: 'Not set yet.' };
+        if (rows && rows.length) {
+            try { policies = JSON.parse(rows[0].value); } catch(_) {}
+        }
+        _policiesCache = policies;
+        renderPoliciesModal(policies);
+    } catch(e) {
+        box.innerHTML = '<div class="info-empty">Unable to load right now.</div>';
+    }
+}
+function renderPoliciesModal(policies) {
+    const box = document.getElementById('policiesModalContent');
+    box.innerHTML = `
+        <div style="font-weight:700;margin-bottom:6px;">🔒 Privacy Policy</div>
+        <div style="margin-bottom:18px;">${escapeHtmlOrder(policies.privacyPolicy || '')}</div>
+        <div style="font-weight:700;margin-bottom:6px;">📋 Terms &amp; Conditions</div>
+        <div>${escapeHtmlOrder(policies.terms || '')}</div>
+    `;
+}
+function closePoliciesModal() {
+    document.getElementById('policiesModal').classList.remove('open');
 }
 
 // ── Confirm + submit order ─────────────────────────────────────────────────────
