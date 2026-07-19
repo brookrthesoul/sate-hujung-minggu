@@ -913,7 +913,7 @@ function renderMyOrderCard(o) {
         statusBadge = '<span class="badge badge-ready">✅ READY — Please collect</span>';
     } else if (o.prepared && o.isReady) {
         // Prepared + operator tapped Ready — customer needs to come pay & collect
-        statusBadge = '<span class="badge badge-ready">✅ READY — Please pay &amp; collect</span>';
+        statusBadge = '<span class="badge badge-ready">✅ READY — Please collect &amp; pay at the stall</span>';
     } else if (o.prepared && !o.isReady) {
         // Prepared but not yet notified — still preparing from customer's view
         statusBadge = '<span class="badge badge-preparing">⏳ Preparing...</span>';

@@ -14,6 +14,17 @@ function formatDay(ts) {
     return d.toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 }
 
+// Turn a locally-typed phone number (e.g. "0123456789") into a WhatsApp-ready
+// international number (e.g. "60123456789") for wa.me links. Defaults to
+// Malaysia (60) since numbers are entered without a country code.
+function toWhatsAppNumber(phone) {
+    let digits = String(phone || '').replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.startsWith('60')) return digits;      // already has country code
+    if (digits.startsWith('0'))  return '60' + digits.slice(1);
+    return '60' + digits;
+}
+
 function normalizeOrder(order) {
     // Backfill legacy flat-field orders into items shape
     if (!order.items) {
@@ -716,9 +727,15 @@ function renderOrderCard(card, rawOrder, stage) {
         <div class="detail-badge">${o.scoops} Senduk</div>
         <div class="detail-badge ice-cream" style="grid-column:span 2;">RM ${o.totalCost.toFixed(2)}</div>`;
 
+    const phoneLinkHtml = o.customerPhone
+        ? `<a href="https://wa.me/${toWhatsAppNumber(o.customerPhone)}" target="_blank" rel="noopener"
+             onclick="event.stopPropagation();" style="color:#155724;text-decoration:none;font-weight:700;">
+             📞 ${escapeHtml(o.customerPhone)} 💬</a>`
+        : '';
+
     const contactBadge = (o.customerName || o.customerPhone)
         ? `<div class="detail-badge" style="grid-column:span 2;">
-             ${o.customerName ? `👤 ${escapeHtml(o.customerName)}` : ''}${o.customerName && o.customerPhone ? ' · ' : ''}${o.customerPhone ? `📞 ${escapeHtml(o.customerPhone)}` : ''}
+             ${o.customerName ? `👤 ${escapeHtml(o.customerName)}` : ''}${o.customerName && o.customerPhone ? ' · ' : ''}${phoneLinkHtml}
            </div>` : '';
 
     const editableDesc = `<div class="order-description" id="desc-${o.id}" contenteditable="true"
