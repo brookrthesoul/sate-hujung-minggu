@@ -130,10 +130,12 @@ function calculateTotals(quantities) {
         const cost = qty * item.price;
         items[item.id] = { name:item.name, category:item.category, price:item.price, qty, cost };
         totalCost += cost;
-        if      (item.category === 'skewer')    { skewerQty += qty; skewerWithKuah += qty; }
-        else if (item.category === 'no-kuah')   { skewerQty += qty; }
-        else if (item.category === 'side')      { scoops += qty * 2; }
-        else if (item.category === 'kuah-only') { scoops += qty * 1; }
+        if      (item.category === 'skewer')     { skewerQty += qty; skewerWithKuah += qty; }
+        else if (item.category === 'no-kuah')    { skewerQty += qty; }
+        else if (item.category === 'side')       { scoops += qty * 2; }
+        else if (item.category === 'side-1kuah') { scoops += qty * 1; }
+        else if (item.category === 'side-none')  { /* no kuah kacang needed */ }
+        else if (item.category === 'kuah-only')  { scoops += qty * 1; }
     });
     const _kuahRatio = parseInt(localStorage.getItem('shmKuahRatio')) || 10;
     if (skewerWithKuah > 0) scoops += Math.ceil(skewerWithKuah / _kuahRatio);
@@ -285,6 +287,7 @@ async function loadPreorders() {
 
         if (preorders.length === 0) {
             container.innerHTML = '<p style="text-align:center;color:#999;">No preorders yet.</p>';
+            _syncExpandAllBtn(container, 'togglePreorderExpandBtn');
             return;
         }
 
@@ -296,6 +299,7 @@ async function loadPreorders() {
             renderOrderCard(card, normalizeOrder(order), 'preorder');
             container.appendChild(card);
         });
+        _syncExpandAllBtn(container, 'togglePreorderExpandBtn');
     } catch(e) {
         console.error('loadPreorders error:', e);
     }
@@ -465,6 +469,40 @@ function toggleCardExpand(id) {
     });
 }
 
+// Maximize All / Minimize All — toggles every card currently visible in a list
+function _cardIdsIn(listEl) {
+    if (!listEl) return [];
+    return Array.from(listEl.querySelectorAll('.order-card'))
+        .map(c => parseInt(c.id.replace('order-', '')))
+        .filter(id => !isNaN(id));
+}
+
+function _syncExpandAllBtn(listEl, btnId) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    const ids = _cardIdsIn(listEl);
+    const allExpanded = ids.length > 0 && ids.every(id => _expandedCards.has(id));
+    btn.textContent = allExpanded ? '🔼 Minimize All' : '🔽 Maximize All';
+}
+
+function toggleAllOrderCards() {
+    const listEl = document.querySelector('#ordersPanel .order-sublist.active');
+    const ids = _cardIdsIn(listEl);
+    if (ids.length === 0) return;
+    const allExpanded = ids.every(id => _expandedCards.has(id));
+    ids.forEach(id => allExpanded ? _expandedCards.delete(id) : _expandedCards.add(id));
+    loadOrders();
+}
+
+function toggleAllPreorderCards() {
+    const listEl = document.getElementById('preorderList');
+    const ids = _cardIdsIn(listEl);
+    if (ids.length === 0) return;
+    const allExpanded = ids.every(id => _expandedCards.has(id));
+    ids.forEach(id => allExpanded ? _expandedCards.delete(id) : _expandedCards.add(id));
+    loadPreorders();
+}
+
 // ---------- Edit state tracking ----------
 // Tracks which order IDs are currently in edit mode so _rerender doesn't wipe them
 const _editingIds = new Set();
@@ -567,6 +605,7 @@ async function loadOrders() {
         renderOrderList('preparedList', prepared, 'prepared');
         renderOrderList('paidList',     paid,     'paid');
         renderOrderList('doneList',     done,     'done');
+        _syncExpandAllBtn(document.querySelector('#ordersPanel .order-sublist.active'), 'toggleOrdersExpandBtn');
     } catch (e) {
         alert('❌ Failed to load orders: ' + e.message);
     }

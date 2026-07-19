@@ -100,10 +100,14 @@
             <div class="sub-tab" id="subTab-paid" onclick="switchOrderSubTab('paid')">Paid</div>
             <div class="sub-tab" id="subTab-done" onclick="switchOrderSubTab('done')">Done</div>
         </div>
-        <select id="sortOrders" class="sort-dropdown" onchange="loadOrders()">
-            <option value="desc">Newest first</option>
-            <option value="asc">Oldest first</option>
-        </select>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:20px;">
+            <select id="sortOrders" class="sort-dropdown" onchange="loadOrders()" style="flex:1;margin-bottom:0;">
+                <option value="asc" selected>Oldest first</option>
+                <option value="desc">Newest first</option>
+            </select>
+            <button id="toggleOrdersExpandBtn" class="secondary" onclick="toggleAllOrderCards()"
+                style="white-space:nowrap;padding:10px 14px;font-size:13px;margin:0;flex-shrink:0;">🔽 Maximize All</button>
+        </div>
 
         <!-- Done tab date filter (only visible on Done tab) -->
         <div id="doneFilterBar" style="display:none; margin: 8px 0; display:none; gap:8px; align-items:center; flex-wrap:wrap;">
@@ -128,10 +132,14 @@
         <p style="font-size:13px;color:#666;margin-bottom:12px;">
             Orders with a future pick-up date. They move to Prepare automatically on the day.
         </p>
-        <select id="sortPreorders" class="sort-dropdown" onchange="loadPreorders()" style="margin-bottom:12px;width:100%;">
-            <option value="asc">Earliest pick-up first</option>
-            <option value="desc">Latest pick-up first</option>
-        </select>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+            <select id="sortPreorders" class="sort-dropdown" onchange="loadPreorders()" style="flex:1;margin-bottom:0;">
+                <option value="asc" selected>Earliest pick-up first</option>
+                <option value="desc">Latest pick-up first</option>
+            </select>
+            <button id="togglePreorderExpandBtn" class="secondary" onclick="toggleAllPreorderCards()"
+                style="white-space:nowrap;padding:10px 14px;font-size:13px;margin:0;flex-shrink:0;">🔽 Maximize All</button>
+        </div>
         <div id="preorderList"></div>
     </div>
 
@@ -210,6 +218,8 @@
                     <option value="skewer">🍢 Sate (+ kuah kacang)</option>
                     <option value="no-kuah">🍖 Sate (tiada kuah kacang)</option>
                     <option value="side">🍽️ Side dish (+ 2 kuah)</option>
+                    <option value="side-1kuah">🍽️ Side dish (+ 1 kuah)</option>
+                    <option value="side-none">🍽️ Side dish (no kuah)</option>
                     <option value="kuah-only">🥜 Kuah kacang sahaja</option>
                 </select>
             </div>

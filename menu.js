@@ -109,7 +109,7 @@ function addMenuItem() {
 
     const name     = nameInput.value.trim();
     const price    = parseFloat(priceInput.value);
-    const category = ['skewer','no-kuah','side','kuah-only'].includes(typeInput.value) ? typeInput.value : 'skewer';
+    const category = ['skewer','no-kuah','side','side-1kuah','side-none','kuah-only'].includes(typeInput.value) ? typeInput.value : 'skewer';
 
     if (!name)                    { alert('Please enter a menu item name.'); return; }
     if (isNaN(price) || price < 0){ alert('Please enter a valid price.'); return; }
@@ -167,10 +167,12 @@ function resetToDefaultMenu() {
 
 function _categoryLabel(cat) {
     return {
-        'skewer':    '🍢 Sate (+ kuah kacang)',
-        'side':      '🍽️ Side dish (+ 2 kuah)',
-        'no-kuah':   '🍖 Sate (tiada kuah kacang)',
-        'kuah-only': '🥜 Kuah kacang sahaja',
+        'skewer':      '🍢 Sate (+ kuah kacang)',
+        'side':        '🍽️ Side dish (+ 2 kuah)',
+        'side-1kuah':  '🍽️ Side dish (+ 1 kuah)',
+        'side-none':   '🍽️ Side dish (no kuah)',
+        'no-kuah':     '🍖 Sate (tiada kuah kacang)',
+        'kuah-only':   '🥜 Kuah kacang sahaja',
     }[cat] || cat;
 }
 

@@ -35,6 +35,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .menu-cell input:focus { outline: none; border-color: #007bff; }
 .stock-hint { font-size: 11px; font-weight: 600; min-height: 14px; }
 .stock-out { color: #dc3545; }
+.stock-low { color: #d68910; }
 .stock-warn { color: #fd7e14; }
 
 /* ── Pickup time ── */
@@ -230,6 +231,7 @@ const SUPABASE_KEY = 'sb_publishable_SOoDs65SPw_G_m-lZ6NP-w_MbbqxOUw';
 const ORDER_ID_KEY  = 'shmCustomerOrderId';
 const ORDER_IDS_KEY = 'shmCustomerOrderIds';
 const SKEWER_CATS  = ['skewer', 'no-kuah'];
+const SIDE_CATS    = ['side', 'side-1kuah', 'side-none'];
 const EDIT_LOCK_MINS   = 5;
 const PICKUP_EDIT_MINS = 20;
 const PICKUP_MIN_HOURS = 1;
@@ -500,6 +502,10 @@ function renderMenuGrid(containerId = 'menuGrid', existingItems = {}) {
             </div>`;
         }
     }).join('');
+
+    // Populate stock hints right away so "Out of stock" / low-stock shows immediately,
+    // instead of only appearing after the customer types or taps +/-.
+    menuItems.forEach(item => onQtyInput(containerId, item.id, existingItems[item.id] || 0));
 }
 
 function adjQty(gridId, itemId, delta) {
@@ -514,11 +520,24 @@ function onQtyInput(gridId, itemId, value) {
     const qty   = parseInt(value) || 0;
     const hint  = document.getElementById(`hint_${gridId}_${itemId}`);
     const avail = stockData[itemId];
+    const item  = menuItems.find(m => m.id === itemId);
+    const cat   = item ? item.category : '';
     if (hint) {
         if (avail === -1 || avail === undefined || avail === null) { hint.textContent = ''; hint.className = 'stock-hint'; }
         else if (avail === 0) { hint.textContent = 'Out of stock'; hint.className = 'stock-hint stock-out'; }
         else if (qty > avail) { hint.textContent = `Insufficient — only ${avail} left`; hint.className = 'stock-hint stock-out'; }
-        else { hint.textContent = ''; hint.className = 'stock-hint'; }
+        else {
+            // Only reveal the remaining count when it's getting low, per category —
+            // otherwise it stays quiet so healthy stock doesn't clutter the menu.
+            let threshold = 0;
+            if (SKEWER_CATS.includes(cat)) threshold = 50;
+            else if (SIDE_CATS.includes(cat)) threshold = 10;
+            if (threshold > 0 && avail <= threshold) {
+                hint.textContent = `${avail} left`; hint.className = 'stock-hint stock-low';
+            } else {
+                hint.textContent = ''; hint.className = 'stock-hint';
+            }
+        }
     }
     if (gridId === 'menuGrid') updateSummary();
 }
@@ -549,6 +568,7 @@ function updateSummary() {
         if (item.category === 'skewer' || item.category === 'no-kuah') skewers += qty;
         if (item.category === 'skewer') scoops += Math.ceil(qty / kuahRatio);
         if (item.category === 'side') scoops += qty * 2;
+        if (item.category === 'side-1kuah') scoops += qty;
         if (item.category === 'kuah-only') scoops += qty;
         html += `<div class="result-item"><div class="result-label">${item.name} ×${qty}</div><div class="result-value">RM${cost.toFixed(2)}</div></div>`;
     });
@@ -717,6 +737,7 @@ function showOrderSummary() {
         if (item.category === 'skewer' || item.category === 'no-kuah') skewerQty += qty;
         if (item.category === 'skewer') scoops += Math.ceil(qty / kuahRatio);
         if (item.category === 'side') scoops += qty * 2;
+        if (item.category === 'side-1kuah') scoops += qty;
         if (item.category === 'kuah-only') scoops += qty;
     });
 
@@ -1019,6 +1040,7 @@ async function saveEdit() {
         if (item.category === 'skewer' || item.category === 'no-kuah') skewerQty += qty;
         if (item.category === 'skewer') scoops += Math.ceil(qty / kuahRatio);
         if (item.category === 'side') scoops += qty * 2;
+        if (item.category === 'side-1kuah') scoops += qty;
         if (item.category === 'kuah-only') scoops += qty;
     });
 
