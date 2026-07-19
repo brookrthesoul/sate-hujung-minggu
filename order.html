@@ -206,6 +206,13 @@ const SKEWER_CATS  = ['skewer', 'no-kuah'];
 const EDIT_LOCK_MINS   = 5;
 const PICKUP_EDIT_MINS = 20;
 const PICKUP_MIN_HOURS = 1;
+// Grace period so customers aren't forced to nudge the time forward just because
+// a few seconds/minutes passed between the field being pre-filled and them tapping Next.
+const PICKUP_GRACE_MS = 2 * 60 * 1000;
+
+function getPickupMinTs() {
+    return Date.now() + PICKUP_MIN_HOURS * 60 * 60 * 1000 - PICKUP_GRACE_MS;
+}
 
 let menuItems  = [];
 let stockData  = {};
@@ -345,8 +352,8 @@ function updateShopBanner() {
 
 function setPickupDateMin() {
     const today = new Date().toLocaleDateString('en-CA');
-    document.getElementById('pickupDate').min   = today;
-    document.getElementById('pickupDate').value = today;
+    document.getElementById('pickupDate').min = today;
+    // Leave date blank — customer picks it themselves. Native input shows the empty placeholder.
     updateTimeMin();
 }
 
@@ -358,23 +365,16 @@ function updateTimeMin() {
     const isToday = !selDate || selDate === today;
 
     if (isToday) {
-        // Today (or no date) — min time = now + 1 hour, default value = now + 1 hour
+        // Today (or no date) — min time = now + 1 hour. Field itself stays blank until the customer sets it.
         const minTime = new Date(Date.now() + 60 * 60 * 1000);
         const hh = String(minTime.getHours()).padStart(2,'0');
         const mm = String(minTime.getMinutes()).padStart(2,'0');
         const minStr = `${hh}:${mm}`;
         timeEl.min = minStr;
-        // Only auto-set if time field is empty or behind the new min
-        if (!timeEl.value || timeEl.value < minStr) {
-            timeEl.value = minStr;
-        }
         document.getElementById('timeHint').textContent = '';
     } else {
-        // Future date — no restriction on time, clear any auto-set value
-        timeEl.min   = '';
-        if (timeEl.value) {
-            // Keep whatever time was set — just remove the min restriction
-        }
+        // Future date — no restriction on time
+        timeEl.min = '';
         document.getElementById('timeHint').textContent = '';
     }
 }
@@ -561,7 +561,7 @@ function validatePickupTime() {
     const { ts } = getPickupTs();
     const hint   = document.getElementById('timeHint');
     if (!ts) { hint.textContent = ''; return true; }
-    const minTs  = Date.now() + PICKUP_MIN_HOURS * 60 * 60 * 1000;
+    const minTs  = getPickupMinTs();
     if (ts < minTs) {
         hint.textContent = `⚠️ Pick-up time must be at least ${PICKUP_MIN_HOURS} hour from now.`;
         hint.style.color = '#dc3545';
@@ -614,7 +614,7 @@ function showOrderSummary() {
         }
     }
     if (ts) {
-        const minTs = Date.now() + PICKUP_MIN_HOURS * 60 * 60 * 1000;
+        const minTs = getPickupMinTs();
         if (ts < minTs) {
             hint.textContent = `⚠️ Pick-up time must be at least ${PICKUP_MIN_HOURS} hour from now.`;
             hint.style.color = '#dc3545';
@@ -754,6 +754,7 @@ function resetForm() {
     document.getElementById('orderNote').value = '';
     document.getElementById('resultsBox').style.display = 'none';
     document.getElementById('pickupTime').value = '';
+    if (preorderEnabled) document.getElementById('pickupDate').value = '';
     document.getElementById('timeHint').textContent = '';
 }
 
