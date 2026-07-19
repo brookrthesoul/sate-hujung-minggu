@@ -101,12 +101,12 @@
             <div class="sub-tab" id="subTab-done" onclick="switchOrderSubTab('done')">Done</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:20px;">
-            <select id="sortOrders" class="sort-dropdown" onchange="loadOrders()" style="flex:1;margin-bottom:0;">
+            <select id="sortOrders" class="sort-dropdown" onchange="loadOrders()" style="flex:1;min-width:0;margin-bottom:0;width:auto;">
                 <option value="asc" selected>Oldest first</option>
                 <option value="desc">Newest first</option>
             </select>
             <button id="toggleOrdersExpandBtn" class="secondary" onclick="toggleAllOrderCards()"
-                style="white-space:nowrap;padding:10px 14px;font-size:13px;margin:0;flex-shrink:0;">🔽 Maximize All</button>
+                style="flex:0 0 25%;width:auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:10px 6px;font-size:12px;margin:0;">🔽 Maximize All</button>
         </div>
 
         <!-- Done tab date filter (only visible on Done tab) -->
@@ -133,12 +133,12 @@
             Orders with a future pick-up date. They move to Prepare automatically on the day.
         </p>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-            <select id="sortPreorders" class="sort-dropdown" onchange="loadPreorders()" style="flex:1;margin-bottom:0;">
+            <select id="sortPreorders" class="sort-dropdown" onchange="loadPreorders()" style="flex:1;min-width:0;margin-bottom:0;width:auto;">
                 <option value="asc" selected>Earliest pick-up first</option>
                 <option value="desc">Latest pick-up first</option>
             </select>
             <button id="togglePreorderExpandBtn" class="secondary" onclick="toggleAllPreorderCards()"
-                style="white-space:nowrap;padding:10px 14px;font-size:13px;margin:0;flex-shrink:0;">🔽 Maximize All</button>
+                style="flex:0 0 25%;width:auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:10px 6px;font-size:12px;margin:0;">🔽 Maximize All</button>
         </div>
         <div id="preorderList"></div>
     </div>
@@ -276,9 +276,9 @@
             </p>
             <div style="display:flex;gap:8px;align-items:center;">
                 <input type="text" id="businessNameInput" value="Sate Hujung Minggu"
-                    style="flex:1;padding:9px;border-radius:10px;border:1px solid #ddd;font-size:14px;">
+                    style="flex:1;min-width:0;padding:9px;border-radius:10px;border:1px solid #ddd;font-size:14px;">
                 <button onclick="saveBusinessName()"
-                    style="padding:9px 16px;background:#28a745;color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">
+                    style="width:auto;flex:0 0 auto;margin:0;padding:9px 16px;background:#28a745;color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">
                     Save
                 </button>
             </div>
