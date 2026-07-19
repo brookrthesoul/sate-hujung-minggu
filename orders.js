@@ -74,25 +74,25 @@ function renderHomeMenuInputs() {
     container.innerHTML = getMenuItems().map(item => {
         const isSate = item.category === 'skewer' || item.category === 'no-kuah';
         if (isSate) {
-            return `<div style="display:flex;flex-direction:column;gap:4px;">
-                <label id="label-${item.id}" style="font-size:13px;font-weight:600;line-height:1.3;">
+            return `<div style="display:flex;flex-direction:column;gap:4px;align-items:center;">
+                <label id="label-${item.id}" style="font-size:13px;font-weight:600;line-height:1.3;text-align:center;">
                     ${escapeHtml(item.name)}<br><span style="font-weight:400;color:#666;">RM${item.price.toFixed(2)}</span>
                 </label>
                 <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0"
-                    style="width:100%;box-sizing:border-box;"
+                    style="width:6ch;max-width:100%;box-sizing:border-box;text-align:center;padding:8px 4px;"
                     oninput="checkStockInput('${item.id}', this.value)">
                 <span id="stock-indicator-${item.id}" class="stock-indicator"></span>
             </div>`;
         } else {
-            return `<div style="display:flex;flex-direction:column;gap:4px;">
-                <label id="label-${item.id}" style="font-size:13px;font-weight:600;line-height:1.3;">
+            return `<div style="display:flex;flex-direction:column;gap:4px;align-items:center;">
+                <label id="label-${item.id}" style="font-size:13px;font-weight:600;line-height:1.3;text-align:center;">
                     ${escapeHtml(item.name)}<br><span style="font-weight:400;color:#666;">RM${item.price.toFixed(2)}</span>
                 </label>
-                <div style="display:flex;align-items:center;gap:4px;">
+                <div style="display:flex;align-items:center;justify-content:center;gap:4px;">
                     <button type="button" onclick="adjustQty('${item.id}',-1)"
                         style="width:30px;height:30px;border-radius:7px;border:2px solid #6c757d;background:#e9ecef;font-size:16px;font-weight:900;cursor:pointer;flex-shrink:0;color:#343a40;line-height:1;padding:0;">−</button>
                     <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0"
-                        style="flex:1;min-width:0;width:100%;box-sizing:border-box;text-align:center;font-size:15px;font-weight:700;padding:8px 4px;"
+                        style="width:3ch;flex:0 0 auto;box-sizing:border-box;text-align:center;font-size:15px;font-weight:700;padding:8px 2px;"
                         oninput="checkStockInput('${item.id}', this.value)">
                     <button type="button" onclick="adjustQty('${item.id}',+1)"
                         style="width:30px;height:30px;border-radius:7px;border:2px solid #6c757d;background:#e9ecef;font-size:16px;font-weight:900;cursor:pointer;flex-shrink:0;color:#343a40;line-height:1;padding:0;">+</button>
