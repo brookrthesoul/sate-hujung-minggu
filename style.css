@@ -28,7 +28,7 @@
         }
         .panel.active {}
         label { display: block; margin: 15px 0 5px; font-weight: 500; }
-        input[type=number], textarea, input[type=range] { width: 100%; padding: 12px; border: 1px solid #ced4da; border-radius: 12px; font-size: 16px; }
+        input[type=number], input[type=text], input[type=tel], textarea, input[type=range] { width: 100%; padding: 12px; border: 1px solid #ced4da; border-radius: 12px; font-size: 16px; box-sizing: border-box; }
         input[type=range] { padding: 0; }
         textarea { min-height: 80px; resize: vertical; }
         button { background: #007bff; color: white; border: none; padding: 14px 20px; border-radius: 30px; font-size: 16px; font-weight: bold; width: 100%; margin-top: 15px; cursor: pointer; }

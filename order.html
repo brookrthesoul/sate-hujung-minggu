@@ -41,6 +41,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .pickup-row { display: flex; gap: 8px; margin-bottom: 10px; }
 .pickup-row input { flex: 1; padding: 9px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
 .time-hint { font-size: 12px; color: #888; margin-top: -6px; margin-bottom: 8px; }
+.field-group { margin-bottom: 12px; }
+.field-group label { display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 5px; }
+.field-group label .req { color: #dc3545; }
+.field-group input[type=text], .field-group input[type=tel] {
+    width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;
+}
+.field-group input.field-invalid { border-color: #dc3545; background: #fff5f5; }
+.field-error { font-size: 12px; color: #dc3545; margin-top: 4px; min-height: 0; }
 
 /* ── Description ── */
 textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10px; font-size: 14px; resize: none; }
@@ -141,6 +149,18 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 
 <!-- NEW ORDER TAB -->
 <div class="tab-content" id="tabContentNew">
+    <div class="section-title">👤 Your Details</div>
+    <div class="field-group">
+        <label>Name <span class="req">*</span></label>
+        <input type="text" id="customerName" placeholder="Your name" autocomplete="name">
+        <div class="field-error" id="nameError"></div>
+    </div>
+    <div class="field-group">
+        <label>Phone Number <span class="req">*</span></label>
+        <input type="tel" id="customerPhone" placeholder="e.g. 012-3456789" autocomplete="tel">
+        <div class="field-error" id="phoneError"></div>
+    </div>
+
     <div class="section-title">📅 Pick-up Time (optional)</div>
     <div class="pickup-row">
         <input type="date" id="pickupDate" min="">
@@ -586,10 +606,57 @@ document.addEventListener('DOMContentLoaded', () => {
         updateTimeMin();
         validatePickupTime();
     });
+
+    // Clear the "must not be empty" error as soon as the customer starts typing
+    const nameEl  = document.getElementById('customerName');
+    const phoneEl = document.getElementById('customerPhone');
+    nameEl.addEventListener('input', () => {
+        if (nameEl.value.trim()) {
+            nameEl.classList.remove('field-invalid');
+            document.getElementById('nameError').textContent = '';
+        }
+    });
+    phoneEl.addEventListener('input', () => {
+        if (phoneEl.value.trim()) {
+            phoneEl.classList.remove('field-invalid');
+            document.getElementById('phoneError').textContent = '';
+        }
+    });
 });
 
 // ── Show order summary (validation + preview, no submission yet) ──────────────
 function showOrderSummary() {
+    // Validate mandatory customer details first
+    const nameEl  = document.getElementById('customerName');
+    const phoneEl = document.getElementById('customerPhone');
+    const nameErr = document.getElementById('nameError');
+    const phoneErr = document.getElementById('phoneError');
+
+    const nameVal  = nameEl.value.trim();
+    const phoneVal = phoneEl.value.trim();
+
+    let hasFieldError = false;
+    if (!nameVal) {
+        nameEl.classList.add('field-invalid');
+        nameErr.textContent = '* must not be empty';
+        hasFieldError = true;
+    } else {
+        nameEl.classList.remove('field-invalid');
+        nameErr.textContent = '';
+    }
+    if (!phoneVal) {
+        phoneEl.classList.add('field-invalid');
+        phoneErr.textContent = '* must not be empty';
+        hasFieldError = true;
+    } else {
+        phoneEl.classList.remove('field-invalid');
+        phoneErr.textContent = '';
+    }
+    if (hasFieldError) {
+        (nameVal ? phoneEl : nameEl).scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+    }
+
     // Get pickup time once and reuse throughout
     const { ts, mode } = getPickupTs();
     const hint = document.getElementById('timeHint');
@@ -651,6 +718,8 @@ function showOrderSummary() {
         items, totalCost, skewerQty, scoops,
         prepared: false, paid: false, pickedUp: false,
         description: note,
+        customerName: nameVal,
+        customerPhone: phoneVal,
         paymentMethod: null, paymentOnline: 0, paymentCash: 0,
         pickupTs: ts || null,
         pickupMode: mode === 'date-today' ? 'date' : (mode || null),
@@ -667,6 +736,11 @@ function showOrderSummary() {
         itemsHtml += `<div class="summary-row"><span><span class="qty">×${it.qty}</span>${it.name}</span><span>RM${it.cost.toFixed(2)}</span></div>`;
     });
 
+    const contactHtml = `<div class="summary-section"><div class="summary-label">Contact</div>
+        <div class="summary-row"><span>👤 ${nameVal.replace(/</g,'&lt;')}</span></div>
+        <div class="summary-row"><span>📞 ${phoneVal.replace(/</g,'&lt;')}</span></div>
+    </div>`;
+
     let pickupHtml = '';
     if (ts) {
         const d = new Date(ts);
@@ -682,6 +756,7 @@ function showOrderSummary() {
     }
 
     document.getElementById('summaryContent').innerHTML = `
+        ${contactHtml}
         ${pickupHtml}
         <div class="summary-section">
             <div class="summary-label">Items</div>
@@ -756,6 +831,12 @@ function resetForm() {
     document.getElementById('pickupTime').value = '';
     if (preorderEnabled) document.getElementById('pickupDate').value = '';
     document.getElementById('timeHint').textContent = '';
+    document.getElementById('customerName').value = '';
+    document.getElementById('customerPhone').value = '';
+    document.getElementById('customerName').classList.remove('field-invalid');
+    document.getElementById('customerPhone').classList.remove('field-invalid');
+    document.getElementById('nameError').textContent = '';
+    document.getElementById('phoneError').textContent = '';
 }
 
 // ── My Orders (multiple) ─────────────────────────────────────────────────────
@@ -878,6 +959,11 @@ function renderMyOrderCard(o) {
     // Fix 4: Show note
     const noteDiv  = o.description ? `<div style="font-size:12px;color:#666;margin-top:4px;">📝 ${o.description}</div>` : '';
 
+    const contactDiv = (o.customerName || o.customerPhone)
+        ? `<div style="font-size:12px;color:#555;margin-top:4px;">
+             ${o.customerName ? `👤 ${escapeHtmlOrder(o.customerName)}` : ''}${o.customerName && o.customerPhone ? ' · ' : ''}${o.customerPhone ? `📞 ${escapeHtmlOrder(o.customerPhone)}` : ''}
+           </div>` : '';
+
     let pickupStr = '';
     if (o.pickupTs) {
         const dt = new Date(o.pickupTs);
@@ -894,6 +980,7 @@ function renderMyOrderCard(o) {
         </div>
         ${pickupStr}
         <div class="order-items" style="margin-top:8px;">${items}</div>
+        ${contactDiv}
         ${noteDiv}
         <div class="order-total" style="margin-top:4px;">Total: RM${(o.totalCost||0).toFixed(2)}</div>
         ${o.paymentMethod ? payBadgeHTML(o) : ''}

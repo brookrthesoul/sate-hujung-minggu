@@ -43,6 +43,9 @@ function normalizeOrder(order) {
     if (order.pickupMode === undefined) order.pickupMode = null;
     // Backfill isReady
     if (order.isReady === undefined) order.isReady = false;
+    // Backfill customer contact fields (added later)
+    if (order.customerName  === undefined) order.customerName  = '';
+    if (order.customerPhone === undefined) order.customerPhone = '';
     // For time-only orders, recalculate pickupTs using TODAY's date
     // This ensures the pin logic works correctly each day
     if (order.pickupMode === 'time' && order.pickupTs) {
@@ -145,6 +148,10 @@ function clearForm() {
         if (el) el.value = 0;
     });
     document.getElementById('orderDescription').value = '';
+    const custName  = document.getElementById('customerNameInput');
+    const custPhone = document.getElementById('customerPhoneInput');
+    if (custName)  custName.value  = '';
+    if (custPhone) custPhone.value = '';
     const pDate = document.getElementById('pickupDate');
     const pTime = document.getElementById('pickupTime');
     if (pDate) pDate.value = '';
@@ -165,6 +172,8 @@ async function saveOrder() {
 
     const totals      = calculateTotals(quantities);
     const description = document.getElementById('orderDescription').value.trim() || '';
+    const customerName  = (document.getElementById('customerNameInput')  || {}).value?.trim()  || '';
+    const customerPhone = (document.getElementById('customerPhoneInput') || {}).value?.trim()  || '';
 
     // Pick-up date/time (optional)
     const pickupDateEl = document.getElementById('pickupDate');
@@ -195,6 +204,8 @@ async function saveOrder() {
         paid: false,
         pickedUp: false,
         description,
+        customerName,
+        customerPhone,
         pickupTs:   pickupTs   || null,
         pickupMode: pickupMode || null,
         paymentMethod: null,
@@ -705,6 +716,11 @@ function renderOrderCard(card, rawOrder, stage) {
         <div class="detail-badge">${o.scoops} Senduk</div>
         <div class="detail-badge ice-cream" style="grid-column:span 2;">RM ${o.totalCost.toFixed(2)}</div>`;
 
+    const contactBadge = (o.customerName || o.customerPhone)
+        ? `<div class="detail-badge" style="grid-column:span 2;">
+             ${o.customerName ? `👤 ${escapeHtml(o.customerName)}` : ''}${o.customerName && o.customerPhone ? ' · ' : ''}${o.customerPhone ? `📞 ${escapeHtml(o.customerPhone)}` : ''}
+           </div>` : '';
+
     const editableDesc = `<div class="order-description" id="desc-${o.id}" contenteditable="true"
         onblur="updateDescription(${o.id}, this.innerText)">${escapeHtml(o.description)}</div>`;
 
@@ -743,7 +759,7 @@ function renderOrderCard(card, rawOrder, stage) {
         card.dataset.stage   = 'preorder';
         card.innerHTML = isExpanded ? `
             ${header}
-            <div class="order-details">${itemBadges}${statsBadges}</div>
+            <div class="order-details">${itemBadges}${statsBadges}${contactBadge}</div>
             ${editableDesc}
             ${payBadgePre}
             <div class="action-buttons">
@@ -767,7 +783,7 @@ function renderOrderCard(card, rawOrder, stage) {
 
         card.innerHTML = isExpanded ? `
             ${header}
-            <div class="order-details">${itemBadges}${statsBadges}</div>
+            <div class="order-details">${itemBadges}${statsBadges}${contactBadge}</div>
             ${editableDesc}
             ${payBadge}
             <div class="action-buttons">
@@ -800,7 +816,7 @@ function renderOrderCard(card, rawOrder, stage) {
 
         card.innerHTML = isExpanded ? `
             ${header}
-            <div class="order-details">${itemBadges}${statsBadges}</div>
+            <div class="order-details">${itemBadges}${statsBadges}${contactBadge}</div>
             <div class="status-row"><span class="status-mark mark-prepared">🍢 Prepared</span></div>
             ${editableDesc}
             ${payBadge}
@@ -820,7 +836,7 @@ function renderOrderCard(card, rawOrder, stage) {
     if (stage === 'paid') {
         card.innerHTML = isExpanded ? `
             ${header}
-            <div class="order-details">${itemBadges}${statsBadges}</div>
+            <div class="order-details">${itemBadges}${statsBadges}${contactBadge}</div>
             <div class="status-row"><span class="status-mark mark-paid">✅ Paid</span></div>
             <div style="margin:8px 0;">${paymentBadgeHTML(o)}</div>
             ${readonlyDesc}
@@ -837,7 +853,7 @@ function renderOrderCard(card, rawOrder, stage) {
     if (stage === 'done') {
         card.innerHTML = isExpanded ? `
             ${header}
-            <div class="order-details">${itemBadges}${statsBadges}</div>
+            <div class="order-details">${itemBadges}${statsBadges}${contactBadge}</div>
             <div class="status-row">
                 <span class="status-mark mark-paid">✅ Paid</span>
                 <span class="status-mark mark-picked">📦 Picked Up</span>
