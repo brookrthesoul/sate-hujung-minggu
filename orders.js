@@ -90,12 +90,12 @@ function renderHomeMenuInputs() {
                 </label>
                 <div style="display:flex;align-items:center;gap:4px;">
                     <button type="button" onclick="adjustQty('${item.id}',-1)"
-                        style="width:36px;height:36px;border-radius:8px;border:2px solid #6c757d;background:#e9ecef;font-size:18px;font-weight:900;cursor:pointer;flex-shrink:0;color:#343a40;line-height:1;padding:0;">−</button>
+                        style="width:30px;height:30px;border-radius:7px;border:2px solid #6c757d;background:#e9ecef;font-size:16px;font-weight:900;cursor:pointer;flex-shrink:0;color:#343a40;line-height:1;padding:0;">−</button>
                     <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0"
-                        style="flex:1;min-width:40px;width:100%;box-sizing:border-box;text-align:center;font-size:16px;font-weight:700;"
+                        style="flex:1;min-width:0;width:100%;box-sizing:border-box;text-align:center;font-size:15px;font-weight:700;padding:8px 4px;"
                         oninput="checkStockInput('${item.id}', this.value)">
                     <button type="button" onclick="adjustQty('${item.id}',+1)"
-                        style="width:36px;height:36px;border-radius:8px;border:2px solid #6c757d;background:#e9ecef;font-size:18px;font-weight:900;cursor:pointer;flex-shrink:0;color:#343a40;line-height:1;padding:0;">+</button>
+                        style="width:30px;height:30px;border-radius:7px;border:2px solid #6c757d;background:#e9ecef;font-size:16px;font-weight:900;cursor:pointer;flex-shrink:0;color:#343a40;line-height:1;padding:0;">+</button>
                 </div>
                 <span id="stock-indicator-${item.id}" class="stock-indicator"></span>
             </div>`;

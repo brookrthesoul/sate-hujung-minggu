@@ -33,6 +33,19 @@
         textarea { min-height: 80px; resize: vertical; }
         button { background: #007bff; color: white; border: none; padding: 14px 20px; border-radius: 30px; font-size: 16px; font-weight: bold; width: 100%; margin-top: 15px; cursor: pointer; }
         button.secondary { background: #6c757d; }
+
+        /* ── Responsive: New Order form ── */
+        .menu-inputs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 12px; }
+        .paired-row { display: flex; gap: 8px; margin: 6px 0 12px; }
+        .paired-row > div, .paired-row > input { flex: 1; min-width: 0; }
+        @media (max-width: 480px) {
+            .panel { padding: 14px; }
+            .menu-inputs-grid { grid-template-columns: repeat(2, 1fr); gap: 8px 10px; }
+        }
+        @media (max-width: 340px) {
+            .menu-inputs-grid { grid-template-columns: 1fr; }
+            .paired-row { flex-direction: column; gap: 12px; }
+        }
         .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
         .result-item { background: #f1f3f5; padding: 10px; border-radius: 12px; text-align: center; }
         .result-item .label { font-size: 14px; color: #495057; }

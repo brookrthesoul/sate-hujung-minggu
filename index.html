@@ -59,13 +59,13 @@
             </div>
         </div>
 
-        <div id="menuInputs" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px 12px;"><!-- quantity inputs render here, one per menu item --></div>
-        <div style="display:flex;gap:8px;margin:6px 0 12px;">
-            <div style="flex:1;min-width:0;">
+        <div id="menuInputs" class="menu-inputs-grid"><!-- quantity inputs render here, one per menu item --></div>
+        <div class="paired-row">
+            <div>
                 <label>👤 Customer Name (optional)</label>
                 <input type="text" id="customerNameInput" placeholder="Customer name" style="margin-top:6px;">
             </div>
-            <div style="flex:1;min-width:0;">
+            <div>
                 <label>📞 Phone Number (optional)</label>
                 <input type="tel" id="customerPhoneInput" placeholder="e.g. 0123456789" style="margin-top:6px;"
                     inputmode="numeric" pattern="[0-9]*" maxlength="15"
@@ -73,9 +73,9 @@
             </div>
         </div>
         <label>📅 Pick-up Date &amp; Time (optional)</label>
-        <div style="display:flex;gap:8px;margin:6px 0 12px;">
-            <input type="date" id="pickupDate" style="flex:1;padding:8px;border-radius:8px;border:1px solid #ced4da;font-size:14px;">
-            <input type="time" id="pickupTime" style="flex:1;padding:8px;border-radius:8px;border:1px solid #ced4da;font-size:14px;">
+        <div class="paired-row">
+            <input type="date" id="pickupDate" style="padding:8px;border-radius:8px;border:1px solid #ced4da;font-size:14px;">
+            <input type="time" id="pickupTime" style="padding:8px;border-radius:8px;border:1px solid #ced4da;font-size:14px;">
         </div>
         <label>📝 Order Description (optional)</label>
         <textarea id="orderDescription" placeholder="Write any notes about this order..."></textarea>
