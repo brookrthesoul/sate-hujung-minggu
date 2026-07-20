@@ -313,9 +313,34 @@ async function loadPreorders() {
 const URGENT_WARN_MS = 15 * 60 * 1000; // keep in sync with WARN_MS in loadOrders()
 let _notifiedUrgentIds = new Set();
 
+// Browsers only allow audio after a genuine user gesture, and can auto-suspend
+// an AudioContext that's sat idle. Creating a brand-new context inside a
+// background setInterval (no gesture) means it stays silently suspended
+// forever. Instead we create ONE shared context, unlock it on the very first
+// tap/click/keypress anywhere in the app (so it doesn't matter which tab the
+// user happens to be on), and defensively resume it every time we're about
+// to beep so an idle timeout can't mute it later.
+let _urgentAudioCtx = null;
+
+function _unlockUrgentAudioCtx() {
+    if (!_urgentAudioCtx) {
+        try { _urgentAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+        catch(e) { console.warn('AudioContext init failed:', e); return; }
+    }
+    if (_urgentAudioCtx.state === 'suspended') _urgentAudioCtx.resume();
+}
+['click', 'touchstart', 'keydown'].forEach(evt =>
+    document.addEventListener(evt, _unlockUrgentAudioCtx, { passive: true })
+);
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) _unlockUrgentAudioCtx();
+});
+
 function playUrgentAlertSound() {
     try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (!_urgentAudioCtx) _unlockUrgentAudioCtx(); // fallback if no gesture has fired yet
+        const ctx = _urgentAudioCtx;
+        if (!ctx) return;
         if (ctx.state === 'suspended') ctx.resume();
         const now = ctx.currentTime;
 
