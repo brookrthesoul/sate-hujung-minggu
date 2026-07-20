@@ -642,6 +642,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // When customer taps the time field, auto-jump to 1hr from now if today
     timeEl.addEventListener('focus', () => {
         updateTimeMin();
+        // Pre-fill with exactly 1hr from now so the picker opens already at a
+        // valid time, instead of opening at "now" and forcing a scroll.
+        const selDate = dateEl.value;
+        const today   = new Date().toLocaleDateString('en-CA');
+        const isToday = !selDate || selDate === today;
+        if (isToday && !timeEl.value) {
+            timeEl.value = timeEl.min;
+        }
     });
     timeEl.addEventListener('change', () => {
         validatePickupTime();
