@@ -318,19 +318,29 @@ function playUrgentAlertSound() {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         if (ctx.state === 'suspended') ctx.resume();
         const now = ctx.currentTime;
-        // Three short beeps, more attention-grabbing than a single blip
-        [0, 0.28, 0.56].forEach(offset => {
-            const osc  = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, now + offset);
-            gain.gain.setValueAtTime(0.0001, now + offset);
-            gain.gain.exponentialRampToValueAtTime(0.35, now + offset + 0.01);
-            gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.24);
-            osc.connect(gain).connect(ctx.destination);
-            osc.start(now + offset);
-            osc.stop(now + offset + 0.26);
-        });
+
+        const beepLen   = 0.45; // each beep's duration, seconds
+        const beepGap   = 0.6;  // gap between beeps within a set
+        const setGap    = 1.1;  // gap between the 3-beep sets
+        const beepsPerSet = 3;
+        const sets         = 3;
+
+        for (let s = 0; s < sets; s++) {
+            for (let b = 0; b < beepsPerSet; b++) {
+                const offset = s * (beepsPerSet * beepGap + setGap) + b * beepGap;
+                const osc  = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, now + offset);
+                gain.gain.setValueAtTime(0.0001, now + offset);
+                gain.gain.exponentialRampToValueAtTime(0.35, now + offset + 0.01);
+                gain.gain.setValueAtTime(0.35, now + offset + beepLen - 0.08);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + beepLen);
+                osc.connect(gain).connect(ctx.destination);
+                osc.start(now + offset);
+                osc.stop(now + offset + beepLen + 0.02);
+            }
+        }
     } catch(e) { console.warn('Urgent alert sound failed:', e); }
 }
 
