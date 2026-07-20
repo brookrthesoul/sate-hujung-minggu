@@ -305,6 +305,59 @@ async function loadPreorders() {
     }
 }
 
+// ---------- Urgent order sound alert ----------
+// Plays a beep the moment an order crosses the same 15-minute threshold that
+// pins its card to the top of Prepare, so staff get an audible heads-up even
+// if they're not looking at the screen. Each order only alerts once; the
+// memory of "already alerted" ids is cleared out at day-close.
+const URGENT_WARN_MS = 15 * 60 * 1000; // keep in sync with WARN_MS in loadOrders()
+let _notifiedUrgentIds = new Set();
+
+function playUrgentAlertSound() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx.state === 'suspended') ctx.resume();
+        const now = ctx.currentTime;
+        // Three short beeps, more attention-grabbing than a single blip
+        [0, 0.28, 0.56].forEach(offset => {
+            const osc  = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, now + offset);
+            gain.gain.setValueAtTime(0.0001, now + offset);
+            gain.gain.exponentialRampToValueAtTime(0.35, now + offset + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.24);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(now + offset);
+            osc.stop(now + offset + 0.26);
+        });
+    } catch(e) { console.warn('Urgent alert sound failed:', e); }
+}
+
+// Look for orders that just crossed the 15-min-to-pickup line and haven't
+// been alerted on yet. Runs independently of which tab is currently open.
+async function checkUrgentOrders() {
+    try {
+        const now    = Date.now();
+        const today  = new Date().toLocaleDateString('en-CA');
+        const orders = (await getAllOrders()).map(normalizeOrder);
+        let newlyUrgent = false;
+
+        orders.forEach(o => {
+            if (o.prepared || o.paid || !o.pickupTs) return;
+            const pDay = new Date(o.pickupTs).toLocaleDateString('en-CA');
+            if (pDay > today) return; // still a future preorder, not urgent yet
+            const isUrgent = (now - o.pickupTs) >= -URGENT_WARN_MS;
+            if (isUrgent && !_notifiedUrgentIds.has(o.id)) {
+                _notifiedUrgentIds.add(o.id);
+                newlyUrgent = true;
+            }
+        });
+
+        if (newlyUrgent) playUrgentAlertSound();
+    } catch(e) { console.error('checkUrgentOrders error:', e); }
+}
+
 // Check every minute if any preorder should move to Prepare
 function startPreorderTimer() {
     setInterval(async () => {
@@ -320,6 +373,8 @@ function startPreorderTimer() {
             loadOrders();
             loadPreorders();
         }
+        // Sound alert for any order that just became urgent (15min pin logic)
+        checkUrgentOrders();
         // Also refresh prepare sort every minute (for 15min pin logic)
         if (currentOrderSubTab === 'prepare') loadOrders();
     }, 60 * 1000); // every 60 seconds
@@ -332,6 +387,7 @@ function startPreorderTimer() {
 async function autoClosePreviousDay() {
     const today  = new Date().toLocaleDateString('en-CA');
     const orders = (await getAllOrders()).map(normalizeOrder);
+    _notifiedUrgentIds.clear();
 
     const stale  = orders.filter(o => {
         const orderDay = new Date(o.createdAt).toLocaleDateString('en-CA');
