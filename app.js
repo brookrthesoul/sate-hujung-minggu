@@ -259,7 +259,7 @@ function _updateShopUI(isOpen) {
     label.textContent     = isOpen ? 'Open' : 'Closed';
     label.style.color     = isOpen ? '#28a745' : '#dc3545';
     banner.style.display  = 'block';
-    banner.textContent    = isOpen ? '🟢 We are Open today' : '🔴 We are Closed today';
+    banner.textContent    = isOpen ? '🟢 We are Open' : '🔴 We are Closed';
     banner.style.background = isOpen ? '#d4edda' : '#f8d7da';
     banner.style.color      = isOpen ? '#155724' : '#721c24';
 }
@@ -297,7 +297,7 @@ function initBusyThresholds() {
 const BIZ_NAME_KEY = 'shmBusinessName';
 
 function getBusinessName() {
-    return localStorage.getItem(BIZ_NAME_KEY) || 'Sate Hujung Minggu';
+    return localStorage.getItem(BIZ_NAME_KEY) || 'Sate';
 }
 
 
