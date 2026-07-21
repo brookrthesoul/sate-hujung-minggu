@@ -110,7 +110,9 @@ function adjustQty(id, delta) {
     const val = Math.max(0, (parseInt(el.value) || 0) + delta);
     el.value  = val;
     if (typeof checkStockInput === 'function') checkStockInput(id, val);
-    if (typeof calculate === 'function') calculate();
+    // If the review modal is already open, keep it in sync with the change
+    const modal = document.getElementById('orderSummaryModal');
+    if (modal && modal.style.display === 'flex') reviewOrder();
 }
 
 function getQuantitiesFromHome() {
@@ -142,17 +144,89 @@ function calculateTotals(quantities) {
     return { items, totalCost, skewerQty, scoops };
 }
 
-function renderResultsGrid(totals) {
-    const grid = document.getElementById('resultsGrid');
-    if (!grid) return;
-    let html = '';
-    Object.values(totals.items).forEach(r => {
-        html += `<div class="result-item"><span class="label">${escapeHtml(r.name)}<br></span><span class="value">RM${r.cost.toFixed(2)}</span></div>`;
+// ── Order Summary modal (New Order review) ─────────────────────────────────
+// Pops up a summary — items, totals, contact, pick-up — just like the
+// customer-facing order.html review step, so nothing needs scrolling to check
+// before saving.
+function reviewOrder() {
+    const quantities = getQuantitiesFromHome();
+    const hasAny = Object.values(quantities).some(q => q > 0);
+    if (!hasAny) { alert('Please enter at least one item.'); return; }
+
+    const totals = calculateTotals(quantities);
+    renderOrderSummaryModal(totals);
+    document.getElementById('orderSummaryModal').style.display = 'flex';
+}
+
+function renderOrderSummaryModal(totals) {
+    const box = document.getElementById('orderSummaryContent');
+    if (!box) return;
+
+    const customerName  = ((document.getElementById('customerNameInput')  || {}).value || '').trim();
+    const customerPhone = ((document.getElementById('customerPhoneInput') || {}).value || '').trim();
+    const pickupDate    = (document.getElementById('pickupDate') || {}).value || '';
+    const pickupTime    = (document.getElementById('pickupTime') || {}).value || '';
+    const description   = ((document.getElementById('orderDescription') || {}).value || '').trim();
+
+    const labelStyle = 'font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;';
+
+    let contactHtml = '';
+    if (customerName || customerPhone) {
+        contactHtml = `<div style="margin-bottom:12px;">
+            <div style="${labelStyle}">Contact</div>
+            ${customerName  ? `<div style="font-size:14px;">👤 ${escapeHtml(customerName)}</div>` : ''}
+            ${customerPhone ? `<div style="font-size:14px;">📞 ${escapeHtml(customerPhone)}</div>` : ''}
+        </div>`;
+    }
+
+    let pickupHtml = '';
+    if (pickupDate || pickupTime) {
+        const label = [pickupDate, pickupTime].filter(Boolean).join('  ');
+        pickupHtml = `<div style="margin-bottom:12px;">
+            <div style="${labelStyle}">Pick-up</div>
+            <div style="font-size:13px;background:#e8f4fd;color:#1a6abf;border-radius:8px;padding:8px 10px;">📅 ${escapeHtml(label)}</div>
+        </div>`;
+    }
+
+    let itemsHtml = '';
+    Object.values(totals.items).forEach(it => {
+        if (!it.qty) return;
+        itemsHtml += `<div style="display:flex;justify-content:space-between;font-size:14px;padding:6px 0;border-bottom:1px solid #f0f0f0;">
+            <span><b>×${it.qty}</b> ${escapeHtml(it.name)}</span><span>RM${it.cost.toFixed(2)}</span>
+        </div>`;
     });
-    html += `<div class="result-item"><span class="label">Jumlah Cucuk<br></span><span class="value">${totals.skewerQty}</span></div>`;
-    html += `<div class="result-item"><span class="label">Jumlah Kuah Kacang<br></span><span class="value">${totals.scoops}</span></div>`;
-    html += `<div class="result-item ice-cream" style="grid-column:span 2;"><span class="label">Jumlah RM<br></span><span class="value">RM${totals.totalCost.toFixed(2)}</span></div>`;
-    grid.innerHTML = html;
+
+    let noteHtml = '';
+    if (description) {
+        noteHtml = `<div style="margin-top:12px;">
+            <div style="${labelStyle}">Note</div>
+            <div style="font-size:13px;color:#555;background:#f8f9fa;border-radius:8px;padding:8px 10px;white-space:pre-wrap;">${escapeHtml(description)}</div>
+        </div>`;
+    }
+
+    box.innerHTML = `
+        ${contactHtml}
+        ${pickupHtml}
+        <div>
+            <div style="${labelStyle}">Items</div>
+            ${itemsHtml || '<div style="font-size:13px;color:#999;">No items</div>'}
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#555;padding-top:10px;">
+            <span>Jumlah Cucuk</span><span>${totals.skewerQty}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#555;">
+            <span>Jumlah Kuah Kacang</span><span>${totals.scoops}</span>
+        </div>
+        ${noteHtml}
+        <div style="display:flex;justify-content:space-between;font-size:17px;font-weight:700;padding-top:10px;margin-top:8px;border-top:2px solid #eee;">
+            <span>Total</span><span>RM${totals.totalCost.toFixed(2)}</span>
+        </div>
+    `;
+}
+
+function closeOrderSummaryModal() {
+    const modal = document.getElementById('orderSummaryModal');
+    if (modal) modal.style.display = 'none';
 }
 
 function clearForm() {
@@ -169,13 +243,7 @@ function clearForm() {
     const pTime = document.getElementById('pickupTime');
     if (pDate) pDate.value = '';
     if (pTime) pTime.value = '';
-    document.getElementById('results').style.display = 'none';
-}
-
-function calculate() {
-    const totals = calculateTotals(getQuantitiesFromHome());
-    renderResultsGrid(totals);
-    document.getElementById('results').style.display = 'block';
+    closeOrderSummaryModal();
 }
 
 async function saveOrder() {
@@ -1638,7 +1706,7 @@ async function parseOrderMessage() {
     const filled = _applyParsedOrder(result);
     if (filled > 0) {
         status.textContent = `✅ Filled ${filled} item${filled>1?'s':''}`;
-        calculate();
+        reviewOrder();
         setTimeout(() => { getMenuItems().forEach(item => { const el=document.getElementById(`qty-${item.id}`); if(el) el.style.background=''; }); }, 3000);
     } else {
         status.textContent = '⚠️ No items recognised. Fill in manually.';

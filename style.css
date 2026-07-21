@@ -2,7 +2,16 @@
         /* (same styles as before) */
          * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
         body { background: #f8f9fa; margin: 0; padding: 10px; max-width: 600px; margin: auto; }
+        #stickyTopBar {
+            position: sticky;
+            top: 0;
+            z-index: 500;
+            background: #f8f9fa;
+            margin: -10px -10px 12px;
+            padding: 10px 10px 0;
+        }
         .tab-bar { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+        #stickyTopBar .tab-bar { margin-bottom: 0; }
         .tab { flex: 1; text-align: center; padding: 7px 6px; background: #e9ecef; border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 12px; min-width: 52px; white-space: nowrap; }
         .tab.active { background: #007bff; color: white; }
         /* ── Swipeable panels ── */
@@ -496,6 +505,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 html.dark-mode { color-scheme: dark; }
 html.dark-mode body { background: #121212; color: #e6e6e6; }
+html.dark-mode #stickyTopBar { background: #121212; }
 html.dark-mode label { color: #e6e6e6; }
 html.dark-mode h1, html.dark-mode h2, html.dark-mode h3, html.dark-mode h4 { color: #f2f2f2; }
 html.dark-mode p { color: #cfcfcf; }

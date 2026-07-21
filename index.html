@@ -24,18 +24,20 @@
 </head>
 <body style="margin-top: 20px;">
 
-    <!-- Sync status bar -->
-    <div id="syncBar" style="display:flex; align-items:center; justify-content:space-between; padding:6px 14px; background:#f8f9fa; border-bottom:1px solid #dee2e6; font-size:13px;">
-        <span id="onlineBadge" class="online-badge badge-online">🌐 Online</span>
-        <span id="syncStatus" class="sync-status sync-ok">✅ Synced</span>
-        <button onclick="syncNow()" style="font-size:12px; padding:4px 10px; border:1px solid #ccc; border-radius:12px; background:white; cursor:pointer;">🔄 Sync</button>
-    </div>
-    <div class="tab-bar">
-        <div class="tab active" onclick="switchTab('home')">🍎 Home</div>
-        <div class="tab" onclick="switchTab('orders')">📋 Orders</div>
-        <div class="tab" onclick="switchTab('preorder')">📅 Preorder</div>
-        <div class="tab" onclick="switchTab('ratio')">⚖️ Ratio</div>
-        <div class="tab" onclick="switchTab('settings')">⚙️ Settings</div>
+    <div id="stickyTopBar">
+        <!-- Sync status bar -->
+        <div id="syncBar" style="display:flex; align-items:center; justify-content:space-between; padding:6px 14px; background:#f8f9fa; border-bottom:1px solid #dee2e6; font-size:13px;">
+            <span id="onlineBadge" class="online-badge badge-online">🌐 Online</span>
+            <span id="syncStatus" class="sync-status sync-ok">✅ Synced</span>
+            <button onclick="syncNow()" style="font-size:12px; padding:4px 10px; border:1px solid #ccc; border-radius:12px; background:white; cursor:pointer;">🔄 Sync</button>
+        </div>
+        <div class="tab-bar">
+            <div class="tab active" onclick="switchTab('home')">🍎 Home</div>
+            <div class="tab" onclick="switchTab('orders')">📋 Orders</div>
+            <div class="tab" onclick="switchTab('preorder')">📅 Preorder</div>
+            <div class="tab" onclick="switchTab('ratio')">⚖️ Ratio</div>
+            <div class="tab" onclick="switchTab('settings')">⚙️ Settings</div>
+        </div>
     </div>
 
     <div class="panels-viewport" id="panelsTrack">
@@ -89,15 +91,8 @@
         </div>
         <label>📝 Order Description (optional)</label>
         <textarea id="orderDescription" placeholder="Write any notes about this order..."></textarea>
-        <button onclick="calculate()">Calculate</button>
-        <div id="results" style="display: none;">
-            <h3>Results</h3>
-            <div class="result-grid" id="resultsGrid"><!-- per-item costs + Cucuk/Senduk/Total render here --></div>
-            <div class="sticky-save-bar">
-                <button id="saveOrderBtn" onclick="saveOrder()" class="sticky-save-btn">💾 Save Order</button>
-            </div>
-            <button class="secondary" onclick="clearForm()">Clear</button>
-        </div>
+        <button onclick="reviewOrder()">🧾 Review Order</button>
+        <button class="secondary" onclick="clearForm()">Clear</button>
         <p id="editHint" style="display:none; color:#17a2b8;">Editing order #<span id="editId"></span> — <a href="#" onclick="cancelEdit()">Cancel</a></p>
     </div>
 
@@ -501,7 +496,19 @@
 
     </div><!-- end panels-viewport -->
 
-    <!-- PDF REPORT MODAL -->
+    <!-- ORDER SUMMARY MODAL (New Order review — avoids scrolling past the whole menu to check totals) -->
+    <div id="orderSummaryModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:18px; padding:24px; width:92%; max-width:420px; max-height:85vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+            <h3 style="margin:0 0 14px;">🧾 Order Summary</h3>
+            <div id="orderSummaryContent"></div>
+            <div style="display:flex; gap:8px; margin-top:18px;">
+                <button id="modalSaveOrderBtn" onclick="saveOrder()" style="flex:1; background:#28a745; color:white; border:none; border-radius:10px; padding:12px; font-size:14px; font-weight:bold; cursor:pointer; margin:0;">💾 Save Order</button>
+                <button onclick="closeOrderSummaryModal()" style="background:#6c757d; color:white; border:none; border-radius:10px; padding:12px 16px; font-size:14px; cursor:pointer; margin:0;">Back</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- REPORT MODAL -->
     <div id="reportModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
         <div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
             <h3 style="margin:0 0 16px;">📊 Generate PDF Report</h3>
