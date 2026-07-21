@@ -23,12 +23,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     position: fixed;
     background: rgba(20,20,20,0.92);
     color: #fff;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
-    line-height: 1.4;
-    padding: 8px 12px;
+    line-height: 1.5;
+    padding: 9px 14px;
     border-radius: 8px;
-    max-width: 220px;
+    width: max-content;
+    max-width: 280px;
+    white-space: normal;
+    word-break: normal;
     text-align: center;
     box-shadow: 0 4px 14px rgba(0,0,0,0.25);
     z-index: 10000;
@@ -156,6 +159,7 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 .summary-total-row { display: flex; justify-content: space-between; font-size: 17px; font-weight: 700; padding-top: 10px; margin-top: 4px; border-top: 2px solid #eee; }
 .summary-note { font-size: 13px; color: #555; background: #f8f9fa; border-radius: 8px; padding: 8px 10px; margin-top: 4px; }
 .summary-pickup { font-size: 13px; color: #1a6abf; background: #e8f4fd; border-radius: 8px; padding: 8px 10px; }
+.summary-busy-warning { margin-top: 14px; font-size: 13px; font-weight: 600; color: #856404; background: #fff3cd; border: 1px solid #ffe69c; border-radius: 10px; padding: 10px 12px; text-align: center; line-height: 1.5; }
 .modal-place-btn { flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
 .modal-place-btn:disabled { background: #aaa; cursor: not-allowed; }
 .modal-back-btn { padding: 12px 16px; background: #6c757d; color: white; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; }
@@ -215,6 +219,7 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
     .summary-total-row { border-top-color: #333; color: #f2f2f2; }
     .summary-note { background: #232325; color: #ccc; }
     .summary-pickup { background: #16273f; color: #7fbaff; }
+    .summary-busy-warning { background: #3a2f12; color: #ffdd7a; border-color: #5a4a1a; }
 }
 </style>
 </head>
@@ -316,6 +321,7 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
             <button class="modal-place-btn" id="confirmPlaceBtn" onclick="confirmPlaceOrder()">✅ Place Order</button>
             <button class="modal-back-btn" onclick="closeSummary()">Back</button>
         </div>
+        <div id="busyWarning" class="summary-busy-warning" style="display:none;"></div>
     </div>
 </div>
 
@@ -354,6 +360,7 @@ let menuItems  = [];
 let stockData  = {};
 let shopIsOpen  = true;  // default open
 let notBusyMax  = 300;   // default threshold
+let currentBusyLevel = 'none'; // 'none' | 'ok' | 'busy' — kept in sync with the busy badge
 let kuahRatio       = 10;    // default: 1 scoop per 10 skewers
 let preorderEnabled = true;  // default: allowed
 let myOrderId  = localStorage.getItem(ORDER_ID_KEY); // legacy single order
@@ -419,11 +426,15 @@ function initBusyBadgeTooltip() {
         const text = BUSY_BADGE_TOOLTIPS[badge.textContent];
         if (!text) return;
         tooltip.textContent = text;
+        tooltip.classList.add('show');
         const rect = badge.getBoundingClientRect();
-        tooltip.style.left      = `${rect.left + rect.width / 2}px`;
+        const margin = 8;
+        const halfWidth = tooltip.offsetWidth / 2;
+        let left = rect.left + rect.width / 2;
+        left = Math.min(Math.max(left, halfWidth + margin), window.innerWidth - halfWidth - margin);
+        tooltip.style.left      = `${left}px`;
         tooltip.style.top       = `${rect.bottom + 10}px`;
         tooltip.style.transform = 'translateX(-50%)';
-        tooltip.classList.add('show');
     }
     function hideTip() {
         tooltip.classList.remove('show');
@@ -617,9 +628,9 @@ async function loadBusy() {
             });
         });
         const badge = document.getElementById('busyBadge');
-        if (total === 0)            { badge.textContent = 'No Order'; badge.className = 'busy-badge busy-none'; }
-        else if (total <= notBusyMax) { badge.textContent = 'Not Busy'; badge.className = 'busy-badge busy-ok'; }
-        else                         { badge.textContent = 'Busy';     badge.className = 'busy-badge busy-busy'; }
+        if (total === 0)            { badge.textContent = 'No Order'; badge.className = 'busy-badge busy-none'; currentBusyLevel = 'none'; }
+        else if (total <= notBusyMax) { badge.textContent = 'Not Busy'; badge.className = 'busy-badge busy-ok'; currentBusyLevel = 'ok'; }
+        else                         { badge.textContent = 'Busy';     badge.className = 'busy-badge busy-busy'; currentBusyLevel = 'busy'; }
     } catch(e) {}
 }
 
@@ -954,6 +965,19 @@ function showOrderSummary() {
         ${noteHtml}
         <div class="summary-total-row"><span>Total</span><span>RM${totalCost.toFixed(2)}</span></div>
     `;
+
+    // Only warn when we're currently Busy, and only for pickup "now"/today (not future preorders)
+    const busyWarningEl = document.getElementById('busyWarning');
+    if (busyWarningEl) {
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        const isFutureOrder = ts && new Date(ts).toLocaleDateString('en-CA') > todayStr;
+        if (currentBusyLevel === 'busy' && !isFutureOrder) {
+            busyWarningEl.textContent = "⚠️ We're busy right now — if you place this order, please expect a longer wait than usual.";
+            busyWarningEl.style.display = 'block';
+        } else {
+            busyWarningEl.style.display = 'none';
+        }
+    }
 
     document.getElementById('summaryModal').classList.add('open');
 }
