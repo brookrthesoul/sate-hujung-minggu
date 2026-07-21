@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f5f5f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
 <title id="pageTitle">Sate Hujung Minggu — Order</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -57,13 +60,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10px; font-size: 14px; resize: none; }
 
 /* ── Menu / Info tab ── */
-.info-header { font-size: 20px; font-weight: 700; color: #1a1a1a; margin: 4px 0 18px; text-align: center; }
+#tabContentMenu { background-size: cover; background-position: center top; background-repeat: no-repeat; min-height: 70vh; transition: background-color 0.2s; }
+.info-header { font-size: 20px; font-weight: 700; color: #1a1a1a; margin: 4px 0 18px; text-align: center; background: rgba(255,255,255,0.85); border-radius: 12px; padding: 10px 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
 .info-row { display: flex; gap: 14px; align-items: center; margin-bottom: 22px; }
 .info-row .info-img { flex: 0 0 42%; }
 .info-row .info-img img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: block; }
 .info-row .info-desc { flex: 1; font-size: 14px; color: #444; line-height: 1.6; }
 .info-other { font-size: 14px; color: #444; line-height: 1.7; white-space: pre-wrap; background: white; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-top: 8px; }
-.info-empty { text-align: center; color: #aaa; padding: 40px 16px; font-size: 14px; }
+.info-empty { text-align: center; color: #aaa; padding: 40px 16px; font-size: 14px; background: rgba(255,255,255,0.85); border-radius: 14px; }
 
 /* ── Results ── */
 .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
@@ -126,6 +130,63 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 .modal-place-btn { flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
 .modal-place-btn:disabled { background: #aaa; cursor: not-allowed; }
 .modal-back-btn { padding: 12px 16px; background: #6c757d; color: white; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DARK MODE — follows the customer's device/browser theme automatically
+   (no manual toggle here; controlled entirely by the OS/browser setting).
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (prefers-color-scheme: dark) {
+    body { background: #121212; color: #e6e6e6; }
+    .nav { background: #1c1c1e; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+    .nav h1 { color: #f2f2f2; }
+    .tab-bar { background: #1c1c1e; border-bottom-color: #2c2c2e; }
+    .tab-btn { color: #aaa; }
+    .tab-btn.active { color: #4da3ff; border-bottom-color: #4da3ff; }
+
+    .section-title { color: #e6e6e6; }
+    .menu-cell input { background: #2a2a2c; color: #eee; border-color: #3d3d3f; }
+    .menu-cell button[type=button] { background: #2a2a2c !important; border-color: #3d3d3f !important; color: #eee !important; }
+    .stock-hint { color: #aaa; }
+
+    .pickup-row input { background: #2a2a2c; color: #eee; border-color: #3d3d3f; }
+    .time-hint { color: #999; }
+    .field-group label { color: #e6e6e6; }
+    .field-group input[type=text], .field-group input[type=tel] { background: #2a2a2c; color: #eee; border-color: #3d3d3f; }
+    .field-group input.field-invalid { background: #3a1f22; border-color: #dc3545; }
+
+    textarea { background: #2a2a2c; color: #eee; border-color: #3d3d3f; }
+
+    .info-header { background: rgba(28,28,30,0.85); color: #f2f2f2; }
+    .info-row .info-desc { color: #ccc; }
+    .info-other { background: #1c1c1e; color: #ccc; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+    .info-empty { background: rgba(28,28,30,0.85); color: #888; border-radius: 14px; }
+
+    .result-item { background: #1c1c1e; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+    .result-item.total { background: #3a331a; }
+    .result-label { color: #999; }
+    .result-value { color: #f2f2f2; }
+
+    .sticky-save { background: linear-gradient(transparent, #121212 30%); }
+
+    .order-card { background: #1c1c1e; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+    .order-num { }
+    .order-time { color: #999; }
+    .order-items { color: #ccc; }
+    .order-total { color: #f2f2f2; }
+    .edit-lock-note { color: #999; }
+    .no-order { color: #777; }
+
+    .modal-box { background: #1c1c1e; color: #eee; }
+    .modal-title { color: #f2f2f2; }
+
+    .spinner { color: #777; }
+
+    .summary-label { color: #999; }
+    .summary-row { color: #ddd; border-bottom-color: #2c2c2e; }
+    .summary-total-row { border-top-color: #333; color: #f2f2f2; }
+    .summary-note { background: #232325; color: #ccc; }
+    .summary-pickup { background: #16273f; color: #7fbaff; }
+}
 </style>
 </head>
 <body>
@@ -1190,9 +1251,9 @@ async function loadMenuInfoTab() {
     const box = document.getElementById('menuInfoContent');
     try {
         const rows = await sbFetch('settings?key=eq.customerInfo&select=value');
-        let info = { header: '', items: [], otherInfo: '' };
+        let info = { header: '', items: [], otherInfo: '', backgroundType: 'color', backgroundColor: '#f5f5f5', backgroundImage: '' };
         if (rows && rows.length) {
-            try { info = JSON.parse(rows[0].value); } catch(_) {}
+            try { info = { ...info, ...JSON.parse(rows[0].value) }; } catch(_) {}
         }
         renderMenuInfoTab(info);
         menuInfoLoaded = true;
@@ -1202,7 +1263,22 @@ async function loadMenuInfoTab() {
     }
 }
 
+// Applies the admin's chosen background (solid colour, or a photo used as a
+// full-bleed "wallpaper") to the Menu tab.
+function applyMenuBackground(info) {
+    const el = document.getElementById('tabContentMenu');
+    if (!el) return;
+    if (info.backgroundType === 'image' && info.backgroundImage) {
+        el.style.backgroundColor = 'transparent';
+        el.style.backgroundImage = `url("${info.backgroundImage}")`;
+    } else {
+        el.style.backgroundImage = 'none';
+        el.style.backgroundColor = info.backgroundColor || '#f5f5f5';
+    }
+}
+
 function renderMenuInfoTab(info) {
+    applyMenuBackground(info);
     const box = document.getElementById('menuInfoContent');
     if (!box) return;
     const items = (info.items || []).filter(it => it.imageUrl || (it.description && it.description.trim()));

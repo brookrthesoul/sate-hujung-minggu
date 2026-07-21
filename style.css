@@ -488,3 +488,77 @@
     cursor: pointer;
     box-shadow: 0 4px 12px rgba(40,167,69,0.3);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DARK MODE (staff/admin app) — toggled via html.dark-mode, saved in
+   localStorage as 'shmDarkMode'. Uses !important on a few rules to win over
+   inline styles used in some modals/buttons in index.html.
+   ══════════════════════════════════════════════════════════════════════════ */
+html.dark-mode { color-scheme: dark; }
+html.dark-mode body { background: #121212; color: #e6e6e6; }
+html.dark-mode label { color: #e6e6e6; }
+html.dark-mode h1, html.dark-mode h2, html.dark-mode h3, html.dark-mode h4 { color: #f2f2f2; }
+html.dark-mode p { color: #cfcfcf; }
+html.dark-mode a { color: #6fb3ff; }
+
+html.dark-mode .panel { background: #1c1c1e; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
+
+html.dark-mode input, html.dark-mode select, html.dark-mode textarea {
+    background: #2a2a2c !important;
+    color: #f0f0f0 !important;
+    border-color: #444 !important;
+}
+html.dark-mode input::placeholder, html.dark-mode textarea::placeholder { color: #888; }
+html.dark-mode input[type=color] { padding: 2px; }
+
+html.dark-mode button.secondary { background: #4a4a4d; }
+
+html.dark-mode .tab, html.dark-mode .sub-tab { background: #2a2a2c; color: #ccc; }
+html.dark-mode .tab.active, html.dark-mode .sub-tab.active { background: #0d6efd; color: #fff; }
+
+html.dark-mode .result-item { background: #232325; }
+html.dark-mode .result-item .label { color: #aaa; }
+
+html.dark-mode .order-card { background: #232325; }
+html.dark-mode .order-date { color: #999; }
+html.dark-mode .detail-badge { background: #2a2a2c !important; color: #eee; }
+html.dark-mode .edit-input { background: #2a2a2c; color: #eee; border-color: #444; }
+html.dark-mode .order-description { background: #232325; color: #eee; }
+html.dark-mode .status-btn { background: #2a2a2c; color: #eee; border-color: #444; }
+
+html.dark-mode .sort-dropdown { background: #2a2a2c; color: #eee; border-color: #444; }
+html.dark-mode .day-header { border-bottom-color: #3d3d3f; color: #6fb3ff; }
+
+html.dark-mode .ratio-card { background: #2a2a2c; }
+html.dark-mode .ratio-card .label { color: #aaa; }
+
+html.dark-mode .settings-group label { color: #e6e6e6; }
+html.dark-mode .menu-row { background: #232325; }
+html.dark-mode .menu-row.drag-over { background: #1a2c4d; }
+html.dark-mode .menu-row-name .item-type { color: #999; }
+
+html.dark-mode .stock-row { border-bottom-color: #333; }
+html.dark-mode .stock-input-group button { background: #333; border-color: #444; color: #eee; }
+html.dark-mode .stock-input-group input { background: #2a2a2c; border-color: #444; color: #eee; }
+
+html.dark-mode #syncBar { background: #1c1c1e !important; border-bottom-color: #333 !important; }
+html.dark-mode #syncBar button { background: #2a2a2c !important; border-color: #444 !important; color: #eee !important; }
+
+html.dark-mode #pasteOrderBox { background: #1a2233 !important; border-color: #2c4a7c !important; }
+html.dark-mode #pasteOrderInput { border-color: #2c4a7c !important; }
+
+html.dark-mode #reportModal > div,
+html.dark-mode #paymentModal > div,
+html.dark-mode #passwordScreen,
+html.dark-mode #passwordScreen > div {
+    background: #1c1c1e !important;
+    color: #eee !important;
+}
+html.dark-mode #pwScreenTitle { color: #f2f2f2 !important; }
+
+html.dark-mode .pay-radio-label { border-color: #444; color: #eee; }
+html.dark-mode .pay-radio-label:has(input:checked) { background: #2a1f4d; }
+
+html.dark-mode .sticky-save-bar { background: linear-gradient(to bottom, transparent, #121212 30%); }
+
+html.dark-mode ::-webkit-scrollbar-thumb { background: #444; }

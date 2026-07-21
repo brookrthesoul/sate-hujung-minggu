@@ -1,6 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+    // Apply saved dark mode setting before first paint (avoids a light-mode "flash")
+    (function () {
+        try {
+            if (localStorage.getItem('shmDarkMode') === '1') {
+                document.documentElement.classList.add('dark-mode');
+            }
+        } catch (e) {}
+    })();
+    </script>
     <link rel="manifest" href="./manifest.json">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -265,9 +275,42 @@
                     style="width:100%;margin-left:0;padding:9px;border-radius:10px;border:1px solid #ddd;font-size:14px;">
             </div>
 
+            <h3 style="margin-top:20px;">🎨 Menu Page Background</h3>
+            <p style="font-size:13px;color:#666;margin-bottom:10px;">
+                Set a background colour, or upload a photo to use as the background of the customer Menu page — whichever you pick, only one is used at a time.<br>
+                📐 <strong>Best photo size: 1080 × 1920px</strong> (portrait, phone-screen shape). It fills and covers the screen like a wallpaper, so it may get cropped a little at the edges — keep important details centred. Use a JPG or PNG under 2MB so it loads quickly.
+            </p>
+            <div style="display:flex; gap:8px; margin-bottom:12px;">
+                <label class="pay-radio-label" style="flex:1;">
+                    <input type="radio" name="infoBgType" id="infoBgTypeColor" value="color" onchange="setInfoBgType('color')"> 🎨 Solid colour
+                </label>
+                <label class="pay-radio-label" style="flex:1;">
+                    <input type="radio" name="infoBgType" id="infoBgTypeImage" value="image" onchange="setInfoBgType('image')"> 🖼️ Photo
+                </label>
+            </div>
+
+            <div id="infoBgColorBox" style="display:none; align-items:center; gap:12px; margin-bottom:16px;">
+                <input type="color" id="infoBgColorInput" value="#f5f5f5" onchange="updateInfoBgColor(this.value)"
+                    style="width:56px; height:40px; padding:2px; border-radius:8px; border:1px solid #ddd; cursor:pointer;">
+                <span style="font-size:13px;color:#666;">This colour fills the background of the customer Menu page.</span>
+            </div>
+
+            <div id="infoBgImageBox" style="display:none; margin-bottom:16px;">
+                <div id="infoBgImagePreviewWrap" style="width:100%; height:140px; border-radius:12px; overflow:hidden; background:#eee; display:flex; align-items:center; justify-content:center; margin-bottom:8px;">
+                    <span id="infoBgImagePreviewEmpty" style="font-size:12px;color:#999;">No photo uploaded</span>
+                    <img id="infoBgImagePreview" src="" alt="" style="display:none; width:100%; height:100%; object-fit:cover;">
+                </div>
+                <input type="file" accept="image/*" id="infoBgFile" style="display:none;" onchange="handleInfoBgImageUpload(this)">
+                <div style="display:flex; gap:8px;">
+                    <button class="secondary" id="infoBgUploadBtn" style="margin:0;flex:1;" onclick="document.getElementById('infoBgFile').click()">📤 Upload Photo</button>
+                    <button class="secondary" style="margin:0;flex:0 0 auto;padding:10px 14px;background:#dc3545;" onclick="removeInfoBgImage()">🗑️ Remove</button>
+                </div>
+            </div>
+
             <h3 style="margin-top:20px;">🖼️ Pictures &amp; Descriptions</h3>
             <p style="font-size:13px;color:#666;margin-bottom:10px;">
-                Add a picture with a description for each menu highlight. They'll show in alternating left/right rows on the customer page.
+                Add a picture with a description for each menu highlight. They'll show in alternating left/right rows on the customer page.<br>
+                📐 <strong>Best menu photo size: 1000 × 1000px</strong> (square). They're displayed as squares, so square photos avoid awkward cropping.
             </p>
             <div id="infoItemList"></div>
             <button class="secondary" onclick="addInfoItem()" style="margin-top:6px;">➕ Add Item</button>
@@ -285,6 +328,15 @@
 
         <!-- Others -->
         <div id="stab-others-content" class="settings-subtab-content">
+            <h3 style="margin-top:20px;">🌓 Appearance</h3>
+            <div class="settings-group" style="display:flex; align-items:center; gap:12px;">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="darkModeToggle" onchange="setDarkMode(this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
+                <span style="font-size:13px;">Dark Mode — stays on after you refresh or reopen the app</span>
+            </div>
+
             <h3 style="margin-top:20px;">🏪 Business Name</h3>
             <p style="font-size:13px;color:#666;margin-bottom:8px;">
                 Used on receipts, PDF reports and the customer order page.

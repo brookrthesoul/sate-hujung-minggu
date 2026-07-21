@@ -1,11 +1,18 @@
 // info.js — "Info" settings sub-tab: content shown on the customer page's "Menu" tab
 // Stored in the `settings` table under key 'customerInfo' as a JSON string:
-//   { header: string, items: [{ id, imageUrl, description }], otherInfo: string }
-// Pictures are uploaded to the public Supabase Storage bucket 'customer-info'.
+//   { header: string, items: [{ id, imageUrl, description }], otherInfo: string,
+//     backgroundType: 'color'|'image', backgroundColor: string, backgroundImage: string }
+// Pictures (item photos + background photo) are uploaded to the public Supabase
+// Storage bucket 'customer-info'.
 
 const INFO_STORAGE_BUCKET = 'customer-info';
 
-let customerInfo = { header: '', items: [], otherInfo: '' };
+let customerInfo = {
+    header: '', items: [], otherInfo: '',
+    backgroundType: 'color',      // 'color' | 'image'
+    backgroundColor: '#f5f5f5',
+    backgroundImage: ''
+};
 
 async function _infoFetch(path, opts = {}) {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -36,7 +43,10 @@ async function loadCustomerInfo() {
     } catch (e) {
         console.warn('Could not load customer info from Supabase:', e);
     }
-    customerInfo.items = customerInfo.items || [];
+    customerInfo.items           = customerInfo.items || [];
+    customerInfo.backgroundType  = customerInfo.backgroundType  || 'color';
+    customerInfo.backgroundColor = customerInfo.backgroundColor || '#f5f5f5';
+    customerInfo.backgroundImage = customerInfo.backgroundImage || '';
     renderInfoTab();
 }
 
@@ -46,6 +56,81 @@ function renderInfoTab() {
     if (headerInput) headerInput.value = customerInfo.header || '';
     if (otherInput)  otherInput.value  = customerInfo.otherInfo || '';
     renderInfoItemList();
+    renderInfoBackground();
+}
+
+// ─── Menu page background (colour or photo) ─────────────────────────────────
+function renderInfoBackground() {
+    const type = customerInfo.backgroundType || 'color';
+
+    const colorRadio = document.getElementById('infoBgTypeColor');
+    const imageRadio = document.getElementById('infoBgTypeImage');
+    if (colorRadio) colorRadio.checked = type === 'color';
+    if (imageRadio) imageRadio.checked = type === 'image';
+
+    const colorInput = document.getElementById('infoBgColorInput');
+    if (colorInput) colorInput.value = customerInfo.backgroundColor || '#f5f5f5';
+
+    const preview  = document.getElementById('infoBgImagePreview');
+    const emptyLbl = document.getElementById('infoBgImagePreviewEmpty');
+    if (customerInfo.backgroundImage) {
+        if (preview)  { preview.src = customerInfo.backgroundImage; preview.style.display = 'block'; }
+        if (emptyLbl) emptyLbl.style.display = 'none';
+    } else {
+        if (preview)  { preview.src = ''; preview.style.display = 'none'; }
+        if (emptyLbl) emptyLbl.style.display = 'block';
+    }
+
+    const colorBox = document.getElementById('infoBgColorBox');
+    const imageBox = document.getElementById('infoBgImageBox');
+    if (colorBox) colorBox.style.display = type === 'color' ? 'flex'  : 'none';
+    if (imageBox) imageBox.style.display = type === 'image' ? 'block' : 'none';
+}
+
+function setInfoBgType(type) {
+    customerInfo.backgroundType = type === 'image' ? 'image' : 'color';
+    renderInfoBackground();
+}
+
+function updateInfoBgColor(value) {
+    customerInfo.backgroundColor = value;
+}
+
+async function handleInfoBgImageUpload(fileInput) {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+
+    const btn = document.getElementById('infoBgUploadBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Uploading...'; }
+
+    try {
+        const ext  = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+        const path = `bg_${Date.now()}.${ext}`;
+        const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${INFO_STORAGE_BUCKET}/${path}`, {
+            method: 'POST',
+            headers: {
+                'apikey':        SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'Content-Type':  file.type || 'image/jpeg',
+                'x-upsert':      'true'
+            },
+            body: file
+        });
+        if (!res.ok) throw new Error(await res.text());
+
+        customerInfo.backgroundImage = `${SUPABASE_URL}/storage/v1/object/public/${INFO_STORAGE_BUCKET}/${path}`;
+        renderInfoBackground();
+    } catch (e) {
+        alert('❌ Background photo upload failed: ' + e.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '📤 Upload Photo'; }
+        fileInput.value = '';
+    }
+}
+
+function removeInfoBgImage() {
+    customerInfo.backgroundImage = '';
+    renderInfoBackground();
 }
 
 function renderInfoItemList() {

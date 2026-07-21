@@ -80,6 +80,8 @@ window.onload = () => {
         loadMenu();
         renderHomeMenuInputs();
         setupPrinter();
+        // Restore dark mode toggle state (class already applied pre-paint by the <head> script)
+        initDarkModeToggle();
         // Restore sync bar visibility preference
         initSyncBarToggle();
         // Restore shop open/close toggle
@@ -161,6 +163,24 @@ function switchSettingsTab(tab) {
         const preToggle = document.getElementById('preorderEnabledToggle');
         if (preToggle) preToggle.checked = preStored === null ? true : preStored === '1';
     }
+}
+
+// ─── Dark mode toggle ─────────────────────────────────────────────────────────
+const DARK_MODE_KEY = 'shmDarkMode';
+
+function setDarkMode(enabled) {
+    localStorage.setItem(DARK_MODE_KEY, enabled ? '1' : '0');
+    document.documentElement.classList.toggle('dark-mode', enabled);
+    const toggle = document.getElementById('darkModeToggle');
+    if (toggle) toggle.checked = enabled;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', enabled ? '#1c1c1e' : '#007bff');
+}
+
+function initDarkModeToggle() {
+    // The <head> script already applied the class before paint; this just syncs the checkbox/meta.
+    const enabled = localStorage.getItem(DARK_MODE_KEY) === '1';
+    setDarkMode(enabled);
 }
 
 // ─── Sync bar toggle ──────────────────────────────────────────────────────────
