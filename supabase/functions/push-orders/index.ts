@@ -3,9 +3,22 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-const FCM_PROJECT_ID   = "sate-hujung-minggu";
-const FCM_CLIENT_EMAIL = "firebase-adminsdk-fbsvc@sate-hujung-minggu.iam.gserviceaccount.com";
-const FCM_KEY_B64      = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDJ6Eu714+tYoeKtcjBz4pzSj7qNwPHhNSCvq+v/+i41ahuxmW184JNGGMiYvcRVOtQh/AJmB/X8ar1HE2yRtuSXr5tVYRgHt5aUdo0OtHrZP8JlgAJqmIG6zKsQIki+MrPJn42RCb7uFpCJgJ59u5P5Ek7K27WMbdygWTdH1FeffF5x4UQ4XZVIgspojycy3przE44VBY2bJuveVMcAQg6ybhvlqJsAQTcTSnSC/C4bfoix0MoOWYS25hkRSBgO5twVWkelyLqovXpvxalxyjylz3Kq7KFypG3IrR5Q7uud/fnzKRn+inB7KIR3RGYDSZG3CugVOGvQtA/vIbYtUUpAgMBAAECggEAAUFkAyl+d7YGoLqromTfeAMMrBkmeV2ekqeL4RzGvit57iJmrIB0nXUa3LJf1ehAxFHsEKs0+3tBtF92LjcZk2nqZjSja5OVj1s176A0APIyUcVwf57jGCbrPD30fFausCYNn9nBokwNp56j4k1CQxXozKji+gr6GIisb2GL+HnuKHZ1qwSDEWLqoPZjA5ueC9sZ+bdzz/nIMWNU/yO71doKMs2AfzBJsq4s3ZkMNXKZ5T5LYGliNzk9ZMZPnGuJAcIQuQZBlLHpi1NA9tI4L+3W7M+FBBTsDcWZhl4sm2k/L8T+q9+5KARmAmMpZQ4WTgkKqoqtT9fh/xA9zy62twKBgQD7g5+I058farx44W11AzyXxCpl8ZlyGSYqgqFJOVkBt5j7UVCOT7l2FOV4rti9FY2wTK3qYZR0RsMDR1WnDinleWVPn+xZFqgDI1zuD/BOYeOfpJCU03STc3ewz6VzT6m1En9sP0Iu6lB1FTX0+PRrURe/H7vjfZOLj+N7cZe6VwKBgQDNgiztzfNxrciBtdIp63VYdonTqMbfhsHIE7MLybJoJan0L7zwLqIXwEKZF/JNZW4M/yDPYVZWPsY2PhpDxtOQFk23b5pjdW/2FLlMqTLiArT3Qwny6fjub9x1E6mbPep4OMK72pJEgdLQdXpUtgm9tckCR9eXyAVvcI/vzxJMfwKBgA9tf3exI22V6oGvsjsfO7RDgCZIr5TkHgc1hBctwVvtmyCvWDWihknL9ld0wi63B73sti5OVgDb5lJpKcPZhpBg5eoAcUr1rNCkdqrTp3XnY0MDoSq/3cK9rnXWBtwP4uUMgWxuZOzjypOj/W9NZhC/JKnAlJHbvhUtelK0IQ55AoGAR/QGCxUK4Yh5JYElnmvEYD7Qrvzu9KBYBNdw3vW1s2VMhiSYwHdzZWF5b+TEf3i9+Wryb+misvuzppZD1+src817VHiM07nwg3ZqEn9DQ4KzHcepGhX1hHZB9/P0dFhPWdx1whQbFkVmLHqVZEeATZ3yTQweXhQ4YvZETzBvNb0CgYEAiCoNOWX6KQtKIXF+efjuOCSibOof3jcZRjSl9+U/EJVfgys2w2Pf8GfZ0aq45akvZ2SsoO4Bk/QLkat/uLRgXQmOoS/b7gxs0to341z9vIdB0NPbkv+MRTwGQp4Bd4tSr8F5olF85i4oVnquupVlRqpQWUszzKlDq9qBMFz6tQk=";
+// ⚠️ These used to be hardcoded here — that's a real security problem if this
+// file is ever committed to a public (or even private-but-shared) repo, since
+// FCM_KEY_B64 and VAPID_PRIV are private keys that grant push-sending power.
+// They now come from Supabase Edge Function secrets instead — see SETUP.md
+// "Push notifications" section for how to set them (one-time, via the
+// Supabase dashboard or `supabase secrets set`).
+const FCM_PROJECT_ID   = Deno.env.get("FCM_PROJECT_ID")!;
+const FCM_CLIENT_EMAIL = Deno.env.get("FCM_CLIENT_EMAIL")!;
+const FCM_KEY_B64      = Deno.env.get("FCM_KEY_B64")!;
+const VAPID_PUB        = Deno.env.get("VAPID_PUBLIC_KEY")!;
+const VAPID_PRIV       = Deno.env.get("VAPID_PRIVATE_KEY")!;
+
+// The live site's URL — used to build the notification icon and the link the
+// notification opens when tapped. Set as a secret too so this file never has
+// to be edited when you switch hosting providers or domains.
+const SITE_URL = (Deno.env.get("SITE_URL") ?? "").replace(/\/+$/, "");
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -69,12 +82,12 @@ async function sendFCMv1(token: string, title: string, body: string, tag: string
         headers: { TTL: "86400" },
         notification: {
           title, body, tag,
-          icon:  "https://brookrthesoul.github.io/sate-hujung-minggu/icon-192.png",
-          badge: "https://brookrthesoul.github.io/sate-hujung-minggu/icon-192.png",
+          icon:  `${SITE_URL}/icon-192.png`,
+          badge: `${SITE_URL}/icon-192.png`,
           requireInteraction: true,
           vibrate: [200, 100, 200],
         },
-        fcm_options: { link: "https://brookrthesoul.github.io/sate-hujung-minggu/?tab=orders" }
+        fcm_options: { link: `${SITE_URL}/?tab=orders` }
       },
       data: { title, body, tag }
     }
@@ -102,7 +115,7 @@ async function sendLegacyFCM(endpoint: string, keys: {p256dh: string, auth: stri
   // Build minimal JSON payload — legacy FCM /fcm/send supports raw JSON for web push
   // when called with the full endpoint
   const payload = JSON.stringify({ title, body, tag,
-    icon: "https://brookrthesoul.github.io/sate-hujung-minggu/icon-192.png" });
+    icon: `${SITE_URL}/icon-192.png` });
 
   // Use Web Push encryption
   const enc = new TextEncoder();
@@ -140,9 +153,7 @@ async function sendLegacyFCM(endpoint: string, keys: {p256dh: string, auth: stri
   const rs = new Uint8Array(4); new DataView(rs.buffer).setUint32(0,4096,false);
   const body2 = concat(salt,rs,new Uint8Array([serverPub.length]),serverPub,ciphertext);
 
-  // VAPID public key for legacy endpoint
-  const VAPID_PUB = "BGhAz7NFT1wIyiBhqqCvl5hv1QCqjYjyaYZy5r0x-1MH58kVb8Q3QaZE6wlG3pff_qqROB44NfTECGNmAciJU1E";
-  const VAPID_PRIV = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg08EzcXzvbclKz95ZUTZM6sth0bCTDiEUiNTZSmuHm9KhRANCAARbWTqaSb1-STff4xDA2C4a_FSzGjsXjmOsPIRV8C0Q9GmdCZeG74Qg71MDkGqRylPRPxWaSV7iO-BtdFtdv2fx";
+  // VAPID keys come from the top-level constants (Edge Function secrets) now.
 
   const url2 = new URL(endpoint);
   const audience = url2.protocol+"//"+url2.host;
