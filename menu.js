@@ -96,8 +96,8 @@ function slugify(name) {
 
 function refreshAfterMenuChange() {
     if (typeof renderHomeMenuInputs === 'function') renderHomeMenuInputs();
-    const resultsEl = document.getElementById('results');
-    if (resultsEl && resultsEl.style.display === 'block' && typeof calculate === 'function') calculate();
+    const summaryModal = document.getElementById('orderSummaryModal');
+    if (summaryModal && summaryModal.style.display === 'flex' && typeof reviewOrder === 'function') reviewOrder();
     const ratioPanel = document.getElementById('ratioPanel');
     if (ratioPanel && ratioPanel.classList.contains('active') && typeof calculateRatio === 'function') calculateRatio();
 }
