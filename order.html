@@ -101,15 +101,12 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 .info-row .info-img { flex: 0 0 42%; }
 .info-row .info-img img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: block; }
 .info-row .info-desc { flex: 1; font-size: 14px; color: #444; line-height: 1.6; }
+.info-row-imgonly .info-img { flex: 1 1 100%; }
+.info-row-imgonly .info-img img { aspect-ratio: 16 / 10; }
 .info-other { font-size: 14px; color: #444; line-height: 1.7; white-space: pre-wrap; background: white; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-top: 8px; }
 .info-empty { text-align: center; color: #aaa; padding: 40px 16px; font-size: 14px; background: rgba(255,255,255,0.85); border-radius: 14px; }
 
 /* ── Results ── */
-.results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
-.result-item { background: white; border-radius: 10px; padding: 10px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-.result-item.total { grid-column: span 2; background: #fff8e1; }
-.result-label { font-size: 11px; color: #888; }
-.result-value { font-size: 15px; font-weight: 700; color: #1a1a1a; }
 
 /* ── Sticky save ── */
 .sticky-save { position: sticky; bottom: 0; padding: 10px 0 4px; background: linear-gradient(transparent, #f5f5f5 30%); }
@@ -199,11 +196,6 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
     .info-other { background: #1c1c1e; color: #ccc; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
     .info-empty { background: rgba(28,28,30,0.85); color: #888; border-radius: 14px; }
 
-    .result-item { background: #1c1c1e; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
-    .result-item.total { background: #3a331a; }
-    .result-label { color: #999; }
-    .result-value { color: #f2f2f2; }
-
     .sticky-save { background: linear-gradient(transparent, #121212 30%); }
 
     .order-card { background: #1c1c1e; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
@@ -288,11 +280,6 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 
     <div class="section-title">📝 Note (optional)</div>
     <textarea id="orderNote" rows="2" placeholder="Any special requests..."></textarea>
-
-    <div id="resultsBox" style="display:none;">
-        <div class="section-title">Summary</div>
-        <div class="results-grid" id="resultsGrid"></div>
-    </div>
 
     <div class="sticky-save">
         <button class="save-btn" id="saveBtn" onclick="showOrderSummary()">Next</button>
@@ -747,7 +734,7 @@ function onQtyInput(gridId, itemId, value) {
             }
         }
     }
-    if (gridId === 'menuGrid') updateSummary();
+    // (Live inline summary removed — the full summary is now only shown in the Next-tap modal, to avoid duplication.)
 }
 
 function getQtys(gridId = 'menuGrid') {
@@ -757,32 +744,6 @@ function getQtys(gridId = 'menuGrid') {
         qtys[item.id] = el ? (parseInt(el.value) || 0) : 0;
     });
     return qtys;
-}
-
-function updateSummary() {
-    const qtys = getQtys();
-    const hasAny = Object.values(qtys).some(q => q > 0);
-    document.getElementById('resultsBox').style.display = hasAny ? 'block' : 'none';
-    if (!hasAny) return;
-
-    const grid = document.getElementById('resultsGrid');
-    let total = 0, skewers = 0, scoops = 0;
-    let html = '';
-    menuItems.forEach(item => {
-        const qty = qtys[item.id] || 0;
-        if (qty === 0) return;
-        const cost = qty * item.price;
-        total += cost;
-        if (item.category === 'skewer' || item.category === 'no-kuah') skewers += qty;
-        if (item.category === 'skewer') scoops += Math.ceil(qty / kuahRatio);
-        if (item.category === 'side') scoops += qty * 2;
-        if (item.category === 'side-1kuah') scoops += qty;
-        if (item.category === 'kuah-only') scoops += qty;
-        html += `<div class="result-item"><div class="result-label">${item.name} ×${qty}</div><div class="result-value">RM${cost.toFixed(2)}</div></div>`;
-    });
-    html += `<div class="result-item"><div class="result-label">Cucuk / Senduk</div><div class="result-value">${skewers} / ${scoops}</div></div>`;
-    html += `<div class="result-item total"><div class="result-label">Total</div><div class="result-value">RM${total.toFixed(2)}</div></div>`;
-    grid.innerHTML = html;
 }
 
 // ── Pickup time validation ────────────────────────────────────────────────────
@@ -1116,7 +1077,6 @@ function resetForm() {
         if (el) el.value = '';
     });
     document.getElementById('orderNote').value = '';
-    document.getElementById('resultsBox').style.display = 'none';
     document.getElementById('pickupTime').value = '';
     if (preorderEnabled) document.getElementById('pickupDate').value = '';
     document.getElementById('timeHint').textContent = '';
@@ -1435,12 +1395,29 @@ function renderMenuInfoTab(info) {
     if (info.header) html += `<div class="info-header">${escapeHtmlOrder(info.header)}</div>`;
 
     items.forEach((item, idx) => {
-        const imgHtml  = item.imageUrl ? `<div class="info-img"><img src="${item.imageUrl}" alt=""></div>` : '';
-        const descHtml = `<div class="info-desc">${escapeHtmlOrder(item.description || '')}</div>`;
-        // Even rows: picture | description — Odd rows: description | picture
-        html += (idx % 2 === 0)
-            ? `<div class="info-row">${imgHtml}${descHtml}</div>`
-            : `<div class="info-row">${descHtml}${imgHtml}</div>`;
+        const hasImg  = !!item.imageUrl;
+        const hasText = !!(item.description && item.description.trim());
+        const layout  = item.layout || (idx % 2 === 0 ? 'img-left' : 'img-right');
+        const textColor = item.textColor || '#444';
+
+        if (layout === 'img-only') {
+            if (!hasImg) return;
+            html += `<div class="info-row info-row-imgonly"><div class="info-img"><img src="${item.imageUrl}" alt=""></div></div>`;
+            return;
+        }
+        if (layout === 'text-only') {
+            if (!hasText) return;
+            html += `<div class="info-row info-row-textonly"><div class="info-desc" style="color:${textColor};">${escapeHtmlOrder(item.description)}</div></div>`;
+            return;
+        }
+
+        const imgHtml  = hasImg  ? `<div class="info-img"><img src="${item.imageUrl}" alt=""></div>` : '';
+        const descHtml = hasText ? `<div class="info-desc" style="color:${textColor};">${escapeHtmlOrder(item.description)}</div>` : '';
+        if (!imgHtml && !descHtml) return;
+        // 'img-right' = picture right, description left — 'img-left' (default) = picture left, description right
+        html += (layout === 'img-right')
+            ? `<div class="info-row">${descHtml}${imgHtml}</div>`
+            : `<div class="info-row">${imgHtml}${descHtml}</div>`;
     });
 
     if (info.otherInfo && info.otherInfo.trim()) {

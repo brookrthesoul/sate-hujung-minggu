@@ -1,7 +1,14 @@
 // info.js — "Info" settings sub-tab: content shown on the customer page's "Menu" tab
 // Stored in the `settings` table under key 'customerInfo' as a JSON string:
-//   { header: string, items: [{ id, imageUrl, description }], otherInfo: string,
+//   { header: string,
+//     items: [{ id, imageUrl, description, layout, textColor }],
+//     otherInfo: string,
 //     backgroundType: 'color'|'image', backgroundColor: string, backgroundImage: string }
+// item.layout: 'img-left' (picture left, description right) | 'img-right' (picture
+//   right, description left) | 'text-only' | 'img-only'. Defaults to alternating
+//   img-left/img-right by row position when not set (keeps older saved data looking
+//   the same as before this field existed).
+// item.textColor: hex colour for the description text (ignored for 'img-only').
 // Pictures (item photos + background photo) are uploaded to the public Supabase
 // Storage bucket 'customer-info'.
 
@@ -140,36 +147,71 @@ function renderInfoItemList() {
         container.innerHTML = '<p style="text-align:center; color:#999;">No items yet. Tap "Add Item" below.</p>';
         return;
     }
-    container.innerHTML = customerInfo.items.map((item, idx) => `
-        <div class="menu-row" style="align-items:flex-start;flex-wrap:wrap;" data-info-id="${item.id}">
-            <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-                <div style="width:84px;height:84px;border-radius:10px;overflow:hidden;background:#eee;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                    ${item.imageUrl
-                        ? `<img src="${item.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover;">`
-                        : `<span style="font-size:11px;color:#999;">No photo</span>`}
-                </div>
-                <input type="file" accept="image/*" id="infoFile-${item.id}" style="display:none;"
-                    onchange="handleInfoImageUpload('${item.id}', this)">
-                <button class="small" style="margin:0;padding:6px 10px;font-size:12px;"
-                    onclick="document.getElementById('infoFile-${item.id}').click()">
-                    ${item.imageUrl ? '🔄 Change' : '📤 Upload'}
-                </button>
+    container.innerHTML = customerInfo.items.map((item, idx) => {
+        const layout     = item.layout || (idx % 2 === 0 ? 'img-left' : 'img-right');
+        const textColor  = item.textColor || '#444444';
+        const showPhoto  = layout !== 'text-only';
+        const showText   = layout !== 'img-only';
+        return `
+        <div class="menu-row" style="align-items:flex-start;flex-wrap:wrap;flex-direction:column;gap:10px;" data-info-id="${item.id}">
+            <div style="display:flex;align-items:center;gap:8px;width:100%;">
+                <label style="font-size:12px;font-weight:600;color:#555;flex-shrink:0;">Layout:</label>
+                <select onchange="updateInfoItemLayout('${item.id}', this.value)" style="flex:1;padding:6px 8px;border:1px solid #ddd;border-radius:8px;font-size:12px;">
+                    <option value="img-left"  ${layout === 'img-left'  ? 'selected' : ''}>🖼️➡️📝 Picture left, description right</option>
+                    <option value="img-right" ${layout === 'img-right' ? 'selected' : ''}>📝➡️🖼️ Picture right, description left</option>
+                    <option value="text-only" ${layout === 'text-only' ? 'selected' : ''}>📝 Text only</option>
+                    <option value="img-only"  ${layout === 'img-only'  ? 'selected' : ''}>🖼️ Picture only</option>
+                </select>
+                <button class="small delete-btn" style="margin:0;padding:6px 10px;flex-shrink:0;" title="Delete item"
+                    onclick="deleteInfoItem('${item.id}')">🗑️</button>
             </div>
-            <div style="flex:1;min-width:160px;">
-                <textarea rows="3" placeholder="Description..." id="infoDesc-${item.id}"
-                    style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;resize:vertical;font-family:inherit;"
-                    oninput="updateInfoDescription('${item.id}', this.value)">${escapeHtml(item.description || '')}</textarea>
-                <div style="font-size:11px;color:#999;margin-top:4px;">Row ${idx + 1} — will show ${idx % 2 === 0 ? 'picture left' : 'picture right'} on the customer page</div>
+            <div style="display:flex;gap:12px;width:100%;flex-wrap:wrap;">
+                ${showPhoto ? `
+                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+                    <div style="width:84px;height:84px;border-radius:10px;overflow:hidden;background:#eee;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        ${item.imageUrl
+                            ? `<img src="${item.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover;">`
+                            : `<span style="font-size:11px;color:#999;">No photo</span>`}
+                    </div>
+                    <input type="file" accept="image/*" id="infoFile-${item.id}" style="display:none;"
+                        onchange="handleInfoImageUpload('${item.id}', this)">
+                    <button class="small" id="infoUploadBtn-${item.id}" style="margin:0;padding:6px 10px;font-size:12px;"
+                        onclick="document.getElementById('infoFile-${item.id}').click()">
+                        ${item.imageUrl ? '🔄 Change' : '📤 Upload'}
+                    </button>
+                </div>` : ''}
+                ${showText ? `
+                <div style="flex:1;min-width:160px;">
+                    <textarea rows="3" placeholder="Description..." id="infoDesc-${item.id}"
+                        style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;resize:vertical;font-family:inherit;"
+                        oninput="updateInfoDescription('${item.id}', this.value)">${escapeHtml(item.description || '')}</textarea>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+                        <label style="font-size:11px;color:#999;">Text colour:</label>
+                        <input type="color" value="${textColor}" onchange="updateInfoTextColor('${item.id}', this.value)"
+                            style="width:36px;height:26px;padding:1px;border-radius:6px;border:1px solid #ddd;cursor:pointer;">
+                    </div>
+                </div>` : ''}
             </div>
-            <button class="small delete-btn" style="margin:0;padding:8px 12px;" title="Delete item"
-                onclick="deleteInfoItem('${item.id}')">🗑️</button>
+            <div style="font-size:11px;color:#999;">Row ${idx + 1}</div>
         </div>
-    `).join('');
+    `;}).join('');
+}
+
+function updateInfoItemLayout(id, value) {
+    const item = customerInfo.items.find(i => i.id === id);
+    if (item) item.layout = value;
+    renderInfoItemList();
+}
+
+function updateInfoTextColor(id, value) {
+    const item = customerInfo.items.find(i => i.id === id);
+    if (item) item.textColor = value;
 }
 
 // ─── Item editing ────────────────────────────────────────────────────────────
 function addInfoItem() {
-    customerInfo.items.push({ id: _infoUid(), imageUrl: '', description: '' });
+    const layout = customerInfo.items.length % 2 === 0 ? 'img-left' : 'img-right';
+    customerInfo.items.push({ id: _infoUid(), imageUrl: '', description: '', layout, textColor: '#444444' });
     renderInfoItemList();
 }
 
@@ -190,8 +232,7 @@ async function handleInfoImageUpload(id, fileInput) {
     const item = customerInfo.items.find(i => i.id === id);
     if (!item) return;
 
-    const row = fileInput.closest('.menu-row');
-    const btn = row ? row.querySelector('button.small') : null;
+    const btn = document.getElementById(`infoUploadBtn-${id}`);
     if (btn) { btn.disabled = true; btn.textContent = 'Uploading...'; }
 
     try {
