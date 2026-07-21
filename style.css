@@ -558,6 +558,7 @@ html.dark-mode #pasteOrderBox { background: #1a2233 !important; border-color: #2
 html.dark-mode #pasteOrderInput { border-color: #2c4a7c !important; }
 
 html.dark-mode #orderSummaryModal > div,
+html.dark-mode #blockCustomerModal > div,
 html.dark-mode #reportModal > div,
 html.dark-mode #paymentModal > div,
 html.dark-mode #passwordScreen,

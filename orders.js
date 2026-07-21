@@ -932,8 +932,10 @@ function renderOrderCard(card, rawOrder, stage) {
         : '';
 
     const contactBadge = (o.customerName || o.customerPhone)
-        ? `<div class="detail-badge" style="grid-column:span 2;">
-             ${o.customerName ? `👤 ${escapeHtml(o.customerName)}` : ''}${o.customerName && o.customerPhone ? ' · ' : ''}${phoneLinkHtml}
+        ? `<div class="detail-badge" style="grid-column:span 2;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+             <span>${o.customerName ? `👤 ${escapeHtml(o.customerName)}` : ''}${o.customerName && o.customerPhone ? ' · ' : ''}${phoneLinkHtml}</span>
+             <button onclick="event.stopPropagation(); openBlockModal(${o.id});" title="Block this customer"
+                 style="background:none;border:none;color:#dc3545;font-size:15px;cursor:pointer;padding:2px 4px;flex-shrink:0;line-height:1;">🚫</button>
            </div>` : '';
 
     const editableDesc = `<div class="order-description" id="desc-${o.id}" contenteditable="true"
@@ -1749,4 +1751,145 @@ function _applyParsedOrder(parsed) {
         if(qty&&qty>0){el.value=qty;el.style.background='#e8f5e9';filled++;}
     });
     return filled;
+}
+
+// ─── Block / unblock customers (abuse prevention) ──────────────────────────────
+// place_customer_order() stamps orderIp + deviceId onto each customer-placed
+// order (see supabase/migrations/customer_blocklist.sql). Blocking checks
+// phone / device / IP against the blocked_customers table before an order
+// is accepted — see that migration file for the tradeoffs of each signal.
+async function adminRpc(fn, body) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+        method: 'POST',
+        headers: {
+            'apikey':        SUPABASE_ANON_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+            'Content-Type':  'application/json'
+        },
+        body: JSON.stringify(body || {})
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const t = await res.text();
+    return t ? JSON.parse(t) : null;
+}
+
+async function openBlockModal(orderId) {
+    const all   = await getAllOrders();
+    const order = all.find(o => o.id === orderId);
+    if (!order) return;
+
+    const options = [];
+    if (order.customerPhone) options.push({ type: 'phone',  value: order.customerPhone, label: `📞 Phone — ${order.customerPhone}` });
+    if (order.deviceId)      options.push({ type: 'device', value: order.deviceId,      label: `📱 This device (browser)` });
+    if (order.orderIp)       options.push({ type: 'ip',     value: order.orderIp,       label: `🌐 IP address — ${order.orderIp}` });
+
+    const box = document.getElementById('blockCustomerOptions');
+    if (box) {
+        box.innerHTML = options.length
+            ? options.map((opt, i) => `
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" class="block-opt" data-type="${opt.type}" data-value="${escapeHtml(opt.value)}" ${i === 0 ? 'checked' : ''}>
+                    ${opt.label}
+                </label>`).join('')
+            : '<p style="font-size:13px;color:#999;">This order has no phone, device, or IP info to block (older order, placed before this feature).</p>';
+    }
+
+    const status = document.getElementById('blockStatusMsg');
+    if (status) status.textContent = '';
+    const reasonInput = document.getElementById('blockReasonInput');
+    if (reasonInput) reasonInput.value = '';
+
+    const modal = document.getElementById('blockCustomerModal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeBlockModal() {
+    const modal = document.getElementById('blockCustomerModal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function submitBlockCustomer() {
+    const checked = Array.from(document.querySelectorAll('.block-opt:checked'));
+    const status  = document.getElementById('blockStatusMsg');
+    if (checked.length === 0) {
+        if (status) { status.style.color = '#dc3545'; status.textContent = 'Select at least one thing to block.'; }
+        return;
+    }
+
+    const reason = (document.getElementById('blockReasonInput') || {}).value || '';
+    if (status) { status.style.color = '#6c757d'; status.textContent = '⏳ Blocking...'; }
+
+    try {
+        for (const el of checked) {
+            await adminRpc('block_customer', { p_type: el.dataset.type, p_value: el.dataset.value, p_reason: reason.trim() || null });
+        }
+        if (status) { status.style.color = '#28a745'; status.textContent = '✅ Blocked.'; }
+        setTimeout(closeBlockModal, 900);
+        if (typeof loadBlockedList === 'function') loadBlockedList();
+    } catch (e) {
+        if (status) { status.style.color = '#dc3545'; status.textContent = '❌ Failed: ' + e.message; }
+    }
+}
+
+async function loadBlockedList() {
+    const box = document.getElementById('blockedListBox');
+    if (box) box.innerHTML = '<p style="text-align:center;color:#999;font-size:13px;">Loading...</p>';
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/blocked_customers?select=*&order=blocked_at.desc`, {
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+        });
+        if (!res.ok) throw new Error(await res.text());
+        renderBlockedList(await res.json());
+    } catch (e) {
+        if (box) box.innerHTML = `<p style="color:#dc3545;font-size:13px;">Couldn't load blocked list: ${escapeHtml(e.message)}</p>`;
+    }
+}
+
+function renderBlockedList(rows) {
+    const box = document.getElementById('blockedListBox');
+    if (!box) return;
+    if (!rows || rows.length === 0) {
+        box.innerHTML = '<p style="text-align:center;color:#999;font-size:13px;">No one is blocked right now.</p>';
+        return;
+    }
+    const typeIcon  = { phone: '📞', ip: '🌐', device: '📱' };
+    const typeLabel = { phone: 'Phone', ip: 'IP address', device: 'Device' };
+    box.innerHTML = rows.map(r => `
+        <div class="menu-row" style="align-items:center;">
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;font-weight:600;">${typeIcon[r.type] || ''} ${typeLabel[r.type] || r.type} — ${escapeHtml(r.value)}</div>
+                ${r.reason ? `<div style="font-size:12px;color:#888;">${escapeHtml(r.reason)}</div>` : ''}
+                <div style="font-size:11px;color:#aaa;">Blocked ${new Date(r.blocked_at).toLocaleString()}</div>
+            </div>
+            <button class="small delete-btn" style="margin:0;flex-shrink:0;"
+                onclick='unblockCustomer(${JSON.stringify(r.type)}, ${JSON.stringify(r.value)})'>Unblock</button>
+        </div>
+    `).join('');
+}
+
+async function unblockCustomer(type, value) {
+    if (!confirm('Unblock this? They will be able to order again.')) return;
+    try {
+        await adminRpc('unblock_customer', { p_type: type, p_value: value });
+        loadBlockedList();
+    } catch (e) {
+        alert('❌ Failed to unblock: ' + e.message);
+    }
+}
+
+async function addManualBlock() {
+    const typeSel     = document.getElementById('manualBlockType');
+    const valueInput  = document.getElementById('manualBlockValue');
+    const reasonInput = document.getElementById('manualBlockReason');
+    const value = (valueInput.value || '').trim();
+    if (!value) { alert('Enter a value to block.'); return; }
+
+    try {
+        await adminRpc('block_customer', { p_type: typeSel.value, p_value: value, p_reason: (reasonInput.value || '').trim() || null });
+        valueInput.value  = '';
+        reasonInput.value = '';
+        loadBlockedList();
+    } catch (e) {
+        alert('❌ Failed to block: ' + e.message);
+    }
 }

@@ -200,6 +200,7 @@
             <div class="sub-tab active" id="stab-menu"   onclick="switchSettingsTab('menu')">Menu</div>
             <div class="sub-tab"        id="stab-info"   onclick="switchSettingsTab('info')">Info</div>
             <div class="sub-tab"        id="stab-others"   onclick="switchSettingsTab('others')">Others</div>
+            <div class="sub-tab"        id="stab-blocklist" onclick="switchSettingsTab('blocklist')">🚫 Blocked</div>
             <div class="sub-tab"        id="stab-policies" onclick="switchSettingsTab('policies')">Policies</div>
             <div class="sub-tab"        id="stab-danger"   onclick="switchSettingsTab('danger')" style="color:#dc3545;">Danger</div>
         </div>
@@ -454,6 +455,30 @@
             </div>
         </div>
 
+        <!-- Blocked customers (abuse prevention) -->
+        <div id="stab-blocklist-content" class="settings-subtab-content">
+            <h3 style="margin-top:20px;">🚫 Blocked Customers</h3>
+            <p style="font-size:13px;color:#666;margin-bottom:12px;">
+                Block a phone number, device, or IP address to stop repeat fake/abusive orders. Phone blocking is the most reliable —
+                device and IP can be cleared or shared with other genuine customers, so use those mainly for clear repeat offenders.
+                The quickest way to block is the 🚫 button on an order's contact card — or add one manually below.
+            </p>
+
+            <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+                <select id="manualBlockType" style="flex:1;min-width:110px;padding:10px;border:1px solid #ddd;border-radius:8px;">
+                    <option value="phone">📞 Phone</option>
+                    <option value="ip">🌐 IP address</option>
+                    <option value="device">📱 Device ID</option>
+                </select>
+                <input type="text" id="manualBlockValue" placeholder="Value to block" style="flex:2;min-width:140px;padding:10px;border:1px solid #ddd;border-radius:8px;">
+            </div>
+            <input type="text" id="manualBlockReason" placeholder="Reason (optional)" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-bottom:8px;">
+            <button onclick="addManualBlock()">🚫 Block</button>
+
+            <h3 style="margin-top:24px;">Currently Blocked</h3>
+            <div id="blockedListBox"><p style="text-align:center;color:#999;font-size:13px;">Loading...</p></div>
+        </div>
+
         <!-- Policies -->
         <div id="stab-policies-content" class="settings-subtab-content">
             <h3 style="margin-top:20px;">📄 Privacy Policy &amp; Terms and Conditions</h3>
@@ -506,6 +531,22 @@
                 <button id="modalSaveOrderBtn" onclick="saveOrder()" style="flex:1; background:#28a745; color:white; border:none; border-radius:10px; padding:12px; font-size:14px; font-weight:bold; cursor:pointer; margin:0;">💾 Save Order</button>
                 <button onclick="closeOrderSummaryModal()" style="background:#6c757d; color:white; border:none; border-radius:10px; padding:12px 16px; font-size:14px; cursor:pointer; margin:0;">Back</button>
             </div>
+        </div>
+    </div>
+
+    <!-- BLOCK CUSTOMER MODAL -->
+    <div id="blockCustomerModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:18px; padding:24px; width:92%; max-width:380px; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+            <h3 style="margin:0 0 6px;">🚫 Block Customer</h3>
+            <p style="font-size:13px;color:#666;margin-bottom:14px;">Choose what to block — you can pick more than one.</p>
+            <div id="blockCustomerOptions" style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px;"></div>
+            <input type="text" id="blockReasonInput" placeholder="Reason (optional)"
+                style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:14px;box-sizing:border-box;">
+            <div style="display:flex; gap:8px;">
+                <button onclick="submitBlockCustomer()" style="flex:1; background:#dc3545; color:white; border:none; border-radius:10px; padding:12px; font-size:14px; font-weight:bold; cursor:pointer; margin:0;">🚫 Block Selected</button>
+                <button onclick="closeBlockModal()" style="background:#6c757d; color:white; border:none; border-radius:10px; padding:12px 16px; font-size:14px; cursor:pointer; margin:0;">Cancel</button>
+            </div>
+            <p id="blockStatusMsg" style="font-size:12px; min-height:16px; margin-top:8px;"></p>
         </div>
     </div>
 

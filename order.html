@@ -335,6 +335,20 @@ const SUPABASE_URL = 'https://efrwvksxttauhoxllhqu.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_SOoDs65SPw_G_m-lZ6NP-w_MbbqxOUw';
 const ORDER_ID_KEY  = 'shmCustomerOrderId';
 const ORDER_IDS_KEY = 'shmCustomerOrderIds';
+const DEVICE_ID_KEY = 'shmDeviceId';
+
+// A random ID persisted in this browser, used (alongside phone number and IP)
+// as one signal the shop can use to block repeat abuse. Not foolproof — it's
+// gone if someone clears their browser data or uses a different browser — but
+// makes casual repeat abuse harder.
+function getDeviceId() {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) {
+        id = (crypto.randomUUID ? crypto.randomUUID() : 'd_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10));
+        localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+}
 const SKEWER_CATS  = ['skewer', 'no-kuah'];
 const SIDE_CATS    = ['side', 'side-1kuah', 'side-none'];
 const EDIT_LOCK_MINS   = 5;
@@ -930,7 +944,8 @@ function showOrderSummary() {
         pickupTs: ts || null,
         pickupMode: mode === 'date-today' ? 'date' : (mode || null),
         createdAt: Date.now(),
-        source: 'customer'
+        source: 'customer',
+        deviceId: getDeviceId()
     };
 
     // Stash for submission when customer confirms
@@ -1036,6 +1051,11 @@ async function confirmPlaceOrder() {
     try {
         const result = await sbRpc('place_customer_order', { order_data: orderData });
         if (!result.ok) {
+            if (result.reason === 'blocked') {
+                alert('❌ We\'re unable to process this order. Please contact us directly if you believe this is a mistake.');
+                closeSummary();
+                return;
+            }
             const item = menuItems.find(m => m.id === result.item);
             const name = item ? item.name : result.item;
             if (result.reason === 'out_of_stock') {
