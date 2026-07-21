@@ -2,8 +2,8 @@
 // Supabase is source of truth. IndexedDB is a local cache.
 // db.js functions delegate here via window._sb* / window._idbGetAll.
 
-const SUPABASE_URL      = 'https://efrwvksxttauhoxllhqu.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_SOoDs65SPw_G_m-lZ6NP-w_MbbqxOUw';
+const SUPABASE_URL      = APP_CONFIG.SUPABASE_URL;
+const SUPABASE_ANON_KEY = APP_CONFIG.SUPABASE_ANON_KEY;
 const TABLE = 'orders';
 
 // ─── Supabase REST ────────────────────────────────────────────────────────────
@@ -374,7 +374,7 @@ function isOrderNotiEnabled() {
     return localStorage.getItem('orderNotiEnabled') === 'true';
 }
 
-const VAPID_PUBLIC_KEY = 'BGhAz7NFT1wIyiBhqqCvl5hv1QCqjYjyaYZy5r0x-1MH58kVb8Q3QaZE6wlG3pff_qqROB44NfTECGNmAciJU1E';
+const VAPID_PUBLIC_KEY = APP_CONFIG.VAPID_PUBLIC_KEY;
 
 function _urlB64ToUint8(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -396,19 +396,12 @@ async function _getFirebaseToken() {
             _loadScript('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js'),
             _loadScript('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js')
         ]);
-        window._firebaseApp = firebase.initializeApp({
-            apiKey: "AIzaSyBp4lTpf7tZrJOJOjv6olB0RgdVd8INOlI",
-            authDomain: "sate-hujung-minggu.firebaseapp.com",
-            projectId: "sate-hujung-minggu",
-            storageBucket: "sate-hujung-minggu.firebasestorage.app",
-            messagingSenderId: "1027593948630",
-            appId: "1:1027593948630:web:2783052925848ec35f2877"
-        });
+        window._firebaseApp = firebase.initializeApp(APP_CONFIG.FIREBASE);
     }
     // Tell Firebase to use our existing SW instead of looking for firebase-messaging-sw.js
     const swReg = await navigator.serviceWorker.ready;
     const messaging = firebase.messaging();
-    const VAPID_KEY = 'BGhAz7NFT1wIyiBhqqCvl5hv1QCqjYjyaYZy5r0x-1MH58kVb8Q3QaZE6wlG3pff_qqROB44NfTECGNmAciJU1E';
+    const VAPID_KEY = APP_CONFIG.VAPID_PUBLIC_KEY;
     const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
     console.log('[Push] Firebase token:', token.slice(0, 30) + '...');
     return token;

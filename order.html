@@ -7,6 +7,7 @@
 <meta name="theme-color" content="#f5f5f5" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
 <title id="pageTitle">Sate Hujung Minggu — Order</title>
+<script src="./config.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; min-height: 100vh; }
@@ -331,8 +332,8 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 </div>
 
 <script>
-const SUPABASE_URL = 'https://efrwvksxttauhoxllhqu.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_SOoDs65SPw_G_m-lZ6NP-w_MbbqxOUw';
+const SUPABASE_URL = APP_CONFIG.SUPABASE_URL;
+const SUPABASE_KEY = APP_CONFIG.SUPABASE_ANON_KEY;
 const ORDER_ID_KEY  = 'shmCustomerOrderId';
 const ORDER_IDS_KEY = 'shmCustomerOrderIds';
 const DEVICE_ID_KEY = 'shmDeviceId';

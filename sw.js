@@ -1,14 +1,8 @@
+importScripts('./config.js');
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
-firebase.initializeApp({
-  apiKey: "AIzaSyBp4lTpf7tZrJOJOjv6olB0RgdVd8INOlI",
-  authDomain: "sate-hujung-minggu.firebaseapp.com",
-  projectId: "sate-hujung-minggu",
-  storageBucket: "sate-hujung-minggu.firebasestorage.app",
-  messagingSenderId: "1027593948630",
-  appId: "1:1027593948630:web:2783052925848ec35f2877"
-});
+firebase.initializeApp(APP_CONFIG.FIREBASE);
 
 const messaging = firebase.messaging();
 
