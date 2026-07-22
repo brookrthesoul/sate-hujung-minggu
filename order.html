@@ -104,6 +104,8 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 .info-row .info-desc { flex: 1; font-size: 14px; color: #444; line-height: 1.6; }
 .info-row-imgonly .info-img { flex: 1 1 100%; }
 .info-row-imgonly .info-img img { aspect-ratio: 16 / 10; }
+.info-row-imgonly-half .info-img { flex: 1 1 100%; }
+.info-row-imgonly-half .info-img img { aspect-ratio: 16 / 5; }
 .info-other { font-size: 14px; color: #444; line-height: 1.7; white-space: pre-wrap; background: white; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-top: 8px; }
 .info-empty { text-align: center; color: #aaa; padding: 40px 16px; font-size: 14px; background: rgba(255,255,255,0.85); border-radius: 14px; }
 
@@ -1419,21 +1421,31 @@ function renderMenuInfoTab(info) {
         const hasImg  = !!item.imageUrl;
         const hasText = !!(item.description && item.description.trim());
         const layout  = item.layout || (idx % 2 === 0 ? 'img-left' : 'img-right');
-        const textColor = item.textColor || '#444';
 
-        if (layout === 'img-only') {
+        // Full text-style controls set in Settings → Info: colour, size, alignment,
+        // bold/italic, and left-to-right vs right-to-left direction.
+        const textColor = item.textColor || '#444';
+        const fontSize  = item.fontSize || 14;
+        const textAlign = item.textAlign || 'left';
+        const textDir   = item.textDirection || 'ltr';
+        const textStyle = `color:${textColor};font-size:${fontSize}px;text-align:${textAlign};`
+            + (item.bold ? 'font-weight:700;' : '')
+            + (item.italic ? 'font-style:italic;' : '');
+
+        if (layout === 'img-only' || layout === 'img-only-half') {
             if (!hasImg) return;
-            html += `<div class="info-row info-row-imgonly"><div class="info-img"><img src="${item.imageUrl}" alt=""></div></div>`;
+            const cls = layout === 'img-only-half' ? 'info-row-imgonly-half' : 'info-row-imgonly';
+            html += `<div class="info-row ${cls}"><div class="info-img"><img src="${item.imageUrl}" alt=""></div></div>`;
             return;
         }
         if (layout === 'text-only') {
             if (!hasText) return;
-            html += `<div class="info-row info-row-textonly"><div class="info-desc" style="color:${textColor};">${escapeHtmlOrder(item.description)}</div></div>`;
+            html += `<div class="info-row info-row-textonly"><div class="info-desc" style="${textStyle}" dir="${textDir}">${escapeHtmlOrder(item.description)}</div></div>`;
             return;
         }
 
         const imgHtml  = hasImg  ? `<div class="info-img"><img src="${item.imageUrl}" alt=""></div>` : '';
-        const descHtml = hasText ? `<div class="info-desc" style="color:${textColor};">${escapeHtmlOrder(item.description)}</div>` : '';
+        const descHtml = hasText ? `<div class="info-desc" style="${textStyle}" dir="${textDir}">${escapeHtmlOrder(item.description)}</div>` : '';
         if (!imgHtml && !descHtml) return;
         // 'img-right' = picture right, description left — 'img-left' (default) = picture left, description right
         html += (layout === 'img-right')
