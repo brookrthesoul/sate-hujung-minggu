@@ -19,7 +19,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<script src="https://cdn.jsdelivr.net/npm/@point-of-sale/receipt-printer-encoder/dist/receipt-printer-encoder.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@point-of-sale/webbluetooth-receipt-printer/dist/webbluetooth-receipt-printer.umd.js"></script>
-    <title>Sate-Hujung-Minggu</title>
+    <title>Shop Admin</title>
     <link rel="stylesheet" href="./style.css">
 </head>
 <body style="margin-top: 20px;">
@@ -35,7 +35,7 @@
             <div class="tab active" onclick="switchTab('home')">🍎 Home</div>
             <div class="tab" onclick="switchTab('orders')">📋 Orders</div>
             <div class="tab" onclick="switchTab('preorder')">📅 Preorder</div>
-            <div class="tab" onclick="switchTab('ratio')">⚖️ Ratio</div>
+            <div class="tab" id="tabRatioBtn" onclick="switchTab('ratio')">⚖️ Ratio</div>
             <div class="tab" onclick="switchTab('settings')">⚙️ Settings</div>
         </div>
     </div>
@@ -221,14 +221,20 @@
             </div>
             <div class="settings-group">
                 <label>Type</label>
-                <select id="newItemType">
+                <select id="newItemType" onchange="toggleNewItemUnitLabel()">
                     <option value="skewer">🍢 Sate (+ kuah kacang)</option>
                     <option value="no-kuah">🍖 Sate (tiada kuah kacang)</option>
                     <option value="side">🍽️ Side dish (+ 2 kuah)</option>
                     <option value="side-1kuah">🍽️ Side dish (+ 1 kuah)</option>
                     <option value="side-none">🍽️ Side dish (no kuah)</option>
                     <option value="kuah-only">🥜 Kuah kacang sahaja</option>
+                    <option value="custom-unit">📦 Custom unit (not skewer/kuah — e.g. cake, pastry)</option>
                 </select>
+            </div>
+            <div class="settings-group" id="newItemUnitLabelGroup" style="display:none;">
+                <label>Unit label</label>
+                <input type="text" id="newItemUnitLabel" placeholder="e.g. slice, pcs, whole" maxlength="20">
+                <p style="font-size:12px;color:#888;margin-top:4px;">Shown on orders and receipts, e.g. "3 slice" or "5 pcs".</p>
             </div>
             <div style="display:flex;gap:8px;margin-top:16px;">
                 <button onclick="addMenuItem()" style="width:auto;flex:1;margin:0;">Add Item</button>
@@ -238,18 +244,20 @@
                 Changing prices or the menu affects future calculations and new orders. Existing orders keep their original totals.
             </p>
 
-            <h3 style="margin-top:24px;">🥜 Kuah Kacang Ratio</h3>
-            <p style="font-size:13px;color:#666;margin-bottom:8px;">
-                How many skewers per 1 scoop of kuah kacang.
-            </p>
-            <div style="display:flex;align-items:center;gap:10px;">
-                <span style="font-size:13px;font-weight:600;">1 scoop per</span>
-                <input type="number" id="kuahRatioInput" min="1" step="1" value="10"
-                    style="width:70px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;"
-                    onchange="saveKuahRatio()">
-                <span style="font-size:13px;font-weight:600;">skewers</span>
+            <div id="kuahRatioSettingGroup">
+                <h3 style="margin-top:24px;">🥜 Kuah Kacang Ratio</h3>
+                <p style="font-size:13px;color:#666;margin-bottom:8px;">
+                    How many skewers per 1 scoop of kuah kacang.
+                </p>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="font-size:13px;font-weight:600;">1 scoop per</span>
+                    <input type="number" id="kuahRatioInput" min="1" step="1" value="10"
+                        style="width:70px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;"
+                        onchange="saveKuahRatio()">
+                    <span style="font-size:13px;font-weight:600;">skewers</span>
+                </div>
+                <p id="kuahRatioStatus" style="font-size:12px;color:#28a745;min-height:16px;margin-top:4px;"></p>
             </div>
-            <p id="kuahRatioStatus" style="font-size:12px;color:#28a745;min-height:16px;margin-top:4px;"></p>
 
             <h3 style="margin-top:24px;">📦 Manage Stock</h3>
             <p style="font-size:13px;color:#666;margin-bottom:12px;">
@@ -341,7 +349,7 @@
                 Used on receipts, PDF reports and the customer order page.
             </p>
             <div style="display:flex;gap:8px;align-items:center;">
-                <input type="text" id="businessNameInput" value="Sate Hujung Minggu"
+                <input type="text" id="businessNameInput" placeholder="e.g. My Shop"
                     style="flex:1;min-width:0;padding:9px;border-radius:10px;border:1px solid #ddd;font-size:14px;">
                 <button onclick="saveBusinessName()"
                     style="width:auto;flex:0 0 auto;margin:0;padding:9px 16px;background:#28a745;color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">
@@ -441,7 +449,7 @@
                 </div>
             </div>
 
-            <h3 style="margin-top:24px;">🍢 Kitchen Notifications</h3>
+            <h3 style="margin-top:24px;">🔔 New Order Notifications</h3>
             <p style="font-size:13px; color:#6c757d;">
                 Enable this on the <strong>cooking device</strong> to get an alert + sound whenever a new order is placed from another device.
             </p>
@@ -452,7 +460,7 @@
                 </label>
                 <div>
                     <div style="font-weight:600; font-size:14px;">New Order Alert</div>
-                    <div id="orderNotiHint" style="font-size:12px; color:#6c757d;">🔕 Kitchen alerts OFF</div>
+                    <div id="orderNotiHint" style="font-size:12px; color:#6c757d;">🔕 Order alerts OFF</div>
                 </div>
             </div>
         </div>
@@ -633,8 +641,8 @@
     <!-- PASSWORD SCREEN -->
     <div id="passwordScreen" style="display:none; position:fixed; inset:0; background:#f5f5f5; z-index:99999; align-items:center; justify-content:center; flex-direction:column;">
         <div style="background:white; border-radius:20px; padding:32px 24px; width:90%; max-width:340px; box-shadow:0 8px 32px rgba(0,0,0,0.15); text-align:center;">
-            <div style="font-size:40px; margin-bottom:12px;">🍢</div>
-            <h2 style="font-size:18px; margin-bottom:6px; color:#1a1a1a;" id="pwScreenTitle">Sate Hujung Minggu</h2>
+            <div style="font-size:40px; margin-bottom:12px;">🏪</div>
+            <h2 style="font-size:18px; margin-bottom:6px; color:#1a1a1a;" id="pwScreenTitle">My Shop</h2>
             <p style="font-size:13px; color:#888; margin-bottom:20px;">Staff access only</p>
             <input type="password" id="pwInput" placeholder="Enter password"
                 style="width:100%; padding:12px; border:1.5px solid #ddd; border-radius:10px; font-size:15px; text-align:center; outline:none; margin-bottom:12px; box-sizing:border-box;"

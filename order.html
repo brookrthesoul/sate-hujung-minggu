@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f5f5f5" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
-<title id="pageTitle">Sate Hujung Minggu — Order</title>
+<title id="pageTitle">Order</title>
 <script src="./config.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -226,7 +226,7 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
 <body>
 
 <div class="nav">
-    <h1 id="shopName">🍢 Sate Hujung Minggu</h1>
+    <h1 id="shopName">🏪 Shop</h1>
     <span id="busyBadge" class="busy-badge busy-none">No Order</span>
 </div>
 
@@ -278,7 +278,7 @@ textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10
     </div>
     <div class="time-hint" id="timeHint"></div>
 
-    <div class="section-title">🍢 Your Order</div>
+    <div class="section-title">📋 Your Order</div>
     <div class="menu-grid" id="menuGrid"></div>
 
     <div class="section-title">📝 Note (optional)</div>
@@ -354,6 +354,16 @@ function getDeviceId() {
 }
 const SKEWER_CATS  = ['skewer', 'no-kuah'];
 const SIDE_CATS    = ['side', 'side-1kuah', 'side-none'];
+
+// True if this shop's menu uses the skewer/kuah-kacang system at all (mirrors
+// the same check in the admin app's menu.js). Used to keep the "Busy" badge
+// meaningful for shops whose menu is entirely custom-unit items (e.g. a
+// bakery) — otherwise it would stay stuck on "No Order" forever, since it'd
+// only ever be counting a category that doesn't exist in their menu.
+function menuUsesSkewerSystem() {
+    return menuItems.some(i => SKEWER_CATS.includes(i.category) || i.category === 'side' || i.category === 'side-1kuah' || i.category === 'kuah-only');
+}
+
 const EDIT_LOCK_MINS   = 5;
 const PICKUP_EDIT_MINS = 20;
 const PICKUP_MIN_HOURS = 1;
@@ -409,10 +419,13 @@ function alignTabBarUnderNav() {
 window.addEventListener('resize', alignTabBarUnderNav);
 
 async function init() {
+    updateShopName(APP_CONFIG.APP_NAME);
     setPickupDateMin();
     initBusyBadgeTooltip();
     alignTabBarUnderNav();
-    await Promise.all([loadMenu(), loadStock(), loadBusy(), loadShopStatus(), loadMenuInfoTab()]);
+    // loadMenu must finish first — loadBusy() now reads menuItems (via menuUsesSkewerSystem)
+    await loadMenu();
+    await Promise.all([loadStock(), loadBusy(), loadShopStatus(), loadMenuInfoTab()]);
     renderMenuGrid();
     if (myOrderId && !myOrderIds.includes(myOrderId)) {
         myOrderIds.push(myOrderId);
@@ -523,7 +536,7 @@ function updateShopName(name) {
     if (!name) return;
     const h1    = document.getElementById('shopName');
     const title = document.getElementById('pageTitle');
-    if (h1)    h1.textContent    = '🍢 ' + name;
+    if (h1)    h1.textContent    = '🏪 ' + name;
     if (title) title.textContent = name + ' — Order';
 }
 
@@ -635,6 +648,7 @@ async function loadBusy() {
     try {
         const orders = await sbFetch('orders?select=data&data->>paid=eq.false&data->>prepared=eq.false&data->>pickedUp=eq.false');
         const today  = new Date().toLocaleDateString('en-CA');
+        const hasSkewerSystem = menuUsesSkewerSystem();
         let total = 0;
         (orders || []).forEach(row => {
             const o = row.data || {};
@@ -644,7 +658,13 @@ async function loadBusy() {
                 if (pDay > today) return;
             }
             Object.values(o.items || {}).forEach(item => {
-                if (SKEWER_CATS.includes(item.category)) total += (item.qty || 0);
+                if (hasSkewerSystem) {
+                    if (SKEWER_CATS.includes(item.category)) total += (item.qty || 0);
+                } else {
+                    // No skewer items in this shop's menu at all — count everything instead,
+                    // so the badge still reflects real order volume.
+                    total += (item.qty || 0);
+                }
             });
         });
         const badge = document.getElementById('busyBadge');
@@ -662,9 +682,11 @@ function renderMenuGrid(containerId = 'menuGrid', existingItems = {}) {
     grid.innerHTML = menuItems.map(item => {
         const qty    = existingItems[item.id] || 0;
         const isSate = SATE_CATS.includes(item.category);
+        const unitSuffix = (item.category === 'custom-unit' && item.unitLabel)
+            ? ` <span style="font-weight:400;color:#888;">(${escapeHtmlOrder(item.unitLabel)})</span>` : '';
         if (isSate) {
             return `<div class="menu-cell">
-                <label for="qty_${containerId}_${item.id}">${item.name}<br><span>RM${item.price.toFixed(2)}</span></label>
+                <label for="qty_${containerId}_${item.id}">${item.name}${unitSuffix}<br><span>RM${item.price.toFixed(2)}</span></label>
                 <input type="number" id="qty_${containerId}_${item.id}" min="0" step="1" value="${qty || ''}" placeholder="0"
                     data-baseline="${qty}"
                     oninput="onQtyInput('${containerId}','${item.id}',this.value)">
@@ -672,7 +694,7 @@ function renderMenuGrid(containerId = 'menuGrid', existingItems = {}) {
             </div>`;
         } else {
             return `<div class="menu-cell">
-                <label for="qty_${containerId}_${item.id}">${item.name}<br><span>RM${item.price.toFixed(2)}</span></label>
+                <label for="qty_${containerId}_${item.id}">${item.name}${unitSuffix}<br><span>RM${item.price.toFixed(2)}</span></label>
                 <div style="display:flex;align-items:center;gap:4px;">
                     <button type="button" class="qty-minus-btn" onclick="adjQty('${containerId}','${item.id}',-1)"
                         style="width:30px;height:30px;border-radius:7px;border:1px solid #ddd;background:#f5f5f5;font-size:15px;font-weight:bold;cursor:pointer;flex-shrink:0;padding:0;">−</button>
@@ -744,6 +766,7 @@ function onQtyInput(gridId, itemId, value) {
             let threshold = 0;
             if (SKEWER_CATS.includes(cat)) threshold = 50;
             else if (SIDE_CATS.includes(cat)) threshold = 10;
+            else if (cat === 'custom-unit') threshold = 10;
             if (threshold > 0 && avail <= threshold) {
                 hint.textContent = `${avail} left`; hint.className = 'stock-hint stock-low';
             } else {
@@ -926,7 +949,7 @@ function showOrderSummary() {
         const qty = qtys[item.id] || 0;
         if (qty === 0) return;
         const cost = qty * item.price;
-        items[item.id] = { name: item.name, category: item.category, price: item.price, qty, cost };
+        items[item.id] = { name: item.name, category: item.category, price: item.price, qty, cost, unitLabel: item.unitLabel };
         totalCost += cost;
         if (item.category === 'skewer' || item.category === 'no-kuah') skewerQty += qty;
         if (item.category === 'skewer') scoops += Math.ceil(qty / kuahRatio);
@@ -1279,7 +1302,7 @@ async function saveEdit() {
     menuItems.forEach(item => {
         const qty = qtys[item.id] || 0;
         const cost = qty * item.price;
-        newItems[item.id] = { name: item.name, category: item.category, price: item.price, qty, cost };
+        newItems[item.id] = { name: item.name, category: item.category, price: item.price, qty, cost, unitLabel: item.unitLabel };
         totalCost += cost;
         if (item.category === 'skewer' || item.category === 'no-kuah') skewerQty += qty;
         if (item.category === 'skewer') scoops += Math.ceil(qty / kuahRatio);
@@ -1410,7 +1433,7 @@ function renderMenuInfoTab(info) {
     const items = (info.items || []).filter(it => it.imageUrl || (it.description && it.description.trim()));
 
     if (!info.header && items.length === 0 && !(info.otherInfo && info.otherInfo.trim())) {
-        box.innerHTML = '<div class="info-empty">Menu info coming soon 🍢</div>';
+        box.innerHTML = '<div class="info-empty">Menu info coming soon</div>';
         return;
     }
 

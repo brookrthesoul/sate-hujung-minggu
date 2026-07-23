@@ -1,8 +1,11 @@
-# Setup Guide — Sate Hujung Minggu PWA
+# Setup Guide — Shop Ordering PWA
 
-This guide walks through setting this app up completely from scratch, even if
-you've never coded before. Follow the parts **in order** — each one depends on
-the last.
+This guide walks through setting this app up completely from scratch for
+**your** business, even if you've never coded before. It works for any small
+shop taking orders for pickup — food stalls, bakeries, and more (see the
+"Custom unit" menu category in Settings if you're not selling skewers/kuah
+kacang — it lets you sell by slice, piece, whole, or any unit you choose).
+Follow the parts **in order** — each one depends on the last.
 
 **Accounts you'll need (all free):**
 1. [GitHub](https://github.com) — stores your app's files
@@ -84,6 +87,11 @@ GitHub's built-in editor — no extra software needed.
    8. `customer_info.sql`
    9. `legal_policies.sql`
    10. `customer_blocklist.sql`
+
+   > `menu_custom_unit.sql` is **not** in this list — skip it on a fresh setup.
+   > It only exists for people who ran `menu_table.sql` before the "Custom
+   > unit" menu category was added; `menu_table.sql` already includes that
+   > column for new setups.
 
 5. **Get your API keys** (needed for Part 5): in the left sidebar, click the
    ⚙️ **Project Settings** → **API**. You'll need two values from this page:

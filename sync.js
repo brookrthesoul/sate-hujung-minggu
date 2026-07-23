@@ -488,7 +488,7 @@ async function setOrderNotiEnabled(val) {
             await _saveSubscriptionToSupabase(sub);
             localStorage.setItem('orderNotiEnabled', 'true');
             if (toggle) toggle.checked = true;
-            if (hint) hint.textContent = '🔔 Kitchen alerts ON (works when closed)';
+            if (hint) hint.textContent = '🔔 Order alerts ON (works when closed)';
         } catch(e) {
             console.error('[Push] subscribe failed', e);
             if (hint) hint.textContent = '❌ Failed: ' + e.message;
@@ -499,7 +499,7 @@ async function setOrderNotiEnabled(val) {
         await _unsubscribePush().catch(console.warn);
         localStorage.setItem('orderNotiEnabled', 'false');
         if (toggle) toggle.checked = false;
-        if (hint) hint.textContent = '🔕 Kitchen alerts OFF';
+        if (hint) hint.textContent = '🔕 Order alerts OFF';
     }
 }
 
@@ -561,8 +561,8 @@ async function _checkForNewOrders(freshOrders) {
     });
 
     const title = newOrders.length === 1
-        ? '🍢 New Order!'
-        : `🍢 ${newOrders.length} New Orders!`;
+        ? '🔔 New Order!'
+        : `🔔 ${newOrders.length} New Orders!`;
     const body = lines.join('\n');
 
     playOrderBeep();
@@ -660,7 +660,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('[Page] SW message received:', event.data);
             if (event.data && event.data.type === 'NEW_ORDER') {
                 playOrderBeep();
-                showOrderBanner('🍢 New Order!', event.data.body);
+                showOrderBanner('🔔 New Order!', event.data.body);
             }
             if (event.data && event.data.type === 'GOTO_ORDERS') {
                 _gotoOrdersTab();
@@ -683,7 +683,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const _notiHint   = document.getElementById('orderNotiHint');
     if (_notiToggle) _notiToggle.checked = _wasEnabled;
     if (_wasEnabled) {
-        if (_notiHint) _notiHint.textContent = '🔔 Kitchen alerts ON (works when closed)';
+        if (_notiHint) _notiHint.textContent = '🔔 Order alerts ON (works when closed)';
         // Silently ensure subscription is still valid
         navigator.serviceWorker && navigator.serviceWorker.ready.then(async reg => {
             const sub = await reg.pushManager.getSubscription();
@@ -695,7 +695,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }).catch(console.warn);
     } else {
-        if (_notiHint) _notiHint.textContent = '🔕 Kitchen alerts OFF';
+        if (_notiHint) _notiHint.textContent = '🔕 Order alerts OFF';
     }
 
     if (navigator.onLine) {

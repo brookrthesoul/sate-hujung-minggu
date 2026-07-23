@@ -1,6 +1,6 @@
 {
-  "name": "Sate Hujung Minggu",
-  "short_name": "Sate HM",
+  "name": "My Shop Orders",
+  "short_name": "My Shop",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",

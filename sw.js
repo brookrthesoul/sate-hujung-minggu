@@ -9,7 +9,7 @@ const messaging = firebase.messaging();
 // Handle background messages via Firebase
 messaging.onBackgroundMessage(payload => {
   console.log('[SW] Firebase background message:', payload);
-  const title = payload.notification?.title || payload.data?.title || '🍢 New Order!';
+  const title = payload.notification?.title || payload.data?.title || '🔔 New Order!';
   const body  = payload.notification?.body  || payload.data?.body  || '';
   const tag   = payload.data?.tag || 'new-order';
   return self.registration.showNotification(title, {
@@ -94,7 +94,7 @@ self.addEventListener('push', event => {
   console.log('[SW] *** PUSH EVENT FIRED ***');
 
   // Always show a notification - required for push events
-  const title = '🍢 New Order!';
+  const title = '🔔 New Order!';
   let body = 'A new order has been placed';
 
   if (event.data) {

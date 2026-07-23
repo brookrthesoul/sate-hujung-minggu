@@ -37,6 +37,6 @@ globalThis.APP_CONFIG = {
     // gcm_sender_id to match by hand.
 
     // ── App info ──────────────────────────────────────────────────────────────
-    APP_NAME: 'Sate Hujung Minggu',   // shown before the Business Name setting (in Settings → Others) loads
+    APP_NAME: 'My Shop',              // ← change this to your business name. Shown as the fallback before the Business Name setting (Settings → Others) loads, and used as the default anywhere else the app needs a name.
     VERSION:  '1.0.0'                  // shown in Settings, just for your own reference when troubleshooting
 };

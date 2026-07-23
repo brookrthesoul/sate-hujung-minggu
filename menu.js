@@ -32,13 +32,22 @@ async function _menuFetch(path, opts = {}) {
 }
 
 async function _loadMenuFromSupabase() {
-    const rows = await _menuFetch(`${MENU_TABLE}?select=id,name,price,category&order=sort_order.asc`);
+    const rows = await _menuFetch(`${MENU_TABLE}?select=id,name,price,category,unitLabel:unit_label&order=sort_order.asc`);
     return rows && rows.length ? rows : null;
 }
 
 async function _saveMenuToSupabase(items) {
-    // Upsert all items with their sort order
-    const rows = items.map((item, idx) => ({ ...item, sort_order: idx }));
+    // Upsert all items with their sort order. Map camelCase JS fields to the
+    // actual snake_case DB column names (PostgREST needs exact column names
+    // on write — aliases only work for reads).
+    const rows = items.map((item, idx) => ({
+        id:         item.id,
+        name:       item.name,
+        price:      item.price,
+        category:   item.category,
+        unit_label: item.unitLabel || null,
+        sort_order: idx
+    }));
     await _menuFetch(MENU_TABLE, {
         method:  'POST',
         headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
@@ -73,6 +82,25 @@ async function loadMenu() {
         }
     }
     renderHomeMenuInputs();
+    updateSkewerSystemVisibility();
+}
+
+// Hides the Ratio tab and the Kuah Kacang Ratio setting for shops whose menu
+// doesn't use the skewer/kuah system at all (e.g. a bakery selling only
+// custom-unit items) — no point showing controls for a system they don't use.
+function updateSkewerSystemVisibility() {
+    const usesSkewerSystem = menuUsesSkewerSystem();
+
+    const ratioTabBtn = document.getElementById('tabRatioBtn');
+    if (ratioTabBtn) ratioTabBtn.style.display = usesSkewerSystem ? '' : 'none';
+
+    const kuahRatioGroup = document.getElementById('kuahRatioSettingGroup');
+    if (kuahRatioGroup) kuahRatioGroup.style.display = usesSkewerSystem ? '' : 'none';
+
+    // If the Ratio tab is currently open but just got hidden, send them back to Home
+    if (!usesSkewerSystem && ratioTabBtn && ratioTabBtn.classList.contains('active')) {
+        if (typeof switchTab === 'function') switchTab('home');
+    }
 }
 
 function saveMenu() {
@@ -86,6 +114,18 @@ function getMenuItems()      { return menuItems; }
 function getMenuItem(id)     { return menuItems.find(i => i.id === id); }
 function getItemPrice(id)    { const item = getMenuItem(id); return item ? item.price : 0; }
 
+// Categories that participate in the skewer / kuah-kacang scoop system.
+const SKEWER_SYSTEM_CATEGORIES = ['skewer', 'no-kuah', 'side', 'side-1kuah', 'kuah-only'];
+
+// True if the menu has at least one item using the skewer/kuah system.
+// Used to hide the Ratio tab, the Kuah Ratio setting, and the "Jumlah Cucuk" /
+// "Jumlah Kuah Kacang" lines for shops whose menu is entirely custom-unit
+// items (e.g. a bakery) — so those shops aren't shown irrelevant "0" lines
+// everywhere.
+function menuUsesSkewerSystem() {
+    return menuItems.some(i => SKEWER_SYSTEM_CATEGORIES.includes(i.category));
+}
+
 function slugify(name) {
     let base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
     if (!base) base = 'item';
@@ -96,20 +136,29 @@ function slugify(name) {
 
 function refreshAfterMenuChange() {
     if (typeof renderHomeMenuInputs === 'function') renderHomeMenuInputs();
+    updateSkewerSystemVisibility();
     const summaryModal = document.getElementById('orderSummaryModal');
     if (summaryModal && summaryModal.style.display === 'flex' && typeof reviewOrder === 'function') reviewOrder();
     const ratioPanel = document.getElementById('ratioPanel');
     if (ratioPanel && ratioPanel.classList.contains('active') && typeof calculateRatio === 'function') calculateRatio();
 }
 
+function toggleNewItemUnitLabel() {
+    const typeInput = document.getElementById('newItemType');
+    const group     = document.getElementById('newItemUnitLabelGroup');
+    if (!typeInput || !group) return;
+    group.style.display = typeInput.value === 'custom-unit' ? 'block' : 'none';
+}
+
 function addMenuItem() {
-    const nameInput  = document.getElementById('newItemName');
-    const priceInput = document.getElementById('newItemPrice');
-    const typeInput  = document.getElementById('newItemType');
+    const nameInput     = document.getElementById('newItemName');
+    const priceInput    = document.getElementById('newItemPrice');
+    const typeInput     = document.getElementById('newItemType');
+    const unitInput     = document.getElementById('newItemUnitLabel');
 
     const name     = nameInput.value.trim();
     const price    = parseFloat(priceInput.value);
-    const category = ['skewer','no-kuah','side','side-1kuah','side-none','kuah-only'].includes(typeInput.value) ? typeInput.value : 'skewer';
+    const category = ['skewer','no-kuah','side','side-1kuah','side-none','kuah-only','custom-unit'].includes(typeInput.value) ? typeInput.value : 'skewer';
 
     if (!name)                    { alert('Please enter a menu item name.'); return; }
     if (isNaN(price) || price < 0){ alert('Please enter a valid price.'); return; }
@@ -117,12 +166,18 @@ function addMenuItem() {
         alert('A menu item with that name already exists.'); return;
     }
 
-    menuItems.push({ id: slugify(name), name, price, category });
+    const newItem = { id: slugify(name), name, price, category };
+    if (category === 'custom-unit') {
+        newItem.unitLabel = (unitInput && unitInput.value.trim()) || 'pcs';
+    }
+    menuItems.push(newItem);
     saveMenu();
 
     nameInput.value  = '';
     priceInput.value = '';
     typeInput.value  = 'skewer';
+    if (unitInput) unitInput.value = '';
+    if (typeof toggleNewItemUnitLabel === 'function') toggleNewItemUnitLabel();
 
     renderSettingsMenuList();
     refreshAfterMenuChange();
@@ -137,9 +192,16 @@ function saveMenuItemPrice(id) {
     const item = getMenuItem(id);
     if (!item) return;
     item.price = price;
+
+    if (item.category === 'custom-unit') {
+        const unitInput = document.getElementById(`unit-${id}`);
+        const unit = unitInput ? unitInput.value.trim() : '';
+        item.unitLabel = unit || 'pcs';
+    }
+
     saveMenu();
     refreshAfterMenuChange();
-    alert(`Price for "${item.name}" updated!`);
+    alert(`"${item.name}" updated!`);
 }
 
 function deleteMenuItem(id) {
@@ -173,6 +235,7 @@ function _categoryLabel(cat) {
         'side-none':   '🍽️ Side dish (no kuah)',
         'no-kuah':     '🍖 Sate (tiada kuah kacang)',
         'kuah-only':   '🥜 Kuah kacang sahaja',
+        'custom-unit': '📦 Custom unit',
     }[cat] || cat;
 }
 
@@ -191,9 +254,13 @@ function renderSettingsMenuList() {
                 <span class="item-name">${escapeHtml(item.name)}</span>
                 <span class="item-type">${_categoryLabel(item.category)}</span>
             </div>
+            ${item.category === 'custom-unit' ? `
+                <input type="text" id="unit-${item.id}" value="${escapeHtml(item.unitLabel || 'pcs')}" placeholder="unit"
+                    style="width:64px;flex-shrink:0;" title="Unit label shown on orders/receipts, e.g. slice, pcs, whole">
+            ` : ''}
             <input type="number" id="price-${item.id}" step="0.01" min="0" value="${item.price}">
             <div class="menu-row-actions">
-                <button class="small save-btn" onclick="saveMenuItemPrice('${item.id}')" title="Save price">💾</button>
+                <button class="small save-btn" onclick="saveMenuItemPrice('${item.id}')" title="Save price${item.category === 'custom-unit' ? ' & unit' : ''}">💾</button>
                 <button class="small delete-btn" onclick="deleteMenuItem('${item.id}')" title="Delete item">🗑️</button>
             </div>
         </div>

@@ -73,10 +73,12 @@ function renderHomeMenuInputs() {
     if (!container) return;
     container.innerHTML = getMenuItems().map(item => {
         const isSate = item.category === 'skewer' || item.category === 'no-kuah';
+        const unitSuffix = (item.category === 'custom-unit' && item.unitLabel)
+            ? ` <span style="font-weight:400;color:#888;">(${escapeHtml(item.unitLabel)})</span>` : '';
         if (isSate) {
             return `<div style="display:flex;flex-direction:column;gap:4px;">
                 <label id="label-${item.id}" style="font-size:13px;font-weight:600;line-height:1.3;">
-                    ${escapeHtml(item.name)}<br><span style="font-weight:400;color:#666;">RM${item.price.toFixed(2)}</span>
+                    ${escapeHtml(item.name)}${unitSuffix}<br><span style="font-weight:400;color:#666;">RM${item.price.toFixed(2)}</span>
                 </label>
                 <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0"
                     style="width:100%;box-sizing:border-box;"
@@ -86,7 +88,7 @@ function renderHomeMenuInputs() {
         } else {
             return `<div style="display:flex;flex-direction:column;gap:4px;">
                 <label id="label-${item.id}" style="font-size:13px;font-weight:600;line-height:1.3;">
-                    ${escapeHtml(item.name)}<br><span style="font-weight:400;color:#666;">RM${item.price.toFixed(2)}</span>
+                    ${escapeHtml(item.name)}${unitSuffix}<br><span style="font-weight:400;color:#666;">RM${item.price.toFixed(2)}</span>
                 </label>
                 <div style="display:flex;align-items:center;gap:4px;">
                     <button type="button" onclick="adjustQty('${item.id}',-1)"
@@ -127,10 +129,11 @@ function getQuantitiesFromHome() {
 function calculateTotals(quantities) {
     const items = {};
     let totalCost=0, skewerQty=0, skewerWithKuah=0, scoops=0;
+    const customUnits = {}; // { 'slice': 12, 'pcs': 5, ... } — for non-skewer custom-unit items
     getMenuItems().forEach(item => {
         const qty  = quantities[item.id] || 0;
         const cost = qty * item.price;
-        items[item.id] = { name:item.name, category:item.category, price:item.price, qty, cost };
+        items[item.id] = { name:item.name, category:item.category, price:item.price, qty, cost, unitLabel:item.unitLabel };
         totalCost += cost;
         if      (item.category === 'skewer')     { skewerQty += qty; skewerWithKuah += qty; }
         else if (item.category === 'no-kuah')    { skewerQty += qty; }
@@ -138,10 +141,14 @@ function calculateTotals(quantities) {
         else if (item.category === 'side-1kuah') { scoops += qty * 1; }
         else if (item.category === 'side-none')  { /* no kuah kacang needed */ }
         else if (item.category === 'kuah-only')  { scoops += qty * 1; }
+        else if (item.category === 'custom-unit' && qty > 0) {
+            const label = item.unitLabel || 'pcs';
+            customUnits[label] = (customUnits[label] || 0) + qty;
+        }
     });
     const _kuahRatio = parseInt(localStorage.getItem('shmKuahRatio')) || 10;
     if (skewerWithKuah > 0) scoops += Math.ceil(skewerWithKuah / _kuahRatio);
-    return { items, totalCost, skewerQty, scoops };
+    return { items, totalCost, skewerQty, scoops, customUnits };
 }
 
 // ── Order Summary modal (New Order review) ─────────────────────────────────
@@ -204,6 +211,21 @@ function renderOrderSummaryModal(totals) {
         </div>`;
     }
 
+    // Skip the skewer-system lines entirely for shops whose menu doesn't use it (e.g. a bakery).
+    const showSkewerLines = typeof menuUsesSkewerSystem === 'function' ? menuUsesSkewerSystem() : true;
+    const skewerLinesHtml = showSkewerLines ? `
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#555;padding-top:10px;">
+            <span>Jumlah Cucuk</span><span>${totals.skewerQty}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#555;">
+            <span>Jumlah Kuah Kacang</span><span>${totals.scoops}</span>
+        </div>` : '';
+
+    const customUnitLinesHtml = Object.entries(totals.customUnits || {}).map(([label, qty]) => `
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#555;padding-top:${showSkewerLines ? '0' : '10px'};">
+            <span>${escapeHtml(label.charAt(0).toUpperCase() + label.slice(1))}</span><span>${qty}</span>
+        </div>`).join('');
+
     box.innerHTML = `
         ${contactHtml}
         ${pickupHtml}
@@ -211,12 +233,8 @@ function renderOrderSummaryModal(totals) {
             <div style="${labelStyle}">Items</div>
             ${itemsHtml || '<div style="font-size:13px;color:#999;">No items</div>'}
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:13px;color:#555;padding-top:10px;">
-            <span>Jumlah Cucuk</span><span>${totals.skewerQty}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:13px;color:#555;">
-            <span>Jumlah Kuah Kacang</span><span>${totals.scoops}</span>
-        </div>
+        ${skewerLinesHtml}
+        ${customUnitLinesHtml}
         ${noteHtml}
         <div style="display:flex;justify-content:space-between;font-size:17px;font-weight:700;padding-top:10px;margin-top:8px;border-top:2px solid #eee;">
             <span>Total</span><span>RM${totals.totalCost.toFixed(2)}</span>
@@ -687,26 +705,39 @@ function switchOrderSubTab(subtab) {
     else loadOrders();
 }
 
-// ── Sate summary bar (Prepare tab) ────────────────────────────────────────
-// Tallies qty of skewer-category items across all Prepare-stage orders
+// ── Kitchen prep summary bar (Prepare tab) ────────────────────────────────
+// Tallies qty of skewer-category items (unchanged, for shops using that
+// system) plus custom-unit items (e.g. "12 Slice") across all Prepare-stage
+// orders, so whoever's prepping orders can see totals at a glance.
 function updateSateSummaryBar(prepareOrders) {
     const bar = document.getElementById('sateSummaryBar');
     if (!bar) return;
 
+    const usesSkewerSystem = typeof menuUsesSkewerSystem === 'function' ? menuUsesSkewerSystem() : true;
     const totals = {};
+    let hasCustomUnitItems = false;
     prepareOrders.forEach(order => {
         Object.values(order.items || {}).forEach(item => {
-            if (item.category === 'skewer' || item.category === 'no-kuah') {
-                if (item.qty > 0) {
-                    totals[item.name] = (totals[item.name] || 0) + item.qty;
-                }
+            if (item.qty <= 0) return;
+            if (usesSkewerSystem && (item.category === 'skewer' || item.category === 'no-kuah')) {
+                totals[item.name] = (totals[item.name] || 0) + item.qty;
+            } else if (item.category === 'custom-unit') {
+                totals[item.name] = (totals[item.name] || 0) + item.qty;
+                hasCustomUnitItems = true;
             }
         });
     });
 
+    // Nothing relevant to this shop's setup to show — hide the whole bar
+    // (but only touch visibility while actually on the Prepare sub-tab —
+    // switchOrderSubTab() already hides it for every other sub-tab)
+    if (currentOrderSubTab === 'prepare') {
+        bar.style.display = (!usesSkewerSystem && !hasCustomUnitItems) ? 'none' : 'flex';
+    }
+
     const entries = Object.entries(totals);
     if (entries.length === 0) {
-        bar.innerHTML = '<span style="color:#999;font-size:13px;">No sate orders</span>';
+        bar.innerHTML = '<span style="color:#999;font-size:13px;">No items to prepare</span>';
     } else {
         bar.innerHTML = entries.map(([name, qty], i, arr) =>
             `<span class="sate-summary-chip"><strong>${qty}</strong> ${escapeHtml(name)}</span>` +
@@ -868,6 +899,21 @@ function paymentBadgeHTML(order) {
 }
 
 // ---------- Render card ----------
+// Groups a saved order's custom-unit items by their unit label (e.g. {slice: 12, pcs: 5}),
+// returning ready-to-insert badge HTML. Skewer/kuah items are handled separately.
+function getCustomUnitBadges(items) {
+    const totals = {};
+    Object.values(items || {}).forEach(it => {
+        if (it.category === 'custom-unit' && it.qty > 0) {
+            const label = it.unitLabel || 'pcs';
+            totals[label] = (totals[label] || 0) + it.qty;
+        }
+    });
+    return Object.entries(totals)
+        .map(([label, qty]) => `<div class="detail-badge">${qty} ${escapeHtml(label)}</div>`)
+        .join('');
+}
+
 function renderOrderCard(card, rawOrder, stage) {
     const o = normalizeOrder(rawOrder);
 
@@ -920,9 +966,13 @@ function renderOrderCard(card, rawOrder, stage) {
         .map(r => `<div class="detail-badge">${escapeHtml(r.name)} (${r.qty})<br>RM${r.cost.toFixed(2)}</div>`)
         .join('');
 
+    const showSkewerBadges = typeof menuUsesSkewerSystem === 'function' ? menuUsesSkewerSystem() : true;
+    const skewerBadgeStyle = showSkewerBadges ? '' : 'display:none;';
+
     const statsBadges = `
-        <div class="detail-badge">Cucuk: ${o.skewerQty}</div>
-        <div class="detail-badge">${o.scoops} Senduk</div>
+        <div class="detail-badge" style="${skewerBadgeStyle}">Cucuk: ${o.skewerQty}</div>
+        <div class="detail-badge" style="${skewerBadgeStyle}">${o.scoops} Senduk</div>
+        ${getCustomUnitBadges(o.items)}
         <div class="detail-badge ice-cream" style="grid-column:span 2;">RM ${o.totalCost.toFixed(2)}</div>`;
 
     const phoneLinkHtml = o.customerPhone
@@ -957,8 +1007,9 @@ function renderOrderCard(card, rawOrder, stage) {
             ${header}
             <div class="order-details" id="edit-details-${o.id}">
                 ${editInputs}
-                <div class="detail-badge" id="edit-skewerQty-${o.id}">Cucuk: ${o.skewerQty}</div>
-                <div class="detail-badge" id="edit-scoops-${o.id}">${o.scoops} Senduk</div>
+                <div class="detail-badge" id="edit-skewerQty-${o.id}" style="${skewerBadgeStyle}">Cucuk: ${o.skewerQty}</div>
+                <div class="detail-badge" id="edit-scoops-${o.id}" style="${skewerBadgeStyle}">${o.scoops} Senduk</div>
+                ${getCustomUnitBadges(o.items)}
                 <div class="detail-badge ice-cream" style="grid-column:span 2;" id="edit-totalCost-${o.id}">RM${o.totalCost.toFixed(2)}</div>
             </div>
             ${editableDesc}
@@ -1034,7 +1085,7 @@ function renderOrderCard(card, rawOrder, stage) {
         card.innerHTML = isExpanded ? `
             ${header}
             <div class="order-details">${itemBadges}${statsBadges}${contactBadge}</div>
-            <div class="status-row"><span class="status-mark mark-prepared">🍢 Prepared</span></div>
+            <div class="status-row"><span class="status-mark mark-prepared">✅ Prepared</span></div>
             ${editableDesc}
             ${payBadge}
             <div class="action-buttons">
@@ -1540,7 +1591,7 @@ function _buildPDF(title, subtitle, orders) {
     doc.setFillColor(...HEAD_BG); doc.rect(0,0,PAGE_W,36,'F');
     doc.setTextColor(255,255,255);
     doc.setFontSize(18); doc.setFont('helvetica','bold');
-    doc.text((localStorage.getItem('shmBusinessName')||'Sate Hujung Minggu').toUpperCase(), PAGE_W/2, 13, {align:'center'});
+    doc.text((localStorage.getItem('shmBusinessName')||APP_CONFIG.APP_NAME).toUpperCase(), PAGE_W/2, 13, {align:'center'});
     doc.setFontSize(13); doc.setFont('helvetica','normal');
     doc.text(title, PAGE_W/2, 21, {align:'center'});
     doc.setFontSize(10);
@@ -1689,7 +1740,7 @@ function _buildPDF(title, subtitle, orders) {
     // Footer
     for (let i=1; i<=doc.getNumberOfPages(); i++) {
         doc.setPage(i); doc.setFontSize(8); doc.setTextColor(150);
-        doc.text(`${localStorage.getItem('shmBusinessName')||'Sate Hujung Minggu'} - ${subtitle}`, MARGIN, 290);
+        doc.text(`${localStorage.getItem('shmBusinessName')||APP_CONFIG.APP_NAME} - ${subtitle}`, MARGIN, 290);
         doc.text(`Page ${i} of ${doc.getNumberOfPages()}`, PAGE_W-MARGIN, 290, {align:'right'});
     }
     doc.save(`SHM_${subtitle.replace(/[^a-zA-Z0-9]/g,'_')}.pdf`);

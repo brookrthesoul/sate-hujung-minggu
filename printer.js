@@ -22,6 +22,31 @@ function getPaperColumns() {
     return PAPER_SIZES[size] || 32;
 }
 
+// Appends the "Cucuk / Senduk" lines (skipped entirely for shops whose menu
+// doesn't use the skewer/kuah-kacang system) plus one line per custom unit
+// used in this order (e.g. "Slice: 12"). Shared by both receipt formats below.
+function _appendSummaryLines(receipt, order, items, formatLine, COLS) {
+    const showSkewerLines = typeof menuUsesSkewerSystem === 'function' ? menuUsesSkewerSystem() : true;
+    if (showSkewerLines) {
+        receipt = receipt
+            .line(formatLine('Cucuk', `${order.skewerQty || 0}`, COLS))
+            .line(formatLine('Senduk', `${order.scoops || 0}`, COLS));
+    }
+
+    const customUnitTotals = {};
+    items.forEach(r => {
+        if (r.category === 'custom-unit' && r.qty > 0) {
+            const label = r.unitLabel || 'pcs';
+            customUnitTotals[label] = (customUnitTotals[label] || 0) + r.qty;
+        }
+    });
+    Object.entries(customUnitTotals).forEach(([label, qty]) => {
+        receipt = receipt.line(formatLine(label.charAt(0).toUpperCase() + label.slice(1), `${qty}`, COLS));
+    });
+
+    return receipt;
+}
+
 function savePaperSize() {
     const sel = document.getElementById('paperSize');
     if (sel) {
@@ -146,7 +171,7 @@ async function printOrder(id) {
         let receipt = encoder
             .initialize()
             .align('center')
-            .bold(true).line((localStorage.getItem('shmBusinessName')||'Sate Hujung Minggu').toUpperCase()).bold(false)
+            .bold(true).line((localStorage.getItem('shmBusinessName')||APP_CONFIG.APP_NAME).toUpperCase()).bold(false)
             .line(`Order #${order.id}`)
             .line(formatDate(order.createdAt || Date.now()))
             .align('left')
@@ -160,10 +185,9 @@ async function printOrder(id) {
 
         const totalLine = formatLine('TOTAL', `RM${(order.totalCost || 0).toFixed(2)}`, COLS);
 
+        receipt = receipt.line(DASH);
+        receipt = _appendSummaryLines(receipt, order, items, formatLine, COLS);
         receipt = receipt
-            .line(DASH)
-            .line(formatLine('Cucuk', `${order.skewerQty || 0}`, COLS))
-            .line(formatLine('Senduk', `${order.scoops || 0}`, COLS))
             .line(DASH)
             .bold(true)
             .line(totalLine)
@@ -223,7 +247,7 @@ async function printOrderReceipt(id) {
         let receipt = encoder
             .initialize()
             .align('center')
-            .bold(true).line((localStorage.getItem('shmBusinessName')||'Sate Hujung Minggu').toUpperCase()).bold(false)
+            .bold(true).line((localStorage.getItem('shmBusinessName')||APP_CONFIG.APP_NAME).toUpperCase()).bold(false)
             .line('** RESIT / RECEIPT **')
             .line(`Order #${order.id}`)
             .line(formatDate(order.createdAt || Date.now()))
@@ -236,11 +260,9 @@ async function printOrderReceipt(id) {
             receipt = receipt.line(formatLine(`${r.name} x${r.qty}`, `RM${r.cost.toFixed(2)}`, COLS));
         });
 
+        receipt = receipt.line(DASH);
+        receipt = _appendSummaryLines(receipt, order, items, formatLine, COLS);
         receipt = receipt
-            .line(DASH)
-            .line(formatLine('Cucuk', `${order.skewerQty || 0}`, COLS))
-            .line(formatLine('Senduk', `${order.scoops || 0}`, COLS))
-            .line(DASH)
             .bold(true)
             .line(formatLine('TOTAL', `RM${(order.totalCost || 0).toFixed(2)}`, COLS))
             .bold(false)

@@ -140,6 +140,7 @@ function switchSettingsTab(tab) {
     if (tab === 'menu') {
         if (typeof renderSettingsMenuList === 'function') renderSettingsMenuList();
         if (typeof renderStockManager    === 'function') renderStockManager();
+        if (typeof toggleNewItemUnitLabel === 'function') toggleNewItemUnitLabel();
     }
     if (tab === 'info') {
         if (typeof loadCustomerInfo === 'function') loadCustomerInfo();
@@ -297,7 +298,7 @@ function initBusyThresholds() {
 const BIZ_NAME_KEY = 'shmBusinessName';
 
 function getBusinessName() {
-    return localStorage.getItem(BIZ_NAME_KEY) || 'Sate Hujung Minggu';
+    return localStorage.getItem(BIZ_NAME_KEY) || APP_CONFIG.APP_NAME;
 }
 
 
