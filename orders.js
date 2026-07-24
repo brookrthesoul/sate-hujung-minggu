@@ -265,6 +265,9 @@ function clearForm() {
 }
 
 async function saveOrder() {
+    const btn = document.getElementById('modalSaveOrderBtn');
+    if (btn && btn.disabled) return; // already processing — ignore repeat taps (e.g. laggy touchscreen double-taps)
+
     const quantities = getQuantitiesFromHome();
     const hasAny = Object.values(quantities).some(q => q > 0);
     if (!hasAny) { alert('Please enter at least one item.'); return; }
@@ -312,6 +315,18 @@ async function saveOrder() {
         paymentCash: 0,
         createdAt: Date.now()
     };
+
+    // Lock the button now, before touching stock or creating the order — this
+    // is the actual fix for duplicate orders from repeated taps. It also gives
+    // an immediate, unmistakable visual signal the tap registered, even if the
+    // device is briefly lagging.
+    const origText = btn ? btn.textContent : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Saving...';
+    }
+    const unlockBtn = () => { if (btn) { btn.disabled = false; btn.textContent = origText; } };
+
     // Check and deduct stock before saving
     if (typeof deductStock === 'function') {
         const stockResult = deductStock(totals.items);
@@ -322,6 +337,7 @@ async function saveOrder() {
             } else {
                 alert(`❌ Insufficient stock: ${stockResult.name}\nRequested: ${stockResult.requested}, Available: ${avail}`);
             }
+            unlockBtn();
             return;
         }
     }
@@ -343,6 +359,8 @@ async function saveOrder() {
         }
     } catch (e) {
         alert('❌ Failed to save order: ' + e.message);
+    } finally {
+        unlockBtn();
     }
 }
 

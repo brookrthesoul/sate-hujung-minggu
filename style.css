@@ -40,8 +40,12 @@
         input[type=number], input[type=text], input[type=tel], textarea, input[type=range] { width: 100%; padding: 12px; border: 1px solid #ced4da; border-radius: 12px; font-size: 16px; box-sizing: border-box; }
         input[type=range] { padding: 0; }
         textarea { min-height: 80px; resize: vertical; }
-        button { background: #007bff; color: white; border: none; padding: 14px 20px; border-radius: 30px; font-size: 16px; font-weight: bold; width: 100%; margin-top: 15px; cursor: pointer; }
+        button { background: #007bff; color: white; border: none; padding: 14px 20px; border-radius: 30px; font-size: 16px; font-weight: bold; width: 100%; margin-top: 15px; cursor: pointer; transition: background-color 0.08s, transform 0.08s; }
         button.secondary { background: #6c757d; }
+        /* Instant tap feedback — this is pure CSS so it renders on touchdown even if the
+           page's JS is briefly lagging, giving an immediate "yes, that registered" signal. */
+        button:active { transform: scale(0.97); filter: brightness(0.85); }
+        button:disabled { opacity: 0.65; cursor: not-allowed; transform: none; filter: none; }
 
         /* ── Responsive: New Order form ── */
         .menu-inputs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 12px; }
