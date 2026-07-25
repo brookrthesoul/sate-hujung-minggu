@@ -984,8 +984,11 @@ function renderOrderCard(card, rawOrder, stage) {
     // Minimized view — shown when collapsed
     const miniView = `
         <div class="card-mini" onclick="toggleCardExpand(${o.id})">
-            <span class="card-mini-items">${miniItems}</span>
-            <span class="card-mini-total">RM ${o.totalCost.toFixed(2)}</span>
+            ${o.customerName ? `<div class="card-mini-name">👤 ${escapeHtml(o.customerName)}</div>` : ''}
+            <div class="card-mini-row">
+                <span class="card-mini-items">${miniItems}</span>
+                <span class="card-mini-total">RM ${o.totalCost.toFixed(2)}</span>
+            </div>
         </div>`;
 
     const itemBadges = Object.values(o.items)

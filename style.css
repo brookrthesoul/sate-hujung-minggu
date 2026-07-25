@@ -450,10 +450,23 @@
 /* ─── Minimized card ─────────────────────────────────────────────────────── */
 .card-mini {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
     padding: 4px 4px 0;
     cursor: pointer;
+    gap: 2px;
+}
+.card-mini-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.card-mini-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     gap: 8px;
 }
 .card-mini-items {
