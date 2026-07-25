@@ -976,6 +976,7 @@ function renderOrderCard(card, rawOrder, stage) {
     const header = `
         <div class="order-header" onclick="toggleCardExpand(${o.id})" style="cursor:pointer;">
             <span class="order-id">#${o.id}</span>
+            ${(!isExpanded && o.customerName) ? `<span class="name-badge">👤 ${escapeHtml(o.customerName)}</span>` : ''}
             ${pickupBadge}
             <span class="order-date">${formatDate(o.createdAt)}</span>
             <span class="card-chevron">${isExpanded ? '▲' : '▼'}</span>
@@ -984,11 +985,8 @@ function renderOrderCard(card, rawOrder, stage) {
     // Minimized view — shown when collapsed
     const miniView = `
         <div class="card-mini" onclick="toggleCardExpand(${o.id})">
-            ${o.customerName ? `<div class="card-mini-name">👤 ${escapeHtml(o.customerName)}</div>` : ''}
-            <div class="card-mini-row">
-                <span class="card-mini-items">${miniItems}</span>
-                <span class="card-mini-total">RM ${o.totalCost.toFixed(2)}</span>
-            </div>
+            <span class="card-mini-items">${miniItems}</span>
+            <span class="card-mini-total">RM ${o.totalCost.toFixed(2)}</span>
         </div>`;
 
     const itemBadges = Object.values(o.items)

@@ -66,6 +66,7 @@
         .order-card { background: #f8f9fa; border-radius: 12px; padding: 8px 10px; margin-bottom: 8px; border-left: 4px solid #007bff; }
         .order-header { display: flex; align-items: center; gap: 6px; margin-bottom: 0; flex-wrap: nowrap; }
         .order-id { font-weight: bold; background: #007bff; color: white; padding: 3px 10px; border-radius: 20px; font-size: 13px; flex-shrink: 0; }
+        .name-badge { font-weight: 600; background: #6c757d; color: white; padding: 3px 10px; border-radius: 20px; font-size: 12px; flex-shrink: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
         .order-date { color: #6c757d; font-size: 12px; margin-left: auto; white-space: nowrap; flex-shrink: 0; }
         .order-details { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 10px 0; }
         .detail-badge { background: white; padding: 6px 10px; border-radius: 20px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
@@ -450,23 +451,10 @@
 /* ─── Minimized card ─────────────────────────────────────────────────────── */
 .card-mini {
     display: flex;
-    flex-direction: column;
-    padding: 4px 4px 0;
-    cursor: pointer;
-    gap: 2px;
-}
-.card-mini-name {
-    font-size: 12px;
-    font-weight: 600;
-    color: #555;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.card-mini-row {
-    display: flex;
     justify-content: space-between;
     align-items: center;
+    padding: 4px 4px 0;
+    cursor: pointer;
     gap: 8px;
 }
 .card-mini-items {
@@ -548,6 +536,8 @@ html.dark-mode .result-item .label { color: #aaa; }
 
 html.dark-mode .order-card { background: #232325; }
 html.dark-mode .order-date { color: #999; }
+html.dark-mode .card-mini-items { color: #ccc; }
+html.dark-mode .card-mini-total { color: #f0f0f0; }
 html.dark-mode .detail-badge { background: #2a2a2c !important; color: #eee; }
 html.dark-mode .edit-input { background: #2a2a2c; color: #eee; border-color: #444; }
 html.dark-mode .order-description { background: #232325; color: #eee; }
