@@ -272,26 +272,56 @@ function initShopToggle() {
 }
 
 // ─── Busy threshold settings ──────────────────────────────────────────────────
-const BUSY_THRESHOLD_KEY = 'shmNotBusyMax';
+// Two independently-toggleable categories (skewers / custom-unit items) feed
+// the customer-facing busy badge (see loadBusy() in order.html). With only one
+// category on, it's a plain qty-vs-threshold check like before. With both on,
+// each category's fill % (qty ÷ its own threshold) is scaled by its weight and
+// the two are added — over 100% combined = Busy. Weight only matters once both
+// are on; it's there so e.g. slower-to-prep custom items can count for more.
+//
+// `notBusyMax`/`shmNotBusyMax` keeps its original name for the skewer category
+// so upgrading shops don't lose their existing threshold.
+const BUSY_SETTINGS = [
+    { key: 'busySkewerEnabled', storageKey: 'shmBusySkewerEnabled', el: 'busySkewerToggle',   type: 'bool',   default: true  },
+    { key: 'notBusyMax',        storageKey: 'shmNotBusyMax',        el: 'notBusyMax',          type: 'number', default: 300   },
+    { key: 'busySkewerWeight',  storageKey: 'shmBusySkewerWeight',  el: 'skewerWeight',        type: 'number', default: 100   },
+    { key: 'busyCustomEnabled', storageKey: 'shmBusyCustomEnabled', el: 'busyCustomToggle',    type: 'bool',   default: false },
+    { key: 'busyCustomMax',     storageKey: 'shmBusyCustomMax',     el: 'notBusyMaxCustom',     type: 'number', default: 30    },
+    { key: 'busyCustomWeight',  storageKey: 'shmBusyCustomWeight',  el: 'customWeight',        type: 'number', default: 100   },
+];
 
 function saveBusyThresholds() {
-    const notBusyMax = parseInt(document.getElementById('notBusyMax').value) || 300;
-    const busyFrom   = notBusyMax + 1;
-    document.getElementById('busyFrom').value = busyFrom;
-    localStorage.setItem(BUSY_THRESHOLD_KEY, String(notBusyMax));
-    // Sync to Supabase via sync.js
-    if (typeof window._writeSetting === 'function') {
-        window._writeSetting('notBusyMax', String(notBusyMax));
-    }
+    BUSY_SETTINGS.forEach(s => {
+        const el = document.getElementById(s.el);
+        if (!el) return;
+        const value  = s.type === 'bool' ? el.checked : (parseInt(el.value) || s.default);
+        const stored = s.type === 'bool' ? (value ? '1' : '0') : String(value);
+        localStorage.setItem(s.storageKey, stored);
+        if (typeof window._writeSetting === 'function') {
+            window._writeSetting(s.key, s.type === 'bool' ? String(value) : stored);
+        }
+    });
+    const skewerMax = parseInt(document.getElementById('notBusyMax').value) || 300;
+    const customMax = parseInt(document.getElementById('notBusyMaxCustom').value) || 30;
+    document.getElementById('busyFrom').value       = skewerMax + 1;
+    document.getElementById('busyFromCustom').value = customMax + 1;
 }
 
 function initBusyThresholds() {
-    const stored     = localStorage.getItem(BUSY_THRESHOLD_KEY);
-    const notBusyMax = stored ? parseInt(stored) : 300;
-    const el         = document.getElementById('notBusyMax');
-    const el2        = document.getElementById('busyFrom');
-    if (el)  el.value  = notBusyMax;
-    if (el2) el2.value = notBusyMax + 1;
+    BUSY_SETTINGS.forEach(s => {
+        const el = document.getElementById(s.el);
+        if (!el) return;
+        const stored = localStorage.getItem(s.storageKey);
+        if (s.type === 'bool') {
+            el.checked = stored === null ? s.default : stored === '1';
+        } else {
+            el.value = stored === null ? s.default : (parseInt(stored) || s.default);
+        }
+    });
+    const skewerMax = parseInt(document.getElementById('notBusyMax').value) || 300;
+    const customMax = parseInt(document.getElementById('notBusyMaxCustom').value) || 30;
+    document.getElementById('busyFrom').value       = skewerMax + 1;
+    document.getElementById('busyFromCustom').value = customMax + 1;
 }
 
 // ─── Business name setting ────────────────────────────────────────────────────

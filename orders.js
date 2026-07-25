@@ -722,6 +722,14 @@ function switchOrderSubTab(subtab) {
     else loadOrders();
 }
 
+// Whether the "Count Custom-unit Items" toggle is on (Settings → Busy Status
+// Thresholds). Used to decide whether custom-unit badges show on prepare
+// cards/summary bar — mirrors how skewer badges are already gated on whether
+// the shop's menu uses the skewer system at all (menuUsesSkewerSystem()).
+function busyCustomToggleEnabled() {
+    return localStorage.getItem('shmBusyCustomEnabled') === '1';
+}
+
 // ── Kitchen prep summary bar (Prepare tab) ────────────────────────────────
 // Tallies qty of skewer-category items (unchanged, for shops using that
 // system) plus custom-unit items (e.g. "12 Slice") across all Prepare-stage
@@ -731,6 +739,7 @@ function updateSateSummaryBar(prepareOrders) {
     if (!bar) return;
 
     const usesSkewerSystem = typeof menuUsesSkewerSystem === 'function' ? menuUsesSkewerSystem() : true;
+    const showCustom = busyCustomToggleEnabled();
     const totals = {};
     let hasCustomUnitItems = false;
     prepareOrders.forEach(order => {
@@ -738,7 +747,7 @@ function updateSateSummaryBar(prepareOrders) {
             if (item.qty <= 0) return;
             if (usesSkewerSystem && (item.category === 'skewer' || item.category === 'no-kuah')) {
                 totals[item.name] = (totals[item.name] || 0) + item.qty;
-            } else if (item.category === 'custom-unit') {
+            } else if (showCustom && item.category === 'custom-unit') {
                 totals[item.name] = (totals[item.name] || 0) + item.qty;
                 hasCustomUnitItems = true;
             }
@@ -919,6 +928,7 @@ function paymentBadgeHTML(order) {
 // Groups a saved order's custom-unit items by their unit label (e.g. {slice: 12, pcs: 5}),
 // returning ready-to-insert badge HTML. Skewer/kuah items are handled separately.
 function getCustomUnitBadges(items) {
+    if (!busyCustomToggleEnabled()) return '';
     const totals = {};
     Object.values(items || {}).forEach(it => {
         if (it.category === 'custom-unit' && it.qty > 0) {

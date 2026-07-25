@@ -720,13 +720,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch(e) { console.warn('Shop status sync error:', e); }
 
-    // Sync busy threshold from Supabase
+    // Sync busy thresholds (skewer + custom) from Supabase
     try {
-        const threshold = await window._readSetting('notBusyMax');
-        if (threshold !== null) {
-            localStorage.setItem('shmNotBusyMax', threshold);
-            if (typeof initBusyThresholds === 'function') initBusyThresholds();
+        if (typeof BUSY_SETTINGS !== 'undefined') {
+            for (const s of BUSY_SETTINGS) {
+                const value = await window._readSetting(s.key);
+                if (value !== null) localStorage.setItem(s.storageKey, s.type === 'bool' ? (value === 'true' || value === '1' ? '1' : '0') : value);
+            }
         }
+        if (typeof initBusyThresholds === 'function') initBusyThresholds();
     } catch(e) { console.warn('Threshold sync error:', e); }
 
     // Sync business name from Supabase
