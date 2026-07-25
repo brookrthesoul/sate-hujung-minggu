@@ -180,10 +180,10 @@ async function printOrder(id) {
         // Item lines: "Ayam x10              RM13.00"
         const items = Object.values(order.items || {}).filter(r => r.qty > 0);
         items.forEach(r => {
-            receipt = receipt.line(formatLine(`${r.name} x${r.qty}`, `RM${r.cost.toFixed(2)}`, COLS));
+            receipt = receipt.line(formatLine(`${r.name} x${r.qty}`, formatRM(r.cost), COLS));
         });
 
-        const totalLine = formatLine('TOTAL', `RM${(order.totalCost || 0).toFixed(2)}`, COLS);
+        const totalLine = formatLine('TOTAL', formatRM((order.totalCost || 0)), COLS);
 
         receipt = receipt.line(DASH);
         receipt = _appendSummaryLines(receipt, order, items, formatLine, COLS);
@@ -257,14 +257,14 @@ async function printOrderReceipt(id) {
         // Item lines
         const items = Object.values(order.items || {}).filter(r => r.qty > 0);
         items.forEach(r => {
-            receipt = receipt.line(formatLine(`${r.name} x${r.qty}`, `RM${r.cost.toFixed(2)}`, COLS));
+            receipt = receipt.line(formatLine(`${r.name} x${r.qty}`, formatRM(r.cost), COLS));
         });
 
         receipt = receipt.line(DASH);
         receipt = _appendSummaryLines(receipt, order, items, formatLine, COLS);
         receipt = receipt
             .bold(true)
-            .line(formatLine('TOTAL', `RM${(order.totalCost || 0).toFixed(2)}`, COLS))
+            .line(formatLine('TOTAL', formatRM((order.totalCost || 0)), COLS))
             .bold(false)
             .line(DASH);
 
@@ -277,26 +277,26 @@ async function printOrderReceipt(id) {
         if (order.isDeposit && method === 'online') {
             const balance = total - online;
             receipt = receipt
-                .line(formatLine('Deposit (Online)', `RM${online.toFixed(2)}`, COLS))
+                .line(formatLine('Deposit (Online)', formatRM(online), COLS))
                 .bold(true)
-                .line(formatLine('Balance Due', `RM${balance.toFixed(2)}`, COLS))
+                .line(formatLine('Balance Due', formatRM(balance), COLS))
                 .bold(false);
         } else if (order.isCashShort && method === 'cash') {
             const balance = total - cash;
             receipt = receipt
-                .line(formatLine('Paid (Cash)', `RM${cash.toFixed(2)}`, COLS))
+                .line(formatLine('Paid (Cash)', formatRM(cash), COLS))
                 .bold(true)
-                .line(formatLine('Balance Due', `RM${balance.toFixed(2)}`, COLS))
+                .line(formatLine('Balance Due', formatRM(balance), COLS))
                 .bold(false);
         } else if (method === 'both') {
             const paidBoth = online + cash;
             if (paidBoth < total - 0.005) {
                 const balance = total - paidBoth;
                 receipt = receipt
-                    .line(formatLine('Online', `RM${online.toFixed(2)}`, COLS))
-                    .line(formatLine('Cash', `RM${cash.toFixed(2)}`, COLS))
+                    .line(formatLine('Online', formatRM(online), COLS))
+                    .line(formatLine('Cash', formatRM(cash), COLS))
                     .bold(true)
-                    .line(formatLine('Balance Due', `RM${balance.toFixed(2)}`, COLS))
+                    .line(formatLine('Balance Due', formatRM(balance), COLS))
                     .bold(false);
             }
             // full payment via both — no extra remark needed

@@ -578,3 +578,36 @@ html.dark-mode .pay-radio-label:has(input:checked) { background: #2a1f4d; }
 html.dark-mode .sticky-save-bar { background: linear-gradient(to bottom, transparent, #121212 30%); }
 
 html.dark-mode ::-webkit-scrollbar-thumb { background: #444; }
+
+/* ── Back to top button ── */
+#backToTopBtn {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 900;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #007bff;
+    color: #fff;
+    border: none;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(12px);
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+}
+#backToTopBtn svg { width: 20px; height: 20px; }
+#backToTopBtn.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+#backToTopBtn:active { transform: scale(0.94); }
+html.dark-mode #backToTopBtn { background: #0d6efd; box-shadow: 0 3px 8px rgba(0,0,0,0.5); }

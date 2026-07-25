@@ -61,7 +61,7 @@ function normalizeOrder(order) {
     // This ensures the pin logic works correctly each day
     if (order.pickupMode === 'time' && order.pickupTs) {
         const stored  = new Date(order.pickupTs);
-        const todayStr = new Date().toLocaleDateString('en-CA');
+        const todayStr = dayKey();
         order.pickupTs = new Date(`${todayStr}T${stored.toTimeString().substring(0,5)}`).getTime();
     }
     return order;
@@ -78,7 +78,7 @@ function renderHomeMenuInputs() {
         if (isSate) {
             return `<div style="display:flex;flex-direction:column;gap:4px;">
                 <label id="label-${item.id}" style="font-size:13px;font-weight:600;line-height:1.3;">
-                    ${escapeHtml(item.name)}${unitSuffix}<br><span style="font-weight:400;color:#666;">RM${item.price.toFixed(2)}</span>
+                    ${escapeHtml(item.name)}${unitSuffix}<br><span style="font-weight:400;color:#666;">${formatRM(item.price)}</span>
                 </label>
                 <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0"
                     style="width:100%;box-sizing:border-box;"
@@ -88,7 +88,7 @@ function renderHomeMenuInputs() {
         } else {
             return `<div style="display:flex;flex-direction:column;gap:4px;">
                 <label id="label-${item.id}" style="font-size:13px;font-weight:600;line-height:1.3;">
-                    ${escapeHtml(item.name)}${unitSuffix}<br><span style="font-weight:400;color:#666;">RM${item.price.toFixed(2)}</span>
+                    ${escapeHtml(item.name)}${unitSuffix}<br><span style="font-weight:400;color:#666;">${formatRM(item.price)}</span>
                 </label>
                 <div style="display:flex;align-items:center;gap:4px;">
                     <button type="button" onclick="adjustQty('${item.id}',-1)"
@@ -162,7 +162,7 @@ function reviewOrder() {
 
     const totals = calculateTotals(quantities);
     renderOrderSummaryModal(totals);
-    document.getElementById('orderSummaryModal').style.display = 'flex';
+    showModalById('orderSummaryModal');
 }
 
 function renderOrderSummaryModal(totals) {
@@ -199,7 +199,7 @@ function renderOrderSummaryModal(totals) {
     Object.values(totals.items).forEach(it => {
         if (!it.qty) return;
         itemsHtml += `<div style="display:flex;justify-content:space-between;font-size:14px;padding:6px 0;border-bottom:1px solid #f0f0f0;">
-            <span><b>×${it.qty}</b> ${escapeHtml(it.name)}</span><span>RM${it.cost.toFixed(2)}</span>
+            <span><b>×${it.qty}</b> ${escapeHtml(it.name)}</span><span>${formatRM(it.cost)}</span>
         </div>`;
     });
 
@@ -237,14 +237,13 @@ function renderOrderSummaryModal(totals) {
         ${customUnitLinesHtml}
         ${noteHtml}
         <div style="display:flex;justify-content:space-between;font-size:17px;font-weight:700;padding-top:10px;margin-top:8px;border-top:2px solid #eee;">
-            <span>Total</span><span>RM${totals.totalCost.toFixed(2)}</span>
+            <span>Total</span><span>${formatRM(totals.totalCost)}</span>
         </div>
     `;
 }
 
 function closeOrderSummaryModal() {
-    const modal = document.getElementById('orderSummaryModal');
-    if (modal) modal.style.display = 'none';
+    hideModalById('orderSummaryModal');
 }
 
 function clearForm() {
@@ -284,7 +283,7 @@ async function saveOrder() {
     const pickupTime   = pickupTimeEl ? pickupTimeEl.value : '';
     let   pickupTs     = null;
     let   pickupMode   = null; // 'datetime' | 'date' | 'time'
-    const todayStr     = new Date().toLocaleDateString('en-CA');
+    const todayStr     = dayKey();
     if (pickupDate && pickupTime) {
         pickupTs   = new Date(`${pickupDate}T${pickupTime}`).getTime();
         pickupMode = 'datetime';
@@ -345,11 +344,11 @@ async function saveOrder() {
     try {
         await addOrder(order);
         clearForm();
-        const today = new Date().toLocaleDateString('en-CA');
+        const today = dayKey();
         // Only date or datetime with a FUTURE date go to preorder
         // Time-only always goes to prepare (today)
         const isPreorder = pickupTs && pickupMode !== 'time' &&
-            new Date(pickupTs).toLocaleDateString('en-CA') > today;
+            dayKey(pickupTs) > today;
         if (isPreorder) {
             switchTab('preorder');
         } else {
@@ -370,14 +369,14 @@ async function loadPreorders() {
     if (_editingIds.size > 0) return;
     try {
         const orders  = (await getAllOrders()).map(normalizeOrder);
-        const today   = new Date().toLocaleDateString('en-CA');
+        const today   = dayKey();
         const sortDir = document.getElementById('sortPreorders') ?
             document.getElementById('sortPreorders').value : 'asc';
 
         const preorders = orders.filter(o => {
             if (o.prepared || o.paid || o.pickedUp) return false;
             if (!o.pickupTs || o.pickupMode === 'time') return false;
-            const pDay = new Date(o.pickupTs).toLocaleDateString('en-CA');
+            const pDay = dayKey(o.pickupTs);
             return pDay > today; // strictly future (covers 'date' and 'datetime' modes)
         });
 
@@ -478,13 +477,13 @@ function playUrgentAlertSound() {
 async function checkUrgentOrders() {
     try {
         const now    = Date.now();
-        const today  = new Date().toLocaleDateString('en-CA');
+        const today  = dayKey();
         const orders = (await getAllOrders()).map(normalizeOrder);
         let newlyUrgent = false;
 
         orders.forEach(o => {
             if (o.prepared || o.paid || !o.pickupTs) return;
-            const pDay = new Date(o.pickupTs).toLocaleDateString('en-CA');
+            const pDay = dayKey(o.pickupTs);
             if (pDay > today) return; // still a future preorder, not urgent yet
             const isUrgent = (now - o.pickupTs) >= -URGENT_WARN_MS;
             if (isUrgent && !_notifiedUrgentIds.has(o.id)) {
@@ -500,11 +499,11 @@ async function checkUrgentOrders() {
 // Check every minute if any preorder should move to Prepare
 function startPreorderTimer() {
     setInterval(async () => {
-        const today   = new Date().toLocaleDateString('en-CA');
+        const today   = dayKey();
         const orders  = (await getAllOrders()).map(normalizeOrder);
         const toMove  = orders.filter(o => {
             if (o.prepared || o.paid || o.pickedUp || !o.pickupTs) return false;
-            const pDay = new Date(o.pickupTs).toLocaleDateString('en-CA');
+            const pDay = dayKey(o.pickupTs);
             return pDay <= today;
         });
         if (toMove.length > 0) {
@@ -524,12 +523,12 @@ function startPreorderTimer() {
 // 1. Paid but not picked up from previous days → silently moved to Done
 // 2. Unpaid orders from previous days → prompt user to Keep or Cancel each one
 async function autoClosePreviousDay() {
-    const today  = new Date().toLocaleDateString('en-CA');
+    const today  = dayKey();
     const orders = (await getAllOrders()).map(normalizeOrder);
     _notifiedUrgentIds.clear();
 
     const stale  = orders.filter(o => {
-        const orderDay = new Date(o.createdAt).toLocaleDateString('en-CA');
+        const orderDay = dayKey(o.createdAt);
         return orderDay !== today && !o.pickedUp;
     });
 
@@ -548,7 +547,7 @@ async function autoClosePreviousDay() {
         if (o.paid) return false;
         // If order has a pickup date for today, it's a scheduled preorder arriving — keep it silently
         if (o.pickupTs && (o.pickupMode === 'datetime' || o.pickupMode === 'date')) {
-            const pickupDay = new Date(o.pickupTs).toLocaleDateString('en-CA');
+            const pickupDay = dayKey(o.pickupTs);
             if (pickupDay === today) return false; // exclude from prompt
         }
         return true;
@@ -581,7 +580,7 @@ function _showDayCloseModal(unpaidOrders) {
             .filter(r => r.qty > 0)
             .map(r => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f0;">
                 <span>${escapeHtml(r.name)} × ${r.qty}</span>
-                <span>RM${r.cost.toFixed(2)}</span>
+                <span>${formatRM(r.cost)}</span>
             </div>`)
             .join('');
 
@@ -595,7 +594,7 @@ function _showDayCloseModal(unpaidOrders) {
                 <div style="font-size:12px;color:#999;margin-bottom:4px;">${time} &nbsp;·&nbsp; Stage: ${stage} &nbsp;·&nbsp; #${order.id}</div>
                 <div style="margin:10px 0;">${itemRows}</div>
                 <div style="display:flex;justify-content:space-between;font-weight:bold;padding:8px 0;border-top:2px solid #eee;margin-bottom:6px;">
-                    <span>Total</span><span>RM${(order.totalCost||0).toFixed(2)}</span>
+                    <span>Total</span><span>${formatRM((order.totalCost||0))}</span>
                 </div>
                 ${order.description ? `<div style="font-size:13px;color:#666;margin-bottom:12px;">📝 ${escapeHtml(order.description)}</div>` : ''}
                 <div style="font-size:13px;color:#555;margin-bottom:14px;text-align:center;">
@@ -773,7 +772,7 @@ async function loadOrders() {
         orders.sort((a,b) => sortDir==='asc' ? a.createdAt-b.createdAt : b.createdAt-a.createdAt);
 
         // Stage buckets
-        const today    = new Date().toLocaleDateString('en-CA');
+        const today    = dayKey();
         const now      = Date.now();
         const WARN_MS  = 15 * 60 * 1000; // 15 minutes
 
@@ -782,7 +781,7 @@ async function loadOrders() {
         const prepare  = orders.filter(o => {
             if (o.prepared || o.paid) return false;
             if (!o.pickupTs) return true;
-            const pDay = new Date(o.pickupTs).toLocaleDateString('en-CA');
+            const pDay = dayKey(o.pickupTs);
             return pDay <= today;
         });
         const prepared = orders.filter(o =>  o.prepared && !o.paid);
@@ -803,9 +802,9 @@ async function loadOrders() {
         const dateFilter = document.getElementById('doneDateFilter');
         if (dateFilter && dateFilter.value && dateFilter.value !== 'all') {
             const target = dateFilter.value === 'today'
-                ? new Date().toLocaleDateString('en-CA')
+                ? dayKey()
                 : dateFilter.value;
-            done = done.filter(o => new Date(o.createdAt).toLocaleDateString('en-CA') === target);
+            done = done.filter(o => dayKey(o.createdAt) === target);
         }
 
         updateSateSummaryBar(prepare);
@@ -981,7 +980,7 @@ function renderOrderCard(card, rawOrder, stage) {
 
     const itemBadges = Object.values(o.items)
         .filter(r => r.qty > 0)
-        .map(r => `<div class="detail-badge">${escapeHtml(r.name)} (${r.qty})<br>RM${r.cost.toFixed(2)}</div>`)
+        .map(r => `<div class="detail-badge">${escapeHtml(r.name)} (${r.qty})<br>${formatRM(r.cost)}</div>`)
         .join('');
 
     const showSkewerBadges = typeof menuUsesSkewerSystem === 'function' ? menuUsesSkewerSystem() : true;
@@ -1028,7 +1027,7 @@ function renderOrderCard(card, rawOrder, stage) {
                 <div class="detail-badge" id="edit-skewerQty-${o.id}" style="${skewerBadgeStyle}">Cucuk: ${o.skewerQty}</div>
                 <div class="detail-badge" id="edit-scoops-${o.id}" style="${skewerBadgeStyle}">${o.scoops} Senduk</div>
                 ${getCustomUnitBadges(o.items)}
-                <div class="detail-badge ice-cream" style="grid-column:span 2;" id="edit-totalCost-${o.id}">RM${o.totalCost.toFixed(2)}</div>
+                <div class="detail-badge ice-cream" style="grid-column:span 2;" id="edit-totalCost-${o.id}">${formatRM(o.totalCost)}</div>
             </div>
             ${editableDesc}
             <div class="action-buttons">
@@ -1188,7 +1187,7 @@ function getEditQuantities(orderId) {
 function updateEditTotals(id) {
     const t = calculateTotals(getEditQuantities(id));
     document.getElementById(`edit-skewerQty-${id}`).innerText = `Cucuk: ${t.skewerQty}`;
-    document.getElementById(`edit-totalCost-${id}`).innerText = `RM${t.totalCost.toFixed(2)}`;
+    document.getElementById(`edit-totalCost-${id}`).innerText = formatRM(t.totalCost);
     document.getElementById(`edit-scoops-${id}`).innerText    = `${t.scoops} Senduk`;
 }
 async function saveEdit(id, returnStage = 'prepare') {
@@ -1317,12 +1316,12 @@ function openPaymentModal(orderId, total, returnStage) {
         const method = (order && order.paymentMethod) || 'online';
         document.querySelectorAll('input[name="payMethod"]').forEach(r => r.checked = r.value === method);
         _renderPayInputs(method, order);
-        document.getElementById('paymentModal').style.display = 'flex';
+        showModalById('paymentModal');
     });
 }
 
 function closePaymentModal() {
-    document.getElementById('paymentModal').style.display = 'none';
+    hideModalById('paymentModal');
 }
 
 function onPayMethodChange(el) {
@@ -1460,7 +1459,7 @@ async function confirmPayment() {
     if (method === 'both') {
         const sum = onlineAmt + cashAmt;
         if (Math.abs(sum - _pmTotal) > 0.01) {
-            if (!confirm(`⚠️ Total entered (RM${sum.toFixed(2)}) doesn't match order total (RM${_pmTotal.toFixed(2)}). Save anyway?`)) return;
+            if (!confirm(`⚠️ Total entered (${formatRM(sum)}) doesn't match order total (${formatRM(_pmTotal)}). Save anyway?`)) return;
         }
     }
 
@@ -1529,8 +1528,8 @@ async function _populateDoneDateFilter() {
     const orders = (await getAllOrders()).map(normalizeOrder);
     const done   = orders.filter(o => o.paid && o.pickedUp);
     const dateSet = new Set();
-    done.forEach(o => dateSet.add(new Date(o.createdAt).toLocaleDateString('en-CA')));
-    const today = new Date().toLocaleDateString('en-CA');
+    done.forEach(o => dateSet.add(dayKey(o.createdAt)));
+    const today = dayKey();
     const dates = Array.from(dateSet).sort().reverse();
     const current = sel.value;
     sel.innerHTML = `<option value="today">Today (${today})</option><option value="all">All dates</option>`;
@@ -1546,16 +1545,14 @@ async function _populateDoneDateFilter() {
 
 // ─── PDF Report ───────────────────────────────────────────────────────────────
 function openReportModal() {
-    const modal = document.getElementById('reportModal');
-    if (!modal) return;
-    document.getElementById('reportDate').value  = new Date().toLocaleDateString('en-CA');
-    document.getElementById('reportMonth').value = new Date().toLocaleDateString('en-CA').substring(0,7);
+    if (!document.getElementById('reportModal')) return;
+    document.getElementById('reportDate').value  = dayKey();
+    document.getElementById('reportMonth').value = dayKey().substring(0,7);
     updateReportDateUI();
-    modal.style.display = 'flex';
+    showModalById('reportModal');
 }
 function closeReportModal() {
-    const modal = document.getElementById('reportModal');
-    if (modal) modal.style.display = 'none';
+    hideModalById('reportModal');
 }
 function updateReportDateUI() {
     const type = document.getElementById('reportType').value;
@@ -1573,13 +1570,13 @@ async function generateReport() {
     if (type === 'day') {
         const date = document.getElementById('reportDate').value;
         if (!date) { alert('Please select a date.'); return; }
-        filtered = done.filter(o => new Date(o.createdAt).toLocaleDateString('en-CA') === date);
+        filtered = done.filter(o => dayKey(o.createdAt) === date);
         subtitle = new Date(date+'T00:00:00').toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
         title    = 'DAILY SALES REPORT';
     } else if (type === 'month') {
         const month = document.getElementById('reportMonth').value;
         if (!month) { alert('Please select a month.'); return; }
-        filtered = done.filter(o => new Date(o.createdAt).toLocaleDateString('en-CA').substring(0,7) === month);
+        filtered = done.filter(o => dayKey(o.createdAt).substring(0,7) === month);
         const [y,m] = month.split('-');
         subtitle = new Date(y, m-1, 1).toLocaleDateString(undefined, { year:'numeric', month:'long' });
         title    = 'MONTHLY SALES REPORT';
@@ -1868,13 +1865,11 @@ async function openBlockModal(orderId) {
     const reasonInput = document.getElementById('blockReasonInput');
     if (reasonInput) reasonInput.value = '';
 
-    const modal = document.getElementById('blockCustomerModal');
-    if (modal) modal.style.display = 'flex';
+    showModalById('blockCustomerModal');
 }
 
 function closeBlockModal() {
-    const modal = document.getElementById('blockCustomerModal');
-    if (modal) modal.style.display = 'none';
+    hideModalById('blockCustomerModal');
 }
 
 async function submitBlockCustomer() {
