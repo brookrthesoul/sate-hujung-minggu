@@ -379,7 +379,28 @@ const SUPABASE_URL = APP_CONFIG.SUPABASE_URL;
 const SUPABASE_KEY = APP_CONFIG.SUPABASE_ANON_KEY;
 const ORDER_ID_KEY  = 'shmCustomerOrderId';
 const ORDER_IDS_KEY = 'shmCustomerOrderIds';
+const ORDER_TOKENS_KEY = 'shmCustomerOrderTokens'; // { "<orderId>": "<uuid token>", ... }
 const DEVICE_ID_KEY = 'shmDeviceId';
+
+// Proof-of-ownership tokens for this browser's own orders. A token is handed
+// out once, when an order is placed (see place_customer_order's response),
+// and is required by the edit_my_order/cancel_my_order/get_my_orders RPCs —
+// an order ID alone is no longer enough to view, edit, or cancel someone
+// else's order.
+function getOrderToken(orderId) {
+    const map = JSON.parse(localStorage.getItem(ORDER_TOKENS_KEY) || '{}');
+    return map[String(orderId)] || null;
+}
+function setOrderToken(orderId, token) {
+    const map = JSON.parse(localStorage.getItem(ORDER_TOKENS_KEY) || '{}');
+    map[String(orderId)] = token;
+    localStorage.setItem(ORDER_TOKENS_KEY, JSON.stringify(map));
+}
+function removeOrderToken(orderId) {
+    const map = JSON.parse(localStorage.getItem(ORDER_TOKENS_KEY) || '{}');
+    delete map[String(orderId)];
+    localStorage.setItem(ORDER_TOKENS_KEY, JSON.stringify(map));
+}
 
 // A random ID persisted in this browser, used (alongside phone number and IP)
 // as one signal the shop can use to block repeat abuse. Not foolproof — it's
@@ -1156,6 +1177,11 @@ async function confirmPlaceOrder() {
                 closeSummary();
                 return;
             }
+            if (result.reason === 'no_items') {
+                alert('❌ Those items are no longer available. Please refresh and try again.');
+                closeSummary();
+                return;
+            }
             const item = menuItems.find(m => m.id === result.item);
             const name = item ? item.name : result.item;
             if (result.reason === 'out_of_stock') {
@@ -1169,10 +1195,11 @@ async function confirmPlaceOrder() {
             return;
         }
 
-        // Success — add to order IDs array
+        // Success — add to order IDs array, and stash our proof-of-ownership token
         const newId = String(result.id);
         myOrderId = newId;
         localStorage.setItem(ORDER_ID_KEY, newId);
+        setOrderToken(newId, result.token);
         if (!myOrderIds.includes(newId)) {
             myOrderIds.push(newId);
             localStorage.setItem(ORDER_IDS_KEY, JSON.stringify(myOrderIds));
@@ -1218,12 +1245,17 @@ async function loadMyOrders() {
     if (myOrderIds.length === 0) { renderNoOrder(); return; }
 
     try {
-        const ids    = myOrderIds.join(',');
-        const rows   = await sbFetch(`orders?id=in.(${ids})&select=id,data`);
+        // Pair each remembered order ID with its proof-of-ownership token —
+        // the RPC only returns rows where both match, so an ID alone (e.g.
+        // someone guessing/incrementing IDs) can't pull up another order.
+        const pairs  = myOrderIds.map(id => ({ id: Number(id), token: getOrderToken(id) }));
+        const rows   = await sbRpc('get_my_orders', { p_orders: pairs });
         const found  = rows || [];
         const foundIds = found.map(r => String(r.id));
 
-        // Remove IDs no longer in DB (picked up / deleted)
+        // Remove IDs no longer in DB (picked up / deleted) — or that we no
+        // longer hold a valid token for (e.g. an order placed before this
+        // token system existed).
         myOrderIds = myOrderIds.filter(id => foundIds.includes(id));
         localStorage.setItem(ORDER_IDS_KEY, JSON.stringify(myOrderIds));
 
@@ -1326,18 +1358,12 @@ function renderMyOrder() { loadMyOrders(); }
 async function cancelOrder(orderId) {
     if (!confirm('Cancel this order?')) return;
     try {
-        // First fetch order to get items for stock return
-        const rows = await sbFetch(`orders?id=eq.${orderId}&select=id,data`);
-        if (rows && rows.length) {
-            const o = rows[0].data || {};
-            if (o.items) {
-                // Return stock for each item
-                try {
-                    await sbRpc('return_customer_stock', { order_items: o.items });
-                } catch(e) { console.warn('Stock return failed:', e); }
-            }
+        const result = await sbRpc('cancel_my_order', { p_order_id: Number(orderId), p_token: getOrderToken(orderId) });
+        if (!result || !result.ok) {
+            alert('Cancel failed: this order could no longer be verified as yours.');
+            return;
         }
-        await sbFetch(`orders?id=eq.${orderId}`, { method: 'DELETE' });
+        removeOrderToken(orderId);
         myOrderIds = myOrderIds.filter(id => String(id) !== String(orderId));
         localStorage.setItem(ORDER_IDS_KEY, JSON.stringify(myOrderIds));
         if (myOrderIds.length === 0) { localStorage.removeItem(ORDER_ID_KEY); }
@@ -1350,9 +1376,10 @@ async function cancelOrder(orderId) {
 let _editingOrderId = null;
 function openEdit(orderId) {
     _editingOrderId = orderId;
-    // Find order from DOM or reload
-    sbFetch(`orders?id=eq.${orderId}&select=id,data`).then(rows => {
-        if (!rows || !rows.length) return;
+    // Fetch via the token-checked RPC — an order ID alone won't open someone
+    // else's order for editing, only one we hold a matching token for.
+    sbRpc('get_my_orders', { p_orders: [{ id: Number(orderId), token: getOrderToken(orderId) }] }).then(rows => {
+        if (!rows || !rows.length) { alert('This order could no longer be verified as yours.'); return; }
         const o = { id: rows[0].id, ...rows[0].data };
         const existing = {};
         Object.entries(o.items || {}).forEach(([id, item]) => { existing[id] = item.qty; });
@@ -1372,20 +1399,15 @@ async function saveEdit() {
     const storedOrder = JSON.parse(document.getElementById('editModal').dataset.order || '{}');
     const oldItems = storedOrder.items || {};
     const newItems = {};
-    let totalCost = 0, skewerQty = 0, scoops = 0;
     menuItems.forEach(item => {
         const qty = qtys[item.id] || 0;
         const cost = qty * item.price;
         newItems[item.id] = { name: item.name, category: item.category, price: item.price, qty, cost, unitLabel: item.unitLabel };
-        totalCost += cost;
-        if (item.category === 'skewer' || item.category === 'no-kuah') skewerQty += qty;
-        if (item.category === 'skewer') scoops += Math.ceil(qty / kuahRatio);
-        if (item.category === 'side') scoops += qty * 2;
-        if (item.category === 'side-1kuah') scoops += qty;
-        if (item.category === 'kuah-only') scoops += qty;
     });
 
-    // Check stock for increases
+    // Quick client-side heads-up before the round trip — the edit_my_order
+    // RPC re-checks this authoritatively regardless, this is just so the
+    // customer doesn't wait on a network call to find out.
     await loadStock();
     for (const item of menuItems) {
         const oldQty = (oldItems[item.id] && oldItems[item.id].qty) || 0;
@@ -1401,21 +1423,23 @@ async function saveEdit() {
     }
 
     try {
-        // Update stock diff via RPC
-        await sbRpc('adjust_stock_diff', { old_items: oldItems, new_items: newItems });
-    } catch(e) { /* non-fatal if RPC not set up */ }
-
-    const updated = {
-        ...myOrder, items: newItems, totalCost, skewerQty, scoops,
-        description: document.getElementById('editNote').value.trim()
-    };
-
-    try {
-        await sbFetch(`orders?id=eq.${_editingOrderId}`, {
-            method: 'PATCH',
-            headers: { 'Prefer': 'return=minimal' },
-            body: JSON.stringify({ data: updated, updated_ms: Date.now() })
+        const result = await sbRpc('edit_my_order', {
+            p_order_id: Number(_editingOrderId),
+            p_token:    getOrderToken(_editingOrderId),
+            p_items:    newItems,
+            p_note:     document.getElementById('editNote').value.trim()
         });
+        if (!result || !result.ok) {
+            if (result && result.reason === 'insufficient') {
+                const item = menuItems.find(m => m.id === result.item);
+                alert(`❌ Insufficient stock for ${item ? item.name : result.item} — only ${result.available} left`);
+            } else if (result && result.reason === 'not_found_or_forbidden') {
+                alert('Save failed: this order could no longer be verified as yours.');
+            } else {
+                alert('Save failed — please try again.');
+            }
+            return;
+        }
         closeEdit();
         loadMyOrders();
     } catch(e) { alert('Save failed: ' + e.message); }
