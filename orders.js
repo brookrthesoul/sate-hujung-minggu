@@ -258,9 +258,18 @@ function clearForm() {
     if (custPhone) custPhone.value = '';
     const pDate = document.getElementById('pickupDate');
     const pTime = document.getElementById('pickupTime');
+    const pTimeDisplay = document.getElementById('pickupTimeDisplay');
     if (pDate) pDate.value = '';
     if (pTime) pTime.value = '';
+    if (pTimeDisplay) pTimeDisplay.value = '';
     closeOrderSummaryModal();
+}
+
+// Keeps the visible "2:30 PM"-style admin field in sync with the real,
+// 24-hour #pickupTime value that saveOrder()/updatePreview() read.
+function syncAdminPickupTimeDisplay() {
+    const display = document.getElementById('pickupTimeDisplay');
+    if (display) display.value = formatTime12hr(document.getElementById('pickupTime').value);
 }
 
 async function saveOrder() {
