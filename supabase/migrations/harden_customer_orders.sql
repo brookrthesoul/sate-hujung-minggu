@@ -175,12 +175,15 @@ begin
     select value::integer into kuah_ratio from settings where key = 'kuahRatio';
     totals := _order_totals(real_items, coalesce(kuah_ratio, 10));
 
-    -- Lock stock rows and check availability
+    -- Lock stock rows and check availability. A qty of -1 is this app's
+    -- convention for "no limit set" (see stock.js/_writeStock) — NULL alone
+    -- isn't enough to detect that, since admins can explicitly clear a limit
+    -- to -1 rather than deleting the row.
     for item_id, item_qty in
         select key, (value->>'qty')::integer from jsonb_each(real_items)
     loop
         select qty into avail_qty from stock where id = item_id for update;
-        if avail_qty is not null and avail_qty < item_qty then
+        if avail_qty is not null and avail_qty <> -1 and avail_qty < item_qty then
             if avail_qty = 0 then
                 return jsonb_build_object('ok', false, 'reason', 'out_of_stock', 'item', item_id);
             else
@@ -189,12 +192,12 @@ begin
         end if;
     end loop;
 
-    -- Deduct stock
+    -- Deduct stock (skip unlimited items — never turn a -1 into a real number)
     for item_id, item_qty in
         select key, (value->>'qty')::integer from jsonb_each(real_items)
     loop
         update stock set qty = greatest(0, qty - item_qty), updated_at = now()
-        where id = item_id and qty is not null;
+        where id = item_id and qty is not null and qty <> -1;
     end loop;
 
     -- Assemble the final order — items/prices/totals are entirely our own
@@ -257,13 +260,13 @@ begin
         diff    := new_qty - old_qty;
         if diff > 0 then
             select qty into avail_qty from stock where id = item_id for update;
-            if avail_qty is not null and avail_qty < diff then
+            if avail_qty is not null and avail_qty <> -1 and avail_qty < diff then
                 return jsonb_build_object('ok', false, 'reason', 'insufficient', 'item', item_id, 'available', avail_qty);
             end if;
         end if;
     end loop;
 
-    -- Apply the stock diff
+    -- Apply the stock diff (skip unlimited items — never turn a -1 into a real number)
     for item_id in
         select distinct key from (
             select key from jsonb_each(old_items)
@@ -275,7 +278,7 @@ begin
         diff    := new_qty - old_qty;
         if diff <> 0 then
             update stock set qty = greatest(0, qty - diff), updated_at = now()
-            where id = item_id and qty is not null;
+            where id = item_id and qty is not null and qty <> -1;
         end if;
     end loop;
 
@@ -315,7 +318,7 @@ begin
         where (value->>'qty')::integer > 0
     loop
         update stock set qty = qty + item_qty, updated_at = now()
-        where id = item_id and qty is not null;
+        where id = item_id and qty is not null and qty <> -1;
     end loop;
 
     delete from orders where id = p_order_id and order_token = p_token;
