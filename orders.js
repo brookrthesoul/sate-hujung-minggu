@@ -249,7 +249,11 @@ function closeOrderSummaryModal() {
 function clearForm() {
     getMenuItems().forEach(item => {
         const el = document.getElementById(`qty-${item.id}`);
-        if (el) el.value = 0;
+        // Empty string, not 0 — leaves only the "0" placeholder hint showing,
+        // so tapping straight into the field doesn't land a cursor in front
+        // of a real "0" character (which turned "10" into "100").
+        if (el) el.value = '';
+        if (typeof checkStockInput === 'function') checkStockInput(item.id, '');
     });
     document.getElementById('orderDescription').value = '';
     const custName  = document.getElementById('customerNameInput');
