@@ -1013,7 +1013,13 @@ function getPickupTs() {
 function validatePickupTime() {
     const { ts } = getPickupTs();
     const hint   = document.getElementById('timeHint');
-    if (!ts) { hint.textContent = ''; return true; }
+    // The 1-hour minimum only makes sense for a specific requested time — a
+    // date-only ("whenever it's ready today"/preorder-for-a-day) order has
+    // no particular slot to compare against "1 hour from now", so it's
+    // exempt. getPickupTs() uses midnight as a placeholder ts for date-only
+    // orders, which would otherwise always fail this check.
+    const timeVal = document.getElementById('pickupTime').value;
+    if (!ts || !timeVal) { hint.textContent = ''; return true; }
     const minTs  = getPickupMinTs();
     if (ts < minTs) {
         hint.textContent = `⚠️ Pick-up time must be at least ${PICKUP_MIN_HOURS} hour from now.`;
@@ -1110,7 +1116,11 @@ function showOrderSummary() {
             return;
         }
     }
-    if (ts) {
+    // Same exemption as validatePickupTime(): a date-only order has no
+    // specific time to compare against "1 hour from now", so only enforce
+    // this when the customer actually picked a time.
+    const pickedTime = document.getElementById('pickupTime').value;
+    if (ts && pickedTime) {
         const minTs = getPickupMinTs();
         if (ts < minTs) {
             hint.textContent = `⚠️ Pick-up time must be at least ${PICKUP_MIN_HOURS} hour from now.`;
