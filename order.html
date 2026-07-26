@@ -769,16 +769,16 @@ function onPickupTimeTriggerClick() {
     const selDate = dateEl.value;
     const today   = dayKey();
     const isToday = !selDate || selDate === today;
-    // Pre-fill to "1 hour from now" so the picker opens already at a valid
-    // time instead of forcing a long scroll from the top — refresh it not
-    // just when empty, but also if a previously-picked value has gone stale
-    // (e.g. the picker was left open a while, or the date was switched back
-    // to today from a future date). Both are "HH:MM" zero-padded strings, so
-    // a plain string comparison correctly tells us which is earlier.
+    // Suggest "1 hour from now" as the opening position when there's no
+    // valid existing value — but only as a suggestion passed to the picker,
+    // not written into pickupTime itself. Writing it directly here meant
+    // just tapping the field (even to look, then hit Cancel) silently set a
+    // real pickup time on an order that was never meant to have one.
+    let initialValue;
     if (isToday && (!timeEl.value || timeEl.value < timeEl.min)) {
-        timeEl.value = timeEl.min;
+        initialValue = timeEl.min;
     }
-    openScrollTimePicker(timeEl, { onConfirm: syncPickupTimeDisplay, minValue: timeEl.min || null });
+    openScrollTimePicker(timeEl, { onConfirm: syncPickupTimeDisplay, minValue: timeEl.min || null, initialValue });
 }
 
 // ── Menu ──────────────────────────────────────────────────────────────────────

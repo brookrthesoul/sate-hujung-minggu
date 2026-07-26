@@ -278,16 +278,20 @@ function syncAdminPickupTimeDisplay() {
     if (wrap) wrap.classList.toggle('has-value', !!val);
 }
 
-// Tapping the time field — pre-fills to the current time when empty, so
-// admin doesn't have to scroll all the way up from the top of the wheel for
-// the (very common) case of "pick-up is basically now".
+// Tapping the time field — suggests the current time as the opening
+// position when empty, so admin doesn't have to scroll all the way up from
+// the top of the wheel for the (very common) case of "pick-up is basically
+// now" — but only as a suggestion passed to the picker, not written into
+// pickupTime itself, so tapping in to look and then hitting Cancel doesn't
+// silently set a real pickup time on an order that was never meant to have one.
 function onAdminPickupTimeTriggerClick() {
     const timeEl = document.getElementById('pickupTime');
+    let initialValue;
     if (!timeEl.value) {
         const now = new Date();
-        timeEl.value = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        initialValue = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
     }
-    openScrollTimePicker(timeEl, { onConfirm: syncAdminPickupTimeDisplay });
+    openScrollTimePicker(timeEl, { onConfirm: syncAdminPickupTimeDisplay, initialValue });
 }
 
 // Clears the pick-up time without opening the picker.
@@ -447,8 +451,22 @@ async function loadPreorders() {
 // pins its card to the top of Prepare, so staff get an audible heads-up even
 // if they're not looking at the screen. Each order only alerts once; the
 // memory of "already alerted" ids is cleared out at day-close.
-const URGENT_WARN_MS = 15 * 60 * 1000; // keep in sync with WARN_MS in loadOrders()
+const URGENT_WARN_MS = 15 * 60 * 1000; // keep in sync with all usages below
 let _notifiedUrgentIds = new Set();
+
+// Whether an order should be pinned/flagged urgent in the Prepare stage.
+// - Orders with a requested pick-up time: urgent once "now" is within (or
+//   past) the 15-minute window before that time — unchanged from before.
+// - Regular orders with no requested time at all (customer just wants it
+//   whenever it's ready): there's no target time to compare against, so
+//   instead they become urgent once they've been sitting unprepared for
+//   15+ minutes since being PLACED. Previously these were skipped
+//   entirely and could sit unpinned indefinitely.
+function isOrderPinned(o, now) {
+    if (o.pickupTs) return (now - o.pickupTs) >= -URGENT_WARN_MS;
+    if (o.createdAt) return (now - o.createdAt) >= URGENT_WARN_MS;
+    return false;
+}
 
 // Browsers only allow audio after a genuine user gesture, and can auto-suspend
 // an AudioContext that's sat idle. Creating a brand-new context inside a
@@ -516,10 +534,12 @@ async function checkUrgentOrders() {
         let newlyUrgent = false;
 
         orders.forEach(o => {
-            if (o.prepared || o.paid || !o.pickupTs) return;
-            const pDay = dayKey(o.pickupTs);
-            if (pDay > today) return; // still a future preorder, not urgent yet
-            const isUrgent = (now - o.pickupTs) >= -URGENT_WARN_MS;
+            if (o.prepared || o.paid) return;
+            if (o.pickupTs) {
+                const pDay = dayKey(o.pickupTs);
+                if (pDay > today) return; // still a future preorder, not urgent yet
+            }
+            const isUrgent = isOrderPinned(o, now);
             if (isUrgent && !_notifiedUrgentIds.has(o.id)) {
                 _notifiedUrgentIds.add(o.id);
                 newlyUrgent = true;
@@ -817,7 +837,6 @@ async function loadOrders() {
         // Stage buckets
         const today    = dayKey();
         const now      = Date.now();
-        const WARN_MS  = 15 * 60 * 1000; // 15 minutes
 
         // preorder = future pickupTs (not today)
         // prepare  = not prepared, not paid, and either no pickupTs or pickupTs is today/past
@@ -831,13 +850,18 @@ async function loadOrders() {
         const paid     = orders.filter(o =>  o.paid     && !o.pickedUp);
         let   done     = orders.filter(o =>  o.paid     &&  o.pickedUp);
 
-        // Sort prepare: orders with pickupTs within 15min (or past) float to top
+        // Sort prepare: orders within 15min of pick-up (or, for regular
+        // no-time orders, sitting 15+ min unprepared) float to top.
         prepare.sort((a, b) => {
-            const aPinned = a.pickupTs && (now - a.pickupTs) >= -WARN_MS;
-            const bPinned = b.pickupTs && (now - b.pickupTs) >= -WARN_MS;
+            const aPinned = isOrderPinned(a, now);
+            const bPinned = isOrderPinned(b, now);
             if (aPinned && !bPinned) return -1;
             if (!aPinned && bPinned) return  1;
-            if (aPinned && bPinned) return (a.pickupTs || 0) - (b.pickupTs || 0); // earliest first
+            if (aPinned && bPinned) {
+                // Earliest reference time first — a requested pick-up time if
+                // there is one, otherwise how long it's been sitting since placed.
+                return (a.pickupTs || a.createdAt || 0) - (b.pickupTs || b.createdAt || 0);
+            }
             // Normal sort
             return sortDir === 'asc' ? a.createdAt - b.createdAt : b.createdAt - a.createdAt;
         });
@@ -979,9 +1003,8 @@ function renderOrderCard(card, rawOrder, stage) {
     const o = normalizeOrder(rawOrder);
 
     const now       = Date.now();
-    const WARN_MS   = 15 * 60 * 1000;
     // Only pin/urgent in prepare stage — once moved forward, show plain badge
-    const isPinned  = o.pickupTs && (now - o.pickupTs) >= -WARN_MS && !o.prepared && !o.paid;
+    const isPinned  = isOrderPinned(o, now) && !o.prepared && !o.paid;
     let pickupStr = null;
     if (o.pickupTs) {
         const dt = new Date(o.pickupTs);
@@ -993,9 +1016,15 @@ function renderOrderCard(card, rawOrder, stage) {
             pickupStr = dt.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
         }
     }
-    const pickupBadge = pickupStr
-        ? `<div class="pickup-badge ${isPinned ? 'pickup-urgent' : ''}">📅 Pick-up: ${pickupStr}</div>`
-        : '';
+    let pickupBadge = '';
+    if (pickupStr) {
+        pickupBadge = `<div class="pickup-badge ${isPinned ? 'pickup-urgent' : ''}">📅 Pick-up: ${pickupStr}</div>`;
+    } else if (isPinned && o.createdAt) {
+        // Regular (no requested time) order that's been sitting unprepared for
+        // 15+ minutes — same urgent styling, just no specific time to show.
+        const waitMin = Math.max(0, Math.round((now - o.createdAt) / 60000));
+        pickupBadge = `<div class="pickup-badge pickup-urgent">⏰ Waiting ${waitMin}m</div>`;
+    }
 
     const isExpanded = _expandedCards.has(o.id);
     // Always stamp data-stage so toggleCardExpand can find the stage without DOM traversal

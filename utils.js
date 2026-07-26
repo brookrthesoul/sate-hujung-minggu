@@ -105,10 +105,16 @@ function openScrollTimePicker(targetInput, opts = {}) {
     const minutes   = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
     const meridiems = ['AM', 'PM'];
 
-    // Start from the target's current value (24hr "HH:MM"), or now if empty.
+    // Start from opts.initialValue if given (a suggested opening position that
+    // does NOT touch targetInput.value unless Done is actually pressed — this
+    // matters: previously callers pre-filled by writing straight into the real
+    // field before the picker even opened, so tapping in to just look, then
+    // hitting Cancel, still silently left a time set). Falls back to the
+    // target's current value, or now if both are empty.
+    const seedValue = opts.initialValue || targetInput.value;
     let h24, m;
-    if (targetInput.value) {
-        const parts = targetInput.value.split(':');
+    if (seedValue) {
+        const parts = seedValue.split(':');
         h24 = parseInt(parts[0], 10) || 0;
         m   = parseInt(parts[1], 10) || 0;
     } else {
