@@ -87,9 +87,12 @@
         <label>📅 Pick-up Date &amp; Time (optional)</label>
         <div class="paired-row">
             <input type="date" id="pickupDate" style="padding:8px;border-radius:8px;border:1px solid #ced4da;font-size:14px;">
-            <input type="text" id="pickupTimeDisplay" readonly placeholder="Select time"
-                style="padding:8px;border-radius:8px;border:1px solid #ced4da;font-size:14px;"
-                onclick="openScrollTimePicker(document.getElementById('pickupTime'), {onConfirm: syncAdminPickupTimeDisplay})">
+            <div class="time-input-wrap">
+                <input type="text" id="pickupTimeDisplay" readonly placeholder="Select time"
+                    style="padding:8px;border-radius:8px;border:1px solid #ced4da;font-size:14px;"
+                    onclick="onAdminPickupTimeTriggerClick()">
+                <button type="button" class="time-clear-btn" onclick="clearAdminPickupTime(event)" aria-label="Clear time">✕</button>
+            </div>
             <input type="hidden" id="pickupTime">
         </div>
         <label>📝 Order Description (optional)</label>

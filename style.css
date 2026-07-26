@@ -661,3 +661,15 @@ html.dark-mode .stp-cancel { color: #999; }
 html.dark-mode .stp-row { color: #eee; }
 html.dark-mode .stp-highlight { border-color: #444; }
 html.dark-mode .stp-colon { color: #eee; }
+
+/* ── Clear button for the scroll-time-picker trigger fields ── */
+.time-input-wrap { position: relative; }
+.time-input-wrap input { width: 100%; box-sizing: border-box; padding-right: 30px; }
+.time-clear-btn {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    width: 20px; height: 20px; border: none; background: #bbb; color: #fff;
+    border-radius: 50%; font-size: 11px; line-height: 20px; text-align: center;
+    padding: 0; cursor: pointer; display: none;
+}
+.time-input-wrap.has-value .time-clear-btn { display: block; }
+.time-clear-btn:active { background: #999; }

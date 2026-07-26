@@ -81,6 +81,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 /* ── Pickup time ── */
 .pickup-row { display: flex; gap: 8px; margin-bottom: 10px; }
 .pickup-row input { flex: 1; padding: 9px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+.time-input-wrap { position: relative; flex: 1; min-width: 0; }
+.time-input-wrap input { width: 100%; box-sizing: border-box; padding-right: 30px; }
+.time-clear-btn {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    width: 20px; height: 20px; border: none; background: #bbb; color: #fff;
+    border-radius: 50%; font-size: 11px; line-height: 20px; text-align: center;
+    padding: 0; cursor: pointer; display: none;
+}
+.time-input-wrap.has-value .time-clear-btn { display: block; }
+.time-clear-btn:active { background: #999; }
 .time-hint { font-size: 12px; color: #888; margin-top: -6px; margin-bottom: 8px; }
 .field-group { margin-bottom: 12px; }
 .field-row { display: flex; gap: 10px; }
@@ -360,7 +370,10 @@ button:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.88);
     <div class="section-title">📅 Pick-up Time (optional)</div>
     <div class="pickup-row">
         <input type="date" id="pickupDate" min="">
-        <input type="text" id="pickupTimeDisplay" readonly placeholder="Select time" onclick="onPickupTimeTriggerClick()">
+        <div class="time-input-wrap">
+            <input type="text" id="pickupTimeDisplay" readonly placeholder="Select time" onclick="onPickupTimeTriggerClick()">
+            <button type="button" class="time-clear-btn" onclick="clearPickupTime(event)" aria-label="Clear time">✕</button>
+        </div>
         <input type="hidden" id="pickupTime">
     </div>
     <div id="preorderLabel" style="display:none;font-size:12px;color:#dc3545;font-weight:600;margin-bottom:6px;">
@@ -479,8 +492,8 @@ const EDIT_LOCK_MINS   = 5;
 const PICKUP_EDIT_MINS = 20;
 const PICKUP_MIN_HOURS = 1;
 // Grace period so customers aren't forced to nudge the time forward just because
-// a few seconds/minutes passed between the field being pre-filled and them tapping Next.
-const PICKUP_GRACE_MS = 2 * 60 * 1000;
+// some time passed between the field being pre-filled and them tapping Next/Place Order.
+const PICKUP_GRACE_MS = 15 * 60 * 1000;
 
 function getPickupMinTs() {
     return Date.now() + PICKUP_MIN_HOURS * 60 * 60 * 1000 - PICKUP_GRACE_MS;
@@ -728,10 +741,23 @@ function updateTimeMin() {
     }
 }
 
-// Keeps the visible "2:30 PM"-style field in sync with the real, 24-hour
-// #pickupTime value that the rest of the app reads/writes.
+// Keeps the visible "2:30 PM"-style field (and its clear-button visibility)
+// in sync with the real, 24-hour #pickupTime value that the rest of the app
+// reads/writes.
 function syncPickupTimeDisplay() {
-    document.getElementById('pickupTimeDisplay').value = formatTime12hr(document.getElementById('pickupTime').value);
+    const val = formatTime12hr(document.getElementById('pickupTime').value);
+    const displayEl = document.getElementById('pickupTimeDisplay');
+    displayEl.value = val;
+    const wrap = displayEl.closest('.time-input-wrap');
+    if (wrap) wrap.classList.toggle('has-value', !!val);
+}
+
+// Clears the pick-up time without opening the picker.
+function clearPickupTime(e) {
+    e.stopPropagation(); // don't let the click bubble up and reopen the picker
+    document.getElementById('pickupTime').value = '';
+    syncPickupTimeDisplay();
+    document.getElementById('pickupTime').dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 // Tapping the visible time field — same "jump to 1hr from now" default the
@@ -743,7 +769,13 @@ function onPickupTimeTriggerClick() {
     const selDate = dateEl.value;
     const today   = dayKey();
     const isToday = !selDate || selDate === today;
-    if (isToday && !timeEl.value) {
+    // Pre-fill to "1 hour from now" so the picker opens already at a valid
+    // time instead of forcing a long scroll from the top — refresh it not
+    // just when empty, but also if a previously-picked value has gone stale
+    // (e.g. the picker was left open a while, or the date was switched back
+    // to today from a future date). Both are "HH:MM" zero-padded strings, so
+    // a plain string comparison correctly tells us which is earlier.
+    if (isToday && (!timeEl.value || timeEl.value < timeEl.min)) {
         timeEl.value = timeEl.min;
     }
     openScrollTimePicker(timeEl, { onConfirm: syncPickupTimeDisplay, minValue: timeEl.min || null });
@@ -1283,7 +1315,7 @@ function resetForm() {
     });
     document.getElementById('orderNote').value = '';
     document.getElementById('pickupTime').value = '';
-    document.getElementById('pickupTimeDisplay').value = '';
+    syncPickupTimeDisplay();
     if (preorderEnabled) document.getElementById('pickupDate').value = '';
     document.getElementById('timeHint').textContent = '';
     document.getElementById('customerName').value = '';

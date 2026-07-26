@@ -258,18 +258,43 @@ function clearForm() {
     if (custPhone) custPhone.value = '';
     const pDate = document.getElementById('pickupDate');
     const pTime = document.getElementById('pickupTime');
-    const pTimeDisplay = document.getElementById('pickupTimeDisplay');
     if (pDate) pDate.value = '';
     if (pTime) pTime.value = '';
-    if (pTimeDisplay) pTimeDisplay.value = '';
+    syncAdminPickupTimeDisplay();
     closeOrderSummaryModal();
 }
 
 // Keeps the visible "2:30 PM"-style admin field in sync with the real,
 // 24-hour #pickupTime value that saveOrder()/updatePreview() read.
+// Keeps the visible "2:30 PM"-style admin field (and its clear-button
+// visibility) in sync with the real, 24-hour #pickupTime value that
+// saveOrder()/updatePreview() read.
 function syncAdminPickupTimeDisplay() {
     const display = document.getElementById('pickupTimeDisplay');
-    if (display) display.value = formatTime12hr(document.getElementById('pickupTime').value);
+    if (!display) return;
+    const val = formatTime12hr(document.getElementById('pickupTime').value);
+    display.value = val;
+    const wrap = display.closest('.time-input-wrap');
+    if (wrap) wrap.classList.toggle('has-value', !!val);
+}
+
+// Tapping the time field — pre-fills to the current time when empty, so
+// admin doesn't have to scroll all the way up from the top of the wheel for
+// the (very common) case of "pick-up is basically now".
+function onAdminPickupTimeTriggerClick() {
+    const timeEl = document.getElementById('pickupTime');
+    if (!timeEl.value) {
+        const now = new Date();
+        timeEl.value = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    }
+    openScrollTimePicker(timeEl, { onConfirm: syncAdminPickupTimeDisplay });
+}
+
+// Clears the pick-up time without opening the picker.
+function clearAdminPickupTime(e) {
+    e.stopPropagation();
+    document.getElementById('pickupTime').value = '';
+    syncAdminPickupTimeDisplay();
 }
 
 async function saveOrder() {
