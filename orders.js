@@ -455,16 +455,13 @@ const URGENT_WARN_MS = 15 * 60 * 1000; // keep in sync with all usages below
 let _notifiedUrgentIds = new Set();
 
 // Whether an order should be pinned/flagged urgent in the Prepare stage.
-// - Orders with a requested pick-up time: urgent once "now" is within (or
-//   past) the 15-minute window before that time — unchanged from before.
-// - Regular orders with no requested time at all (customer just wants it
-//   whenever it's ready): there's no target time to compare against, so
-//   instead they become urgent once they've been sitting unprepared for
-//   15+ minutes since being PLACED. Previously these were skipped
-//   entirely and could sit unpinned indefinitely.
+// - Orders with a requested pick-up time (or a today-dated pickup): urgent
+//   once "now" is within (or past) the 15-minute window before that time.
+// - Orders with NO requested date/time at all are never pinned/urgent —
+//   there's no pick-up badge on these cards at all, so there's nothing to
+//   flag as urgent either. They just sort normally by when they were placed.
 function isOrderPinned(o, now) {
     if (o.pickupTs) return (now - o.pickupTs) >= -URGENT_WARN_MS;
-    if (o.createdAt) return (now - o.createdAt) >= URGENT_WARN_MS;
     return false;
 }
 
@@ -1016,14 +1013,13 @@ function renderOrderCard(card, rawOrder, stage) {
             pickupStr = dt.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
         }
     }
+    // Orders with no requested pick-up date/time get no badge at all — only
+    // orders that actually have a pickupTs (time, or date/datetime that has
+    // arrived and moved into Prepare) show the badge, pinned/flashing once
+    // within 15 minutes of the requested time.
     let pickupBadge = '';
     if (pickupStr) {
         pickupBadge = `<div class="pickup-badge ${isPinned ? 'pickup-urgent' : ''}">📅 Pick-up: ${pickupStr}</div>`;
-    } else if (isPinned && o.createdAt) {
-        // Regular (no requested time) order that's been sitting unprepared for
-        // 15+ minutes — same urgent styling, just no specific time to show.
-        const waitMin = Math.max(0, Math.round((now - o.createdAt) / 60000));
-        pickupBadge = `<div class="pickup-badge pickup-urgent">⏰ Waiting ${waitMin}m</div>`;
     }
 
     const isExpanded = _expandedCards.has(o.id);
