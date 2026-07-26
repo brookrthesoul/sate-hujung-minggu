@@ -86,10 +86,11 @@ function _stpBuildColumn(values, initialIndex) {
     highlight.className = 'stp-highlight';
     col.appendChild(highlight);
 
-    scroll.scrollTop = initialIndex * STP_ROW_H; // jump straight there, no animation
+    scroll.scrollTop = 0; // set for real after this column is attached to the document — see below
     col._stpScroll = scroll;
     col._stpValues = values;
     col._stpRows   = rows;
+    col._stpInitialIndex = initialIndex;
     return col;
 }
 
@@ -156,6 +157,15 @@ function openScrollTimePicker(targetInput, opts = {}) {
     sheet.appendChild(columns);
     overlay.appendChild(sheet);
     document.body.appendChild(overlay);
+
+    // Only now that these columns are actually attached to the document does
+    // the browser know their real scrollable height — setting scrollTop any
+    // earlier (e.g. while still detached, mid-construction) gets silently
+    // ignored and every column would sit at index 0 regardless of what was
+    // requested. This is the "no animation, just land there" jump.
+    [hourCol, minCol, merCol].forEach(col => {
+        col._stpScroll.scrollTop = col._stpInitialIndex * STP_ROW_H;
+    });
 
     // Grey out rows that would produce a time earlier than opts.minValue.
     // Meridiem only affects whether AM is entirely too early; hour rows
