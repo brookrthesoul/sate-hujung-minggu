@@ -581,6 +581,7 @@ async function autoClosePreviousDay() {
     const today  = dayKey();
     const orders = (await getAllOrders()).map(normalizeOrder);
     _notifiedUrgentIds.clear();
+    _clearCookedTally();
 
     const stale  = orders.filter(o => {
         const orderDay = dayKey(o.createdAt);
@@ -785,11 +786,79 @@ function busyCustomToggleEnabled() {
     return localStorage.getItem('shmBusyCustomEnabled') === '1';
 }
 
-// ── Kitchen prep summary bar (Prepare tab) ────────────────────────────────
+// ── Kitchen "cooked so far" tally (Prepare tab summary bar) ────────────────
+// The summary bar tells the kitchen how many of each skewer/custom-unit item
+// are still needed across ALL Prepare orders — but they cook in batches that
+// cut across multiple orders (e.g. grill only fits 50 at a time, mixing ayam
+// and daging), so no single order gets marked "prepared" until much later.
+// This tally lets them record how many of each they've actually cooked so
+// far, independent of order status, so the bar can show what's still left.
+// Persisted in localStorage — survives page refreshes, cleared at day-close.
+const COOKED_TALLY_KEY = 'shmCookedTally';
+
+function _getCookedTally() {
+    try { return JSON.parse(localStorage.getItem(COOKED_TALLY_KEY)) || {}; }
+    catch(e) { return {}; }
+}
+function _saveCookedTally(tally) {
+    localStorage.setItem(COOKED_TALLY_KEY, JSON.stringify(tally));
+}
+function _clearCookedTally() {
+    localStorage.removeItem(COOKED_TALLY_KEY);
+}
+
+// The [name, total] pairs currently shown in the bar, in render order — lets
+// a tapped chip's modal look up its own name/total by index instead of
+// fussing over escaping item names inside an onclick attribute string.
+let _sateSummaryEntries = [];
+// The Prepare orders used for the most recent bar render, so saving a tally
+// change can re-render the bar immediately without a full reload.
+let _lastPrepareOrdersForSate = [];
+
+function openCookedTallyModal(i) {
+    const entry = _sateSummaryEntries[i];
+    if (!entry) return;
+    const [name, total] = entry;
+    const cooked = _getCookedTally()[name] || 0;
+
+    document.getElementById('cookedTallyTitle').textContent = `🍢 ${name}`;
+    document.getElementById('cookedTallyTotal').textContent = `Total needed: ${total}`;
+    const input = document.getElementById('cookedTallyInput');
+    input.value = cooked;
+    input.dataset.itemName = name;
+    showModalById('cookedTallyModal');
+}
+
+function closeCookedTallyModal() {
+    hideModalById('cookedTallyModal');
+}
+
+function adjustCookedTallyInput(delta) {
+    const input = document.getElementById('cookedTallyInput');
+    input.value = Math.max(0, (parseInt(input.value) || 0) + delta);
+}
+
+function resetCookedTallyItem() {
+    document.getElementById('cookedTallyInput').value = 0;
+}
+
+function saveCookedTally() {
+    const input = document.getElementById('cookedTallyInput');
+    const name  = input.dataset.itemName;
+    const val   = Math.max(0, parseInt(input.value) || 0);
+    const tally = _getCookedTally();
+    tally[name] = val;
+    _saveCookedTally(tally);
+    closeCookedTallyModal();
+    updateSateSummaryBar(_lastPrepareOrdersForSate);
+}
+
+
 // Tallies qty of skewer-category items (unchanged, for shops using that
 // system) plus custom-unit items (e.g. "12 Slice") across all Prepare-stage
 // orders, so whoever's prepping orders can see totals at a glance.
 function updateSateSummaryBar(prepareOrders) {
+    _lastPrepareOrdersForSate = prepareOrders;
     const bar = document.getElementById('sateSummaryBar');
     if (!bar) return;
 
@@ -809,6 +878,16 @@ function updateSateSummaryBar(prepareOrders) {
         });
     });
 
+    // Clean up cooked-tally entries for items no longer needed at all (fully
+    // cleared out of Prepare) — keeps storage tidy and stops a finished
+    // item's count from bleeding into a later, unrelated batch of the same item.
+    const tally = _getCookedTally();
+    let tallyChanged = false;
+    Object.keys(tally).forEach(name => {
+        if (!(name in totals)) { delete tally[name]; tallyChanged = true; }
+    });
+    if (tallyChanged) _saveCookedTally(tally);
+
     // Nothing relevant to this shop's setup to show — hide the whole bar
     // (but only touch visibility while actually on the Prepare sub-tab —
     // switchOrderSubTab() already hides it for every other sub-tab)
@@ -817,13 +896,19 @@ function updateSateSummaryBar(prepareOrders) {
     }
 
     const entries = Object.entries(totals);
+    _sateSummaryEntries = entries;
     if (entries.length === 0) {
         bar.innerHTML = '<span style="color:#999;font-size:13px;">No items to prepare</span>';
     } else {
-        bar.innerHTML = entries.map(([name, qty], i, arr) =>
-            `<span class="sate-summary-chip"><strong>${qty}</strong> ${escapeHtml(name)}</span>` +
-            (i < arr.length - 1 ? '<span class="sate-dot">·</span>' : '')
-        ).join('');
+        bar.innerHTML = entries.map(([name, total], i) => {
+            const cooked    = Math.min(tally[name] || 0, total);
+            const remaining = total - cooked;
+            const done      = remaining <= 0;
+            return `<span class="sate-summary-chip ${done ? 'sate-chip-done' : ''}" onclick="openCookedTallyModal(${i})" role="button" tabindex="0">` +
+                `<span class="sate-chip-main">${done ? '✅' : `<strong>${remaining}</strong> left`} ${escapeHtml(name)}</span>` +
+                `<span class="sate-chip-sub">${cooked}/${total} cooked · tap to update</span>` +
+                `</span>`;
+        }).join('');
     }
 }
 

@@ -344,13 +344,36 @@
     box-sizing: border-box;
 }
 .sate-summary-chip {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
     background: #fff3cd;
     color: #856404;
     border: 1px solid #ffc107;
-    border-radius: 20px;
-    padding: 5px 14px;
+    border-radius: 14px;
+    padding: 6px 14px;
     font-size: 13px;
     white-space: nowrap;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.1s ease;
+}
+.sate-summary-chip:active {
+    transform: scale(0.96);
+}
+.sate-chip-main {
+    font-weight: 600;
+}
+.sate-chip-sub {
+    font-size: 10px;
+    opacity: 0.75;
+    font-weight: 400;
+}
+.sate-chip-done {
+    background: #d4edda;
+    color: #155724;
+    border-color: #28a745;
 }
 .sate-dot {
     color: #aaa;
