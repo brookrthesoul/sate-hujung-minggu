@@ -686,9 +686,13 @@ function updatePreorderUI() {
         dateEl.style.opacity = '1';
         if (preLabel) preLabel.style.display = 'none';
     } else {
-        // Disable date — only today allowed
-        const today = dayKey();
-        dateEl.value    = today;
+        // Disable date — only today allowed. Leave the value BLANK (not
+        // filled with today's date) — getPickupTs() already treats a blank
+        // date as "today" for min-time purposes, and writing today's date in
+        // here made every order look like it had explicitly requested a
+        // "pick-up today" (mode 'date-today'), showing a phantom pick-up
+        // badge on orders that never touched the date/time fields at all.
+        dateEl.value = '';
         dateEl.setAttribute('disabled', 'true');
         dateEl.style.opacity = '0.5';
         if (preLabel) preLabel.style.display = 'block';
