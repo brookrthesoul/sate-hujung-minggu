@@ -62,9 +62,10 @@ async function _sbDelete(id) {
 // ─── IndexedDB cache ──────────────────────────────────────────────────────────
 
 const _IDB_NAME    = 'OrdersDB';
-const _IDB_VERSION = 4;  // bumped to add stock store
+const _IDB_VERSION = 5;  // bumped to add box store (see box.js)
 const _IDB_STORE   = 'orders';
 const _IDB_STOCK   = 'stock';
+const _IDB_BOX     = 'box';
 let   _idbConn     = null; // singleton connection
 
 function _idbOpen() {
@@ -80,6 +81,10 @@ function _idbOpen() {
             // Add stock store in v4
             if (!db.objectStoreNames.contains(_IDB_STOCK)) {
                 db.createObjectStore(_IDB_STOCK, { keyPath: 'id' });
+            }
+            // Add box store in v5 — same shape as stock: { id, qty, cooked_total }
+            if (!db.objectStoreNames.contains(_IDB_BOX)) {
+                db.createObjectStore(_IDB_BOX, { keyPath: 'id' });
             }
             if (db.objectStoreNames.contains('syncQueue')) db.deleteObjectStore('syncQueue');
         };
@@ -266,6 +271,8 @@ window.addEventListener('online', async () => {
         showSyncToast('🌐 Back online — syncing...');
         await _drainOfflineQueue();
     }
+    // Flush any queued Box adjustments / deferred day-close reset too
+    if (typeof window._syncBox === 'function') window._syncBox().catch(console.warn);
 });
 
 window.addEventListener('offline', () => {
@@ -324,6 +331,17 @@ function connectRealtime() {
             }},
             ref: String(_wsRef++)
         }));
+        // Subscribe to box_stock table (see box.js) — so this device's Box
+        // bar stays live if another device (or a customer's own order,
+        // handled server-side) changes it.
+        _ws.send(JSON.stringify({
+            topic: 'realtime:box-stock-sync', event: 'phx_join',
+            payload: { config: {
+                broadcast: { self: false }, presence: { key: '' },
+                postgres_changes: [{ event: '*', schema: 'public', table: 'box_stock' }]
+            }},
+            ref: String(_wsRef++)
+        }));
         _wsHB = setInterval(() => {
             if (_ws.readyState === WebSocket.OPEN)
                 _ws.send(JSON.stringify({ topic:'phoenix', event:'heartbeat', payload:{}, ref: String(_wsRef++) }));
@@ -336,7 +354,11 @@ function connectRealtime() {
             if (f.event === 'phx_reply') return;
             if (f.event === 'postgres_changes' || f.payload?.data?.type) {
                 const table = f.payload?.data?.table || f.topic || '';
-                if (table.includes('stock')) {
+                if (table === 'box_stock' || table.includes('box-stock')) {
+                    // Box changed on another device (or a customer's own
+                    // order deducted from it server-side) — re-sync the Box.
+                    if (typeof loadBoxStock === 'function') loadBoxStock().catch(console.warn);
+                } else if (table.includes('stock')) {
                     // Stock changed on another device — re-sync stock
                     if (typeof window._syncStock === 'function') window._syncStock().catch(console.warn);
                 } else {
@@ -711,6 +733,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (typeof window._syncStock === 'function') await window._syncStock();
     } catch(e) { console.warn('Stock sync error:', e); }
 
+    // Sync Box stock from Supabase (see box.js)
+    try {
+        if (typeof loadBoxStock === 'function') await loadBoxStock();
+    } catch(e) { console.warn('Box stock sync error:', e); }
+
     // Sync shop status from Supabase
     try {
         const remote = await window._readShopStatus();
@@ -902,6 +929,156 @@ window._writeStock = async function(id, qty) {
         if (!ok) _stockQueue.push({ id, qty });
     } else {
         _stockQueue.push({ id, qty });
+    }
+};
+
+
+// ─── Box stock sync (see box.js for the "why") ─────────────────────────────────
+// Same local-first + queue pattern as stock above: reads come from IDB first
+// (instant, works offline), writes update the local cache immediately and
+// either push straight to Supabase (online) or get queued and replayed the
+// next time we're back online (see _syncBox / the 'online' listener below).
+
+let _boxQueue        = [];  // pending offline deltas: { id, qtyDelta, cookedDelta }
+let _boxResetPending = false; // true if a day-close reset happened while offline
+
+async function _boxIdbGetAll() {
+    const db = await _idbOpen();
+    return new Promise((res, rej) => {
+        const tx  = db.transaction(_IDB_BOX, 'readonly');
+        const req = tx.objectStore(_IDB_BOX).getAll();
+        req.onsuccess = () => res(req.result);
+        req.onerror   = () => rej(req.error);
+    });
+}
+
+async function _boxIdbPutAll(rows) {
+    const db = await _idbOpen();
+    return new Promise((res, rej) => {
+        const tx    = db.transaction(_IDB_BOX, 'readwrite');
+        const store = tx.objectStore(_IDB_BOX);
+        tx.oncomplete = () => res();
+        tx.onerror    = () => rej(tx.error);
+        rows.forEach(r => store.put(r));
+    });
+}
+
+async function _boxIdbPut(row) {
+    const db = await _idbOpen();
+    return new Promise((res, rej) => {
+        const tx  = db.transaction(_IDB_BOX, 'readwrite');
+        const req = tx.objectStore(_IDB_BOX).put(row);
+        req.onsuccess = () => res();
+        req.onerror   = () => rej(req.error);
+    });
+}
+
+async function _sbGetBox() {
+    try {
+        const rows = await _sbFetch('box_stock?select=id,qty,cooked_total');
+        return rows || [];
+    } catch(e) {
+        console.warn('Box fetch failed:', e);
+        return null;
+    }
+}
+
+async function _sbAdjustBox(id, qtyDelta, cookedDelta) {
+    try {
+        await _sbFetch('rpc/adjust_box_stock', {
+            method: 'POST',
+            body: JSON.stringify({ p_id: id, p_qty_delta: qtyDelta, p_cooked_delta: cookedDelta })
+        });
+        return true;
+    } catch(e) {
+        console.warn('Box adjust failed:', e);
+        return false;
+    }
+}
+
+async function _sbResetBox() {
+    try {
+        await _sbFetch('rpc/reset_box_stock', { method: 'POST', body: JSON.stringify({}) });
+        return true;
+    } catch(e) {
+        console.warn('Box reset failed:', e);
+        return false;
+    }
+}
+
+// Main box sync — call on app start, after reconnecting, and whenever local
+// box data needs refreshing. box.js's window._applyBoxRows(rows) is what
+// actually updates boxData + re-renders the Box bar / summary bar.
+window._syncBox = async function() {
+    // 1. A day-close reset that happened while offline takes priority over
+    //    any older queued deltas from the day before — drop them, they're stale.
+    if (_boxResetPending && navigator.onLine) {
+        const ok = await _sbResetBox();
+        if (ok) { _boxResetPending = false; _boxQueue = []; }
+    }
+
+    // 2. Push any queued offline adjustments, in the order they happened
+    if (_boxQueue.length > 0 && navigator.onLine) {
+        const queue = [..._boxQueue];
+        _boxQueue = [];
+        for (const { id, qtyDelta, cookedDelta } of queue) {
+            const ok = await _sbAdjustBox(id, qtyDelta, cookedDelta);
+            if (!ok) _boxQueue.push({ id, qtyDelta, cookedDelta }); // re-queue if it failed
+        }
+    }
+
+    // 3. Fetch fresh from Supabase if online (authoritative now that queued
+    //    deltas above have been applied); otherwise fall back to whatever's
+    //    cached in IDB so the Box bar still shows real numbers offline.
+    if (navigator.onLine) {
+        const rows = await _sbGetBox();
+        if (rows) {
+            await _boxIdbPutAll(rows);
+            if (typeof window._applyBoxRows === 'function') window._applyBoxRows(rows, true);
+        }
+    } else {
+        const rows = await _boxIdbGetAll().catch(() => []);
+        if (typeof window._applyBoxRows === 'function') window._applyBoxRows(rows, true);
+    }
+};
+
+// Adjust one item's box numbers — updates the local cache + UI instantly
+// (works with zero connectivity), then pushes to Supabase or queues it.
+window._writeBoxAdjust = async function(id, qtyDelta, cookedDelta) {
+    const rows     = await _boxIdbGetAll().catch(() => []);
+    const existing = rows.find(r => r.id === id) || { id, qty: 0, cooked_total: 0 };
+    const updated  = {
+        id,
+        qty:          Math.max(0, existing.qty + qtyDelta),
+        cooked_total: Math.max(0, existing.cooked_total + cookedDelta)
+    };
+    await _boxIdbPut(updated);
+    if (typeof window._applyBoxRows === 'function') window._applyBoxRows([updated]);
+
+    if (navigator.onLine) {
+        const ok = await _sbAdjustBox(id, qtyDelta, cookedDelta);
+        if (!ok) _boxQueue.push({ id, qtyDelta, cookedDelta });
+    } else {
+        _boxQueue.push({ id, qtyDelta, cookedDelta });
+    }
+};
+
+// Day-close reset — zeroes the local cache immediately (so it's correct even
+// offline), then pushes the reset to Supabase or defers it (see _boxResetPending).
+window._resetBoxLocal = async function() {
+    const rows   = await _boxIdbGetAll().catch(() => []);
+    const zeroed = rows.map(r => ({ id: r.id, qty: 0, cooked_total: 0 }));
+    if (zeroed.length) await _boxIdbPutAll(zeroed);
+    if (typeof window._applyBoxRows === 'function') window._applyBoxRows(zeroed, true);
+
+    // A fresh day supersedes any older queued deltas — they no longer apply.
+    _boxQueue = [];
+
+    if (navigator.onLine) {
+        const ok = await _sbResetBox();
+        if (!ok) _boxResetPending = true;
+    } else {
+        _boxResetPending = true;
     }
 };
 

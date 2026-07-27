@@ -381,6 +381,40 @@
     padding: 0 4px;
 }
 
+/* ─── Box bar (prepared-items buffer — see box.js) — sits next to the
+   "Customer Orders" heading, right-aligned, Prepare tab only. ──────────── */
+.box-summary-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+}
+.box-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: #e7f3ff;
+    color: #084298;
+    border: 1px solid #6ea8fe;
+    border-radius: 14px;
+    padding: 5px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.1s ease;
+}
+.box-chip:active {
+    transform: scale(0.96);
+}
+.box-chip-add {
+    background: #f1f3f5;
+    color: #495057;
+    border-style: dashed;
+    font-weight: 600;
+}
+
 /* ─── Stock indicators (New Order page) ──────────────────────────────────── */
 .stock-indicator {
     font-size: 12px;

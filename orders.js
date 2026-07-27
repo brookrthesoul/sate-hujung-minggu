@@ -368,19 +368,38 @@ async function saveOrder() {
     }
     const unlockBtn = () => { if (btn) { btn.disabled = false; btn.textContent = origText; } };
 
-    // Check and deduct stock before saving
+    // ── Box first, then raw stock for the shortfall only ───────────────────
+    // See box.js: computeBoxUsage() works out how much of each Box-tracked
+    // item's demand the Box already covers (already cooked, sitting ready)
+    // vs the shortfall that still needs checking against raw stock. The Box
+    // itself isn't actually deducted yet — only after we know the stock
+    // check for the shortfall will succeed (see applyBoxUsage() below) —
+    // so a failed/aborted order never leaves the Box wrongly drawn down.
+    const boxUsage = (typeof computeBoxUsage === 'function')
+        ? computeBoxUsage(totals.items)
+        : { shortfallItems: totals.items, boxUsed: {} };
+
+    // Check and deduct stock before saving — based on the shortfall above.
     if (typeof deductStock === 'function') {
-        const stockResult = deductStock(totals.items);
+        const stockResult = deductStock(boxUsage.shortfallItems);
         if (!stockResult.ok) {
-            const avail = stockResult.available;
+            const avail   = stockResult.available;
+            const boxAmt  = boxUsage.boxUsed[stockResult.id] || 0;
+            const boxNote = boxAmt > 0 ? ` (Box already covers ${boxAmt} of this — this is what's still short)` : '';
             if (avail === 0) {
-                alert(`❌ Out of stock: ${stockResult.name}`);
+                alert(`❌ Out of stock: ${stockResult.name}${boxNote}`);
             } else {
-                alert(`❌ Insufficient stock: ${stockResult.name}\nRequested: ${stockResult.requested}, Available: ${avail}`);
+                alert(`❌ Insufficient stock: ${stockResult.name}\nStill need to cook: ${stockResult.requested}, Available: ${avail}${boxNote}`);
             }
             unlockBtn();
             return;
         }
+    }
+
+    // Stock check passed — now it's safe to actually take the covered
+    // portion out of the Box.
+    if (typeof applyBoxUsage === 'function' && Object.keys(boxUsage.boxUsed).length) {
+        await applyBoxUsage(boxUsage.boxUsed);
     }
 
     try {
@@ -581,7 +600,14 @@ async function autoClosePreviousDay() {
     const today  = dayKey();
     const orders = (await getAllOrders()).map(normalizeOrder);
     _notifiedUrgentIds.clear();
-    _clearCookedTally();
+    // Box should be empty at the start of a new day (see box.js) — but this
+    // function runs on EVERY app open/refresh, so guard with a "last reset
+    // day" marker to avoid wiping real, still-warm box stock mid-day.
+    const lastBoxResetDay = localStorage.getItem('shmBoxResetDay');
+    if (lastBoxResetDay !== today) {
+        if (typeof resetBoxStock === 'function') await resetBoxStock().catch(console.warn);
+        localStorage.setItem('shmBoxResetDay', today);
+    }
 
     const stale  = orders.filter(o => {
         const orderDay = dayKey(o.createdAt);
@@ -770,9 +796,11 @@ function switchOrderSubTab(subtab) {
     const filterBar = document.getElementById('doneFilterBar');
     if (filterBar) filterBar.style.display = subtab === 'done' ? 'flex' : 'none';
 
-    // Only show sate summary bar on Prepare tab
+    // Only show sate summary bar / Box bar on Prepare tab
     const summaryBar = document.getElementById('sateSummaryBar');
     if (summaryBar) summaryBar.style.display = subtab === 'prepare' ? 'flex' : 'none';
+    const boxBar = document.getElementById('boxSummaryBar');
+    if (boxBar) boxBar.style.display = subtab === 'prepare' ? 'flex' : 'none';
 
     if (subtab === 'done') _populateDoneDateFilter().then(() => loadOrders());
     else loadOrders();
@@ -786,77 +814,19 @@ function busyCustomToggleEnabled() {
     return localStorage.getItem('shmBusyCustomEnabled') === '1';
 }
 
-// ── Kitchen "cooked so far" tally (Prepare tab summary bar) ────────────────
-// The summary bar tells the kitchen how many of each skewer/custom-unit item
-// are still needed across ALL Prepare orders — but they cook in batches that
-// cut across multiple orders (e.g. grill only fits 50 at a time, mixing ayam
-// and daging), so no single order gets marked "prepared" until much later.
-// This tally lets them record how many of each they've actually cooked so
-// far, independent of order status, so the bar can show what's still left.
-// Persisted in localStorage — survives page refreshes, cleared at day-close.
-const COOKED_TALLY_KEY = 'shmCookedTally';
-
-function _getCookedTally() {
-    try { return JSON.parse(localStorage.getItem(COOKED_TALLY_KEY)) || {}; }
-    catch(e) { return {}; }
-}
-function _saveCookedTally(tally) {
-    localStorage.setItem(COOKED_TALLY_KEY, JSON.stringify(tally));
-}
-function _clearCookedTally() {
-    localStorage.removeItem(COOKED_TALLY_KEY);
-}
-
-// The [name, total] pairs currently shown in the bar, in render order — lets
-// a tapped chip's modal look up its own name/total by index instead of
-// fussing over escaping item names inside an onclick attribute string.
-let _sateSummaryEntries = [];
-// The Prepare orders used for the most recent bar render, so saving a tally
-// change can re-render the bar immediately without a full reload.
+// The Prepare orders used for the most recent summary-bar render, so a Box
+// change (add/remove stock) can re-render the bar immediately without a full
+// reload — see loadBoxStock() in box.js.
 let _lastPrepareOrdersForSate = [];
-
-function openCookedTallyModal(i) {
-    const entry = _sateSummaryEntries[i];
-    if (!entry) return;
-    const [name, total] = entry;
-    const cooked = _getCookedTally()[name] || 0;
-
-    document.getElementById('cookedTallyTitle').textContent = `🍢 ${name}`;
-    document.getElementById('cookedTallyTotal').textContent = `Total needed: ${total}`;
-    const input = document.getElementById('cookedTallyInput');
-    input.value = cooked;
-    input.dataset.itemName = name;
-    showModalById('cookedTallyModal');
-}
-
-function closeCookedTallyModal() {
-    hideModalById('cookedTallyModal');
-}
-
-function adjustCookedTallyInput(delta) {
-    const input = document.getElementById('cookedTallyInput');
-    input.value = Math.max(0, (parseInt(input.value) || 0) + delta);
-}
-
-function resetCookedTallyItem() {
-    document.getElementById('cookedTallyInput').value = 0;
-}
-
-function saveCookedTally() {
-    const input = document.getElementById('cookedTallyInput');
-    const name  = input.dataset.itemName;
-    const val   = Math.max(0, parseInt(input.value) || 0);
-    const tally = _getCookedTally();
-    tally[name] = val;
-    _saveCookedTally(tally);
-    closeCookedTallyModal();
-    updateSateSummaryBar(_lastPrepareOrdersForSate);
-}
-
 
 // Tallies qty of skewer-category items (unchanged, for shops using that
 // system) plus custom-unit items (e.g. "12 Slice") across all Prepare-stage
 // orders, so whoever's prepping orders can see totals at a glance.
+//
+// "Still need to cook" for each item comes from the Box (see box.js /
+// supabase/migrations/box_stock.sql): remaining = total ordered − cooked_total.
+// Tapping a chip jumps straight to that item's Box popup, since that's where
+// the kitchen actually records progress now (put a cooked batch in the box).
 function updateSateSummaryBar(prepareOrders) {
     _lastPrepareOrdersForSate = prepareOrders;
     const bar = document.getElementById('sateSummaryBar');
@@ -864,29 +834,23 @@ function updateSateSummaryBar(prepareOrders) {
 
     const usesSkewerSystem = typeof menuUsesSkewerSystem === 'function' ? menuUsesSkewerSystem() : true;
     const showCustom = busyCustomToggleEnabled();
-    const totals = {};
+    // Keyed by item ID (not name) so we can look up its Box cooked_total —
+    // Box data is stored by ID (see box.js), same ID space as `stock`.
+    const totals = {}; // { id: { name, qty } }
     let hasCustomUnitItems = false;
     prepareOrders.forEach(order => {
-        Object.values(order.items || {}).forEach(item => {
+        Object.entries(order.items || {}).forEach(([id, item]) => {
             if (item.qty <= 0) return;
             if (usesSkewerSystem && (item.category === 'skewer' || item.category === 'no-kuah')) {
-                totals[item.name] = (totals[item.name] || 0) + item.qty;
+                if (!totals[id]) totals[id] = { name: item.name, qty: 0 };
+                totals[id].qty += item.qty;
             } else if (showCustom && item.category === 'custom-unit') {
-                totals[item.name] = (totals[item.name] || 0) + item.qty;
+                if (!totals[id]) totals[id] = { name: item.name, qty: 0 };
+                totals[id].qty += item.qty;
                 hasCustomUnitItems = true;
             }
         });
     });
-
-    // Clean up cooked-tally entries for items no longer needed at all (fully
-    // cleared out of Prepare) — keeps storage tidy and stops a finished
-    // item's count from bleeding into a later, unrelated batch of the same item.
-    const tally = _getCookedTally();
-    let tallyChanged = false;
-    Object.keys(tally).forEach(name => {
-        if (!(name in totals)) { delete tally[name]; tallyChanged = true; }
-    });
-    if (tallyChanged) _saveCookedTally(tally);
 
     // Nothing relevant to this shop's setup to show — hide the whole bar
     // (but only touch visibility while actually on the Prepare sub-tab —
@@ -895,18 +859,19 @@ function updateSateSummaryBar(prepareOrders) {
         bar.style.display = (!usesSkewerSystem && !hasCustomUnitItems) ? 'none' : 'flex';
     }
 
-    const entries = Object.entries(totals);
-    _sateSummaryEntries = entries;
+    const entries = Object.entries(totals); // [id, {name, qty}]
     if (entries.length === 0) {
         bar.innerHTML = '<span style="color:#999;font-size:13px;">No items to prepare</span>';
     } else {
-        bar.innerHTML = entries.map(([name, total], i) => {
-            const cooked    = Math.min(tally[name] || 0, total);
-            const remaining = total - cooked;
-            const done      = remaining <= 0;
-            return `<span class="sate-summary-chip ${done ? 'sate-chip-done' : ''}" onclick="openCookedTallyModal(${i})" role="button" tabindex="0">` +
-                `<span class="sate-chip-main">${done ? '✅' : `<strong>${remaining}</strong> left`} ${escapeHtml(name)}</span>` +
-                `<span class="sate-chip-sub">${cooked}/${total} cooked · tap to update</span>` +
+        bar.innerHTML = entries.map(([id, t]) => {
+            const cookedTotal = typeof getBoxCookedTotal === 'function' ? getBoxCookedTotal(id) : 0;
+            const cooked      = Math.min(cookedTotal, t.qty);
+            const remaining   = t.qty - cooked;
+            const done        = remaining <= 0;
+            const openBox     = typeof openBoxModal === 'function' ? `openBoxModal('${id}')` : '';
+            return `<span class="sate-summary-chip ${done ? 'sate-chip-done' : ''}" onclick="${openBox}" role="button" tabindex="0">` +
+                `<span class="sate-chip-main">${done ? '✅' : `<strong>${remaining}</strong> left`} ${escapeHtml(t.name)}</span>` +
+                `<span class="sate-chip-sub">${cooked}/${t.qty} cooked</span>` +
                 `</span>`;
         }).join('');
     }
