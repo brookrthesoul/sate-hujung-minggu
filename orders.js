@@ -1740,22 +1740,27 @@ function _buildPDF(title, subtitle, orders) {
 
     // Totals
     const totalRevenue = orders.reduce((s,o) => s+(o.totalCost||0), 0);
-    const totalOnline  = orders.reduce((s,o) => s+(o.paymentOnline||0), 0);
-    const totalCash    = orders.reduce((s,o) => s+(o.paymentCash||0), 0);
-    // Breakdown by each method
-    const byMethod = {};
+    const totalOrders  = orders.length;
+
+    // Breakdown by each actual payment channel (online / card / boost / tng / cash).
+    // IMPORTANT: split ('both') orders record WHICH digital rail was used for
+    // their digital portion in order._digitalMethod (see confirmPayment()) —
+    // this used to be ignored here and every split payment's digital portion
+    // was hardcoded into 'online', silently folding Card/Boost/T&G split
+    // payments into the Online total. Fixed below.
+    const byMethod = { online: 0, card: 0, boost: 0, tng: 0, cash: 0 };
     orders.forEach(o => {
-        const m = o.paymentMethod || 'unknown';
-        if (!byMethod[m]) byMethod[m] = 0;
-        if (['online','card','boost','tng'].includes(m)) byMethod[m] += (o.paymentOnline||0);
-        else if (m === 'cash') byMethod[m] += (o.paymentCash||0);
-        else if (m === 'both') {
-            byMethod['online'] = (byMethod['online']||0) + (o.paymentOnline||0);
-            byMethod['cash']   = (byMethod['cash']||0)   + (o.paymentCash||0);
-            delete byMethod['both'];
+        const m = o.paymentMethod;
+        if (m === 'both') {
+            const dm = o._digitalMethod || 'online';
+            if (byMethod.hasOwnProperty(dm)) byMethod[dm] += (o.paymentOnline || 0);
+            byMethod.cash += (o.paymentCash || 0);
+        } else if (m === 'cash') {
+            byMethod.cash += (o.paymentCash || 0);
+        } else if (byMethod.hasOwnProperty(m)) {
+            byMethod[m] += (o.paymentOnline || 0);
         }
     });
-    const totalOrders  = orders.length;
 
     const itemTotals = {};
     orders.forEach(o => {
@@ -1768,40 +1773,45 @@ function _buildPDF(title, subtitle, orders) {
         });
     });
 
-    // Summary cards (4): Orders | Revenue | Online | Cash
-    const cards = [
+    // Summary cards, row 1: Orders | Revenue
+    const topCards = [
         {label:'Total Orders',  value: String(totalOrders)},
         {label:'Total Revenue', value:`RM ${totalRevenue.toFixed(2)}`},
-        {label:'Online Total',  value:`RM ${totalOnline.toFixed(2)}`},
-        {label:'Cash Total',    value:`RM ${totalCash.toFixed(2)}`},
     ];
-    const cardW = COL_W/4;
-    cards.forEach((c,i) => {
-        const cx = MARGIN + i*cardW;
+    const topCardW = COL_W/2;
+    topCards.forEach((c,i) => {
+        const cx = MARGIN + i*topCardW;
         doc.setFillColor(...ROW_ALT); doc.setDrawColor(...BORDER);
-        doc.roundedRect(cx, y, cardW-2, 18, 2, 2, 'FD');
-        doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...HEAD_BG);
-        doc.text(c.value, cx+(cardW-2)/2, y+10, {align:'center'});
+        doc.roundedRect(cx, y, topCardW-2, 18, 2, 2, 'FD');
+        doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...HEAD_BG);
+        doc.text(c.value, cx+(topCardW-2)/2, y+10, {align:'center'});
         doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(100,100,100);
-        doc.text(c.label, cx+(cardW-2)/2, y+16, {align:'center'});
+        doc.text(c.label, cx+(topCardW-2)/2, y+16, {align:'center'});
     });
-    y += 24;
+    y += 22;
 
-    // Payment breakdown bar
-    checkPage(14);
-    doc.setFillColor(232,245,233); doc.setDrawColor(...BORDER);
-    doc.roundedRect(MARGIN, y, COL_W, 12, 2, 2, 'FD');
-    doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(0);
-    doc.text('Payment Breakdown:', MARGIN+2, y+8);
-    doc.setFont('helvetica','normal');
-    const methodNames = { online:'Online', card:'Card', boost:'Boost', tng:'T&G', cash:'Cash' };
-    let bx = MARGIN + 52;
-    Object.entries(byMethod).forEach(([mkey, amt]) => {
-        const label = (methodNames[mkey] || mkey) + ': RM ' + amt.toFixed(2);
-        doc.text(label, bx, y+8);
-        bx += label.length * 2.2 + 8;
+    // Summary cards, row 2: full payment-method breakdown — Online / Card /
+    // Boost / T&G / Cash, each as its own card (this is the part that was
+    // missing — Card/Boost/T&G previously had no dedicated total shown here).
+    checkPage(20);
+    const methodCards = [
+        {label:'Online', value: byMethod.online},
+        {label:'Card',   value: byMethod.card},
+        {label:'Boost',  value: byMethod.boost},
+        {label:'T&G',    value: byMethod.tng},
+        {label:'Cash',   value: byMethod.cash},
+    ];
+    const methodCardW = COL_W/5;
+    methodCards.forEach((c,i) => {
+        const cx = MARGIN + i*methodCardW;
+        doc.setFillColor(232,245,233); doc.setDrawColor(...BORDER);
+        doc.roundedRect(cx, y, methodCardW-2, 16, 2, 2, 'FD');
+        doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...HEAD_BG);
+        doc.text(`RM ${c.value.toFixed(2)}`, cx+(methodCardW-2)/2, y+9, {align:'center'});
+        doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(100,100,100);
+        doc.text(c.label, cx+(methodCardW-2)/2, y+14, {align:'center'});
     });
-    y += 18;
+    y += 22;
 
     // Items sold table
     checkPage(20);
