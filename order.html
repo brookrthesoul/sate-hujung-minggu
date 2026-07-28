@@ -501,6 +501,7 @@ function getPickupMinTs() {
 
 let menuItems  = [];
 let stockData  = {};
+let boxData    = {}; // { itemId: qty } — Box (already cooked, ready to pack); see box.js on the admin side
 let shopIsOpen  = true;  // default open
 // Busy badge thresholds — two independently-toggleable categories. Defaults
 // mirror the admin Settings page (skewers on, custom off) so a shop that
@@ -557,7 +558,7 @@ async function init() {
     alignTabBarUnderNav();
     // loadMenu must finish first — loadBusy() now reads menuItems (via menuUsesSkewerSystem)
     await loadMenu();
-    await Promise.all([loadStock(), loadBusy(), loadShopStatus(), loadMenuInfoTab()]);
+    await Promise.all([loadStock(), loadBoxData(), loadBusy(), loadShopStatus(), loadMenuInfoTab()]);
     renderMenuGrid();
     if (myOrderId && !myOrderIds.includes(myOrderId)) {
         myOrderIds.push(myOrderId);
@@ -824,6 +825,18 @@ async function loadStock() {
     } catch(e) { console.warn('Stock load failed', e); }
 }
 
+// ── Box (already cooked, ready to pack — see box.js on the admin side) ─────
+// Only used here to feed the busy badge (loadBusy) — the customer page has
+// no other Box UI, that's admin-only.
+async function loadBoxData() {
+    try {
+        const rows = await sbFetch('box_stock?select=id,qty');
+        boxData = {};
+        (rows || []).forEach(r => { boxData[r.id] = r.qty; });
+        loadBusy();
+    } catch(e) { console.warn('Box data load failed', e); }
+}
+
 // ── Busy badge ────────────────────────────────────────────────────────────────
 // Combines up to two categories (skewers, custom-unit items) based on which
 // toggles are on in admin Settings. With only one on, it's a plain qty vs its
@@ -832,6 +845,13 @@ async function loadStock() {
 // two are added together; over 100% combined = Busy. That way, e.g. skewers
 // already at their own limit leaves no headroom, so any custom orders on top
 // tip it into Busy — rather than needing to separately max out custom too.
+//
+// UNIFIED MODEL (v2): what actually determines "busy" is workload the
+// kitchen still has to DO — so each item's demand has its already-cooked
+// Box qty subtracted first (see box.js on the admin side for the identical
+// "demand minus box" formula behind the "still need to cook" number). A
+// full Box can keep the shop showing Not Busy even with a lot of orders
+// queued, since most of the work is already done.
 async function loadBusy() {
     try {
         const orders = await sbFetch('orders?select=data&data->>paid=eq.false&data->>prepared=eq.false&data->>pickedUp=eq.false');
@@ -844,8 +864,11 @@ async function loadBusy() {
         // way to handle a custom-only menu now.
         const skewerFallbackToAll = busySkewerEnabled && !hasSkewerSystem && !busyCustomEnabled;
 
-        let skewerQty = 0;
-        let customQty = 0;
+        // Per-item demand first (not just a category total) so each item's
+        // own Box qty can be subtracted individually before summing into the
+        // two category totals below.
+        const demandByItem  = {}; // itemId -> qty
+        const categoryOfItem = {}; // itemId -> category (for routing after the box subtraction)
         (orders || []).forEach(row => {
             const o = row.data || {};
             // Skip preorders (future pickup date) — they don't affect today's workload
@@ -853,12 +876,26 @@ async function loadBusy() {
                 const pDay = dayKey(o.pickupTs);
                 if (pDay > today) return;
             }
-            Object.values(o.items || {}).forEach(item => {
+            Object.entries(o.items || {}).forEach(([id, item]) => {
                 const qty = item.qty || 0;
-                if (skewerFallbackToAll) { skewerQty += qty; return; }
-                if (busySkewerEnabled && SKEWER_CATS.includes(item.category)) skewerQty += qty;
-                if (busyCustomEnabled && item.category === 'custom-unit')     customQty += qty;
+                if (qty <= 0) return;
+                const relevant = skewerFallbackToAll
+                    || (busySkewerEnabled && SKEWER_CATS.includes(item.category))
+                    || (busyCustomEnabled && item.category === 'custom-unit');
+                if (!relevant) return;
+                demandByItem[id]   = (demandByItem[id] || 0) + qty;
+                categoryOfItem[id] = item.category;
             });
+        });
+
+        let skewerQty = 0;
+        let customQty = 0;
+        Object.entries(demandByItem).forEach(([id, qty]) => {
+            const boxQty    = boxData[id] || 0; // -1/undefined never appear here — box_stock.qty is never negative
+            const remaining = Math.max(0, qty - boxQty);
+            const category  = categoryOfItem[id];
+            if (skewerFallbackToAll || (busySkewerEnabled && SKEWER_CATS.includes(category))) skewerQty += remaining;
+            else if (busyCustomEnabled && category === 'custom-unit') customQty += remaining;
         });
 
         const totalQty = skewerQty + customQty;
@@ -1295,6 +1332,7 @@ async function confirmPlaceOrder() {
             }
             closeSummary();
             await loadStock();
+            await loadBoxData();
             renderMenuGrid('menuGrid', qtys);
             return;
         }
@@ -1514,6 +1552,7 @@ async function saveEdit() {
     // RPC re-checks this authoritatively regardless, this is just so the
     // customer doesn't wait on a network call to find out.
     await loadStock();
+    await loadBoxData();
     for (const item of menuItems) {
         const oldQty = (oldItems[item.id] && oldItems[item.id].qty) || 0;
         const newQty = qtys[item.id] || 0;
@@ -1560,6 +1599,7 @@ function connectRealtime() {
             payload: { config: { broadcast: { self: false }, postgres_changes: [
                 { event: '*', schema: 'public', table: 'orders' },
                 { event: '*', schema: 'public', table: 'stock' },
+                { event: '*', schema: 'public', table: 'box_stock' },
                 { event: '*', schema: 'public', table: 'settings' }
             ]}}, ref: String(ref++) }));
         setInterval(() => {
@@ -1573,8 +1613,9 @@ function connectRealtime() {
             if (f.event === 'phx_reply') return;
             if (f.event === 'postgres_changes' || f.payload?.data?.type) {
                 const tbl = f.payload?.data?.table || '';
-                if (tbl === 'stock')    { loadStock(); return; }
-                if (tbl === 'settings') { loadShopStatus(); loadMenuInfoTab(); return; }
+                if (tbl === 'stock')     { loadStock(); return; }
+                if (tbl === 'box_stock') { loadBoxData(); return; }
+                if (tbl === 'settings')  { loadShopStatus(); loadMenuInfoTab(); return; }
                 loadBusy();
                 if (myOrderIds.length > 0) loadMyOrders();
             }

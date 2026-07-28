@@ -84,13 +84,29 @@ $$;
 grant execute on function reset_box_stock() to anon;
 
 
--- ── place_customer_order (REPLACES the version in customer_order_rpc.sql) ──
--- Now Box-aware. For every ordered item:
+-- ── place_customer_order — ⚠️ SUPERSEDED, see box_stock_v2_unified.sql ─────
+-- The version below is kept for history only (table/RPC creation above this
+-- point is still current and needed). Do not rely on the function body below
+-- — box_stock_v2_unified.sql redefines place_customer_order with a different,
+-- simpler availability model (no deduction at order time — see that file's
+-- header comment for the full explanation) and must be run after this file.
+-- (REPLACES the version in customer_order_rpc.sql /
+-- harden_customer_orders.sql / fix_unlimited_stock_sentinel.sql) ───────────
+-- ⚠️ IMPORTANT: this must be layered on top of the HARDENED version from
+-- harden_customer_orders.sql (blocked-customer check, server-side price
+-- recomputation via _rebuild_order_items/_order_totals, order_token
+-- issuance) and the -1 "no limit" stock sentinel fix from
+-- fix_unlimited_stock_sentinel.sql — NOT the older, simpler version from
+-- customer_order_rpc.sql. (An earlier draft of this file got that wrong —
+-- see fix_box_stock_regression.sql if you already ran that draft.)
+--
+-- Now Box-aware on top of all of the above. For every ordered item:
 --   1. Take as much as possible from box_stock.qty first (already cooked,
 --      sitting ready — no fresh cooking or raw stock needed for this part).
 --   2. Whatever's left over (the SHORTFALL) is checked/deducted against the
 --      raw-ingredient `stock` table — same as before, just against the
---      smaller shortfall number instead of the full ordered quantity.
+--      smaller shortfall number instead of the full ordered quantity. A qty
+--      of -1 still means "no limit set" and is never treated as "-1 left".
 --
 -- cooked_total is untouched here on purpose. It only ever increases when
 -- someone explicitly adds a freshly-cooked batch to the box (via
@@ -99,11 +115,11 @@ grant execute on function reset_box_stock() to anon;
 -- live qty gets drawn down by individual orders throughout the day.
 --
 -- KNOWN LIMITATION (documented, not yet handled): if a customer edits or
--- cancels an order after placing it, adjust_stock_diff / return_customer_stock
--- (below, unchanged from before) only return items to the raw `stock` table,
--- not back into the Box — because we don't currently record how much of an
--- order came from the Box vs was freshly cooked. Low-frequency edge case;
--- flagged here so it's easy to revisit later if it turns out to matter.
+-- cancels an order after placing it, edit_my_order / cancel_my_order (from
+-- harden_customer_orders.sql, unchanged here) only return items to the raw
+-- `stock` table, not back into the Box — because we don't currently record
+-- how much of an order came from the Box vs was freshly cooked. Low-frequency
+-- edge case; flagged here so it's easy to revisit later if it turns out to matter.
 create or replace function place_customer_order(order_data jsonb)
 returns jsonb
 language plpgsql
@@ -117,17 +133,49 @@ declare
     box_used   integer;
     shortfall  integer;
     new_id     bigint;
-    items      jsonb;
+    new_token  uuid := gen_random_uuid();
+    real_items jsonb;
+    totals     jsonb;
+    kuah_ratio integer;
+    client_ip  text;
+    device_val text;
+    phone_val  text;
+    is_blocked boolean;
     shortfalls jsonb := '{}'::jsonb; -- item_id -> shortfall qty (post-box)
 begin
-    items := order_data -> 'items';
+    -- Best-effort caller identification (unchanged from customer_blocklist.sql).
+    client_ip  := nullif(trim(split_part(
+                      coalesce(current_setting('request.headers', true)::json ->> 'x-forwarded-for', ''),
+                      ',', 1)), '');
+    device_val := nullif(trim(order_data ->> 'deviceId'), '');
+    phone_val  := nullif(trim(order_data ->> 'customerPhone'), '');
 
-    -- Pass 1: lock box rows, work out how much of each item's demand the box
-    -- can cover right now, and how much is left over (the shortfall).
+    select exists(
+        select 1 from blocked_customers
+        where (type = 'ip'     and value = client_ip)
+           or (type = 'device' and value = device_val)
+           or (type = 'phone'  and value = phone_val)
+    ) into is_blocked;
+
+    if is_blocked then
+        return jsonb_build_object('ok', false, 'reason', 'blocked');
+    end if;
+
+    -- Rebuild items from the live menu — ignore whatever price/name/category
+    -- the browser sent; only the item id + quantity are taken from it.
+    real_items := _rebuild_order_items(order_data -> 'items');
+    if real_items = '{}'::jsonb then
+        return jsonb_build_object('ok', false, 'reason', 'no_items');
+    end if;
+
+    select value::integer into kuah_ratio from settings where key = 'kuahRatio';
+    totals := _order_totals(real_items, coalesce(kuah_ratio, 10));
+
+    -- Pass 1 (Box): work out how much of each item's demand the Box can
+    -- cover right now, and how much is left over — the shortfall — that
+    -- still needs a raw-stock check.
     for item_id, item_qty in
-        select key, (value->>'qty')::integer
-        from jsonb_each(items)
-        where (value->>'qty')::integer > 0
+        select key, (value->>'qty')::integer from jsonb_each(real_items)
     loop
         select qty into box_qty from box_stock where id = item_id for update;
         box_qty    := coalesce(box_qty, 0);
@@ -136,14 +184,15 @@ begin
         shortfalls := shortfalls || jsonb_build_object(item_id, shortfall);
     end loop;
 
-    -- Pass 2: lock stock rows and check availability against the SHORTFALL
-    -- only — the box-covered portion doesn't need any more raw stock right now.
+    -- Pass 2 (raw stock): lock stock rows and check availability against the
+    -- SHORTFALL only. A qty of -1 means "no limit set" — never treat it as
+    -- "-1 left".
     for item_id in select key from jsonb_each(shortfalls)
     loop
         shortfall := (shortfalls ->> item_id)::integer;
         if shortfall > 0 then
             select qty into avail_qty from stock where id = item_id for update;
-            if avail_qty is not null and avail_qty < shortfall then
+            if avail_qty is not null and avail_qty <> -1 and avail_qty < shortfall then
                 if avail_qty = 0 then
                     return jsonb_build_object('ok', false, 'reason', 'out_of_stock', 'item', item_id);
                 else
@@ -153,13 +202,12 @@ begin
         end if;
     end loop;
 
-    -- Pass 3: everything checks out — deduct the box (qty only — cooked_total
+    -- Pass 3: everything checks out — deduct the Box (qty only — cooked_total
     -- is deliberately left alone, see header comment) and deduct raw stock
-    -- for the shortfall only.
+    -- for the shortfall only (skip unlimited items — never turn a -1 into a
+    -- real number).
     for item_id, item_qty in
-        select key, (value->>'qty')::integer
-        from jsonb_each(items)
-        where (value->>'qty')::integer > 0
+        select key, (value->>'qty')::integer from jsonb_each(real_items)
     loop
         shortfall := (shortfalls ->> item_id)::integer;
         box_used  := item_qty - shortfall;
@@ -169,17 +217,23 @@ begin
         end if;
         if shortfall > 0 then
             update stock set qty = greatest(0, qty - shortfall), updated_at = now()
-            where id = item_id and qty is not null;
+            where id = item_id and qty is not null and qty <> -1;
         end if;
     end loop;
 
-    -- Insert order — unchanged. Full quantities are stored; Box bookkeeping
-    -- above is purely internal and never affects what the customer ordered.
-    insert into orders (data, updated_ms)
-    values (order_data, extract(epoch from now()) * 1000)
+    -- Assemble the final order — items/prices/totals are entirely our own
+    -- computed values; only the customer's non-financial fields (note, name,
+    -- phone, pickup time, etc.) pass through as submitted.
+    order_data := order_data
+        || jsonb_build_object('items', real_items)
+        || totals
+        || jsonb_build_object('orderIp', client_ip, 'deviceId', device_val);
+
+    insert into orders (data, updated_ms, order_token)
+    values (order_data, extract(epoch from now()) * 1000, new_token)
     returning id into new_id;
 
-    return jsonb_build_object('ok', true, 'id', new_id);
+    return jsonb_build_object('ok', true, 'id', new_id, 'token', new_token);
 end;
 $$;
 

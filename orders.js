@@ -305,6 +305,27 @@ function clearAdminPickupTime(e) {
     syncAdminPickupTimeDisplay();
 }
 
+// Total qty still pending per item, across every order that hasn't been
+// prepared or paid yet and is due today (excludes future-dated preorders —
+// same population/exclusion rule as the Prepare tab and updateSateSummaryBar,
+// and mirrored server-side in place_customer_order/edit_my_order — see
+// box_stock_v2_unified.sql). Used by saveOrder()'s live availability check.
+function computePendingDemandByItem(allOrders) {
+    const today   = dayKey();
+    const pending = {};
+    allOrders.forEach(o => {
+        if (o.prepared || o.paid) return;
+        if (o.pickupTs && o.pickupMode !== 'time') {
+            const pDay = dayKey(o.pickupTs);
+            if (pDay > today) return; // future preorder — doesn't count today
+        }
+        Object.entries(o.items || {}).forEach(([id, item]) => {
+            if (item.qty > 0) pending[id] = (pending[id] || 0) + item.qty;
+        });
+    });
+    return pending;
+}
+
 async function saveOrder() {
     const btn = document.getElementById('modalSaveOrderBtn');
     if (btn && btn.disabled) return; // already processing — ignore repeat taps (e.g. laggy touchscreen double-taps)
@@ -368,38 +389,28 @@ async function saveOrder() {
     }
     const unlockBtn = () => { if (btn) { btn.disabled = false; btn.textContent = origText; } };
 
-    // ── Box first, then raw stock for the shortfall only ───────────────────
-    // See box.js: computeBoxUsage() works out how much of each Box-tracked
-    // item's demand the Box already covers (already cooked, sitting ready)
-    // vs the shortfall that still needs checking against raw stock. The Box
-    // itself isn't actually deducted yet — only after we know the stock
-    // check for the shortfall will succeed (see applyBoxUsage() below) —
-    // so a failed/aborted order never leaves the Box wrongly drawn down.
-    const boxUsage = (typeof computeBoxUsage === 'function')
-        ? computeBoxUsage(totals.items)
-        : { shortfallItems: totals.items, boxUsed: {} };
-
-    // Check and deduct stock before saving — based on the shortfall above.
-    if (typeof deductStock === 'function') {
-        const stockResult = deductStock(boxUsage.shortfallItems);
-        if (!stockResult.ok) {
-            const avail   = stockResult.available;
-            const boxAmt  = boxUsage.boxUsed[stockResult.id] || 0;
-            const boxNote = boxAmt > 0 ? ` (Box already covers ${boxAmt} of this — this is what's still short)` : '';
-            if (avail === 0) {
-                alert(`❌ Out of stock: ${stockResult.name}${boxNote}`);
-            } else {
-                alert(`❌ Insufficient stock: ${stockResult.name}\nStill need to cook: ${stockResult.requested}, Available: ${avail}${boxNote}`);
-            }
+    // ── Availability check (unified model v2 — see box.js header comment) ──
+    // Nothing gets deducted here anymore — Stock only changes when cooking
+    // happens (see box.js: cookIntoBox), Box only changes at the Ready
+    // button / a pre-payment cancel (see markPrepared/deleteOrderConfirm).
+    // Placing an order is purely a live check:
+    //     available = (Stock + Box) − everything already pending in Prepare
+    // "Pending" = every not-yet-prepared, not-yet-paid order due today —
+    // see computePendingDemandByItem() below, same population used for the
+    // summary bar and the customer-facing busy badge.
+    const allOrdersForCheck = (await getAllOrders()).map(normalizeOrder);
+    const pendingDemand     = computePendingDemandByItem(allOrdersForCheck);
+    for (const [id, item] of Object.entries(totals.items)) {
+        if (item.qty <= 0) continue;
+        const stockQty = (typeof getStockFor === 'function') ? getStockFor(id) : null;
+        if (stockQty === null || stockQty === undefined) continue; // unlimited — skip
+        const boxQty = (typeof getBoxQty === 'function') ? getBoxQty(id) : 0;
+        const avail  = stockQty + boxQty - (pendingDemand[id] || 0);
+        if (item.qty > avail) {
+            alert(`❌ Insufficient stock: ${item.name}\nAvailable: ${Math.max(0, avail)}`);
             unlockBtn();
             return;
         }
-    }
-
-    // Stock check passed — now it's safe to actually take the covered
-    // portion out of the Box.
-    if (typeof applyBoxUsage === 'function' && Object.keys(boxUsage.boxUsed).length) {
-        await applyBoxUsage(boxUsage.boxUsed);
     }
 
     try {
@@ -823,10 +834,13 @@ let _lastPrepareOrdersForSate = [];
 // system) plus custom-unit items (e.g. "12 Slice") across all Prepare-stage
 // orders, so whoever's prepping orders can see totals at a glance.
 //
-// "Still need to cook" for each item comes from the Box (see box.js /
-// supabase/migrations/box_stock.sql): remaining = total ordered − cooked_total.
+// "Still need to cook" is a LIVE calculation (unified model v2 — see box.js
+// header comment): remaining = (items needed across Prepare orders) −
+// (current Box qty). This self-corrects automatically — it stays in sync
+// because an order's items leave this tally at the exact same moment
+// markPrepared() removes them from the Box (see box.js: deductBoxForPacking).
 // Tapping a chip jumps straight to that item's Box popup, since that's where
-// the kitchen actually records progress now (put a cooked batch in the box).
+// the kitchen actually records progress (put a cooked batch in the box).
 function updateSateSummaryBar(prepareOrders) {
     _lastPrepareOrdersForSate = prepareOrders;
     const bar = document.getElementById('sateSummaryBar');
@@ -834,8 +848,8 @@ function updateSateSummaryBar(prepareOrders) {
 
     const usesSkewerSystem = typeof menuUsesSkewerSystem === 'function' ? menuUsesSkewerSystem() : true;
     const showCustom = busyCustomToggleEnabled();
-    // Keyed by item ID (not name) so we can look up its Box cooked_total —
-    // Box data is stored by ID (see box.js), same ID space as `stock`.
+    // Keyed by item ID (not name) so we can look up its live Box qty — Box
+    // data is stored by ID (see box.js), same ID space as `stock`.
     const totals = {}; // { id: { name, qty } }
     let hasCustomUnitItems = false;
     prepareOrders.forEach(order => {
@@ -864,14 +878,14 @@ function updateSateSummaryBar(prepareOrders) {
         bar.innerHTML = '<span style="color:#999;font-size:13px;">No items to prepare</span>';
     } else {
         bar.innerHTML = entries.map(([id, t]) => {
-            const cookedTotal = typeof getBoxCookedTotal === 'function' ? getBoxCookedTotal(id) : 0;
-            const cooked      = Math.min(cookedTotal, t.qty);
-            const remaining   = t.qty - cooked;
-            const done        = remaining <= 0;
-            const openBox     = typeof openBoxModal === 'function' ? `openBoxModal('${id}')` : '';
+            const boxQty     = typeof getBoxQty === 'function' ? getBoxQty(id) : 0;
+            const inBox      = Math.min(boxQty, t.qty);
+            const remaining  = t.qty - inBox;
+            const done       = remaining <= 0;
+            const openBox    = typeof openBoxModal === 'function' ? `openBoxModal('${id}')` : '';
             return `<span class="sate-summary-chip ${done ? 'sate-chip-done' : ''}" onclick="${openBox}" role="button" tabindex="0">` +
                 `<span class="sate-chip-main">${done ? '✅' : `<strong>${remaining}</strong> left`} ${escapeHtml(t.name)}</span>` +
-                `<span class="sate-chip-sub">${cooked}/${t.qty} cooked</span>` +
+                `<span class="sate-chip-sub">${inBox}/${t.qty} in box</span>` +
                 `</span>`;
         }).join('');
     }
@@ -1320,25 +1334,37 @@ async function saveEdit(id, returnStage = 'prepare') {
     const all         = await getAllOrders();
     const existing    = all.find(o => o.id === id);
     if (!existing) return;
+
+    // ── Availability check (unified model v2 — see box.js header comment) ──
+    // Same live formula as saveOrder(), excluding THIS order's own current
+    // pending demand from the baseline (we're replacing its items, not
+    // adding a new order on top of them). Nothing is deducted/returned —
+    // KNOWN LIMITATION: if this order was already Prepared (its items
+    // already taken out of the Box at the Ready button), editing its
+    // quantities here doesn't adjust the Box to match — low-frequency edge
+    // case, flagged here rather than solved, same spirit as the note in
+    // box_stock_v2_unified.sql.
+    if (!existing.paid) {
+        const pendingDemand = computePendingDemandByItem(all.filter(o => o.id !== id).map(normalizeOrder));
+        for (const [itemId, item] of Object.entries(totals.items)) {
+            if (item.qty <= 0) continue;
+            const stockQty = (typeof getStockFor === 'function') ? getStockFor(itemId) : null;
+            if (stockQty === null || stockQty === undefined) continue; // unlimited
+            const boxQty = (typeof getBoxQty === 'function') ? getBoxQty(itemId) : 0;
+            const avail  = stockQty + boxQty - (pendingDemand[itemId] || 0);
+            if (item.qty > avail) {
+                alert(`❌ Insufficient stock: ${item.name}\nAvailable: ${Math.max(0, avail)}`);
+                return;
+            }
+        }
+    }
+
     const updated = { ...existing, items:totals.items, totalCost:totals.totalCost,
         skewerQty:totals.skewerQty, scoops:totals.scoops, description };
     ['ayam','daging','lontong','shortong'].forEach(k => {
         delete updated[k]; delete updated[k+'Cost'];
     });
     delete updated.ayamDagingQty;
-    // Adjust stock for the difference between old and new quantities
-    if (typeof adjustStock === 'function' && !existing.paid) {
-        const stockResult = adjustStock(existing.items || {}, totals.items);
-        if (!stockResult.ok) {
-            const avail = stockResult.available;
-            if (avail === 0) {
-                alert(`❌ Out of stock: ${stockResult.name}`);
-            } else {
-                alert(`❌ Insufficient stock: ${stockResult.name}\nAdding: ${stockResult.requested} more, Available: ${avail}`);
-            }
-            return;
-        }
-    }
 
     await updateOrder(updated);
     _editingIds.delete(id);
@@ -1353,14 +1379,25 @@ async function updateDescription(id, newText) {
 
 // ---------- Stage transitions ----------
 
-// Prepare → Prepared (no payment yet)
+// Prepare → Prepared (no payment yet) — this is the "Ready" button, and the
+// moment the Box actually gets debited (see box.js: deductBoxForPacking).
+// Placing the order never touched the Box; packing it does.
 async function markPrepared(id) {
     const all   = await getAllOrders();
     const order = all.find(o => o.id === id);
-    if (order) { order.prepared = true; await updateOrder(order); loadOrders(); }
+    if (order) {
+        order.prepared = true;
+        await updateOrder(order);
+        if (typeof deductBoxForPacking === 'function') {
+            await deductBoxForPacking(order.items || {});
+        }
+        loadOrders();
+    }
 }
 
-// Prepare → Paid directly (payment already set)
+// Prepare → Paid directly (payment already set) — also represents packing
+// happening (prepared becomes true here too), so the Box gets debited the
+// same way markPrepared() does.
 async function markPaidDirect(id) {
     const all   = await getAllOrders();
     const order = all.find(o => o.id === id);
@@ -1368,6 +1405,9 @@ async function markPaidDirect(id) {
     order.prepared = true;
     order.paid     = true;
     await updateOrder(order);
+    if (typeof deductBoxForPacking === 'function') {
+        await deductBoxForPacking(order.items || {});
+    }
     loadOrders();
 }
 
@@ -1413,11 +1453,18 @@ async function markPickedUp(id) {
 
 async function deleteOrderConfirm(id) {
     if (confirm('Delete this order?')) {
-        // Return stock if order was not yet paid (still active)
         const all   = await getAllOrders();
         const order = normalizeOrder(all.find(o => o.id === id) || {});
-        if (order && !order.paid && typeof returnStock === 'function') {
-            returnStock(order.items || {});
+        // Unified model v2 (see box.js header comment): placing an order
+        // never deducts Stock or Box, so cancelling one before it's ever
+        // been packed needs no action — nothing was taken.
+        //   - Prepared but not yet paid: it WAS packed (Box was debited at
+        //     the Ready button — see markPrepared) — put those items back
+        //     in the Box, still cooked and good for the next order.
+        //   - Paid or Done: no action — the sale is already final and
+        //     stays in the report regardless of pickup (see point 6).
+        if (order && order.prepared && !order.paid && typeof returnItemsToBox === 'function') {
+            await returnItemsToBox(order.items || {});
         }
         await deleteOrder(id);
         loadOrders();

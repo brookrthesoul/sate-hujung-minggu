@@ -1,45 +1,65 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // BOX STOCK — "prepared items box" (Prepare tab)
 // ═══════════════════════════════════════════════════════════════════════════
-// See supabase/migrations/box_stock.sql for the full explanation of the data
-// model — short version:
+// UNIFIED MODEL (v2) — Stock (stock.js) and Box are the SAME underlying
+// inventory, just in a different state:
+//   Stock = raw, not yet cooked.   Box = cooked, ready to pack.
+// Cooking is the "raw → cooked" conversion — see cookIntoBox() below, which
+// deducts Stock by the same amount it adds to the Box.
 //
-//   qty          – physical box quantity right now, ready to pack. Goes down
-//                  automatically when an order draws from it (admin New
-//                  Order form here, or a customer's own order — see the
-//                  place_customer_order RPC), or manually when staff grab
-//                  items without a formal order. Goes up when staff add a
-//                  freshly-cooked batch via the Box popup.
-//   cooked_total – running total of everything cooked into the box TODAY.
-//                  Drives the "still need to cook" number in the skewer /
-//                  custom-unit summary bar (see updateSateSummaryBar in
-//                  orders.js): remaining = total ordered − cooked_total.
+// Box qty changes at exactly three points, matching the real physical flow:
+//   1. Cooking:        cookIntoBox()        — Box up, Stock down (same amount)
+//   2. Packing an order (Ready button):   deductBoxForPacking() — Box down
+//      — see markPrepared() in orders.js. This is the ONLY place an order's
+//      items ever leave the Box; placing an order does NOT touch the Box.
+//   3. Cancelling an already-packed-but-unpaid order: returnItemsToBox()
+//      — Box up again (already cooked, still good for the next order) — see
+//      deleteOrderConfirm() in orders.js. Cancelling BEFORE Ready needs no
+//      action (nothing was ever taken). Cancelling AFTER payment needs no
+//      action either — the sale is already final either way.
+//   4. Manual adjustment (the Box popup) — steppers, works like #1 for an
+//      increase (also deducts Stock) and like a plain removal for a decrease
+//      (Stock untouched — matches "grabbed from the box" or a correction).
+//
+// The "still need to cook" number (skewer/custom-unit summary bar — see
+// updateSateSummaryBar in orders.js) is now a LIVE calculation, not a running
+// counter: remaining = (items needed across Prepare orders) − (Box qty). This
+// self-corrects automatically and stays in sync with #2 above by
+// construction, since an order's items leave the Prepare tally at the exact
+// same moment #2 removes them from the Box.
+//
+// The customer-facing busy/not-busy badge (see loadBusy() in order.html)
+// uses this same formula.
+//
+// Whether NEW orders can even be placed is a separate, purely informational
+// LIVE check — see place_customer_order / saveOrder() — nothing is deducted
+// there; see box_stock_v2_unified.sql for the full explanation.
+//
+// (cooked_total still exists as an unused column in box_stock for backwards
+// compatibility with the DB schema — it's no longer read or written here.)
 //
 // Lives in Supabase (table `box_stock`) rather than localStorage, on purpose
-// — the customer's own online order page also needs to see/deduct it, and
-// that happens on a completely different device than this admin dashboard.
+// — the customer's own online order page also needs to see it, and that
+// happens on a completely different device than this admin dashboard.
 //
 // OFFLINE: fully supported, same pattern as stock.js/sync.js — every read
 // comes from an IndexedDB cache first (instant, works with zero connection)
 // and every write updates that cache immediately too. Writes made offline
 // get queued and automatically replayed once the connection comes back (see
 // window._syncBox / _writeBoxAdjust / _resetBoxLocal in sync.js) — nothing
-// typed in while offline is ever silently lost.
+// typed in while offline is ever silently lost. cookIntoBox()'s Stock side
+// reuses stock.js's setStockFor(), which has its own separate, equally
+// offline-safe queue (see sync.js's stock section) — so a cooking entry made
+// offline correctly updates both numbers locally and syncs both once back
+// online, even though they're two different underlying queues.
 //
-// ── EASY-TO-ADJUST NOTES (read this before changing behaviour) ─────────────
+// ── EASY-TO-ADJUST NOTES ─────────────────────────────────────────────────
 // • Only items in BOX_TRACKED_CATEGORIES are Box-aware. Add/remove category
 //   strings here to change what the Box applies to.
-// • Adding stock to the Box always bumps cooked_total by the same amount
-//   (see openBoxModal/saveBoxModal below) — the assumption is anything put
-//   into the box only got there by being freshly cooked. Removing stock
-//   (grabbing from the box, or an order drawing from it) never touches
-//   cooked_total — that stock was already counted as cooked earlier.
-//   If you ever need a "correction" that removes stock WITHOUT it having
-//   been cooked (e.g. fixing a data-entry mistake), that's the one case
-//   this simple rule doesn't cover — you'd want a separate control for it.
 // • Day-close calls resetBoxStock() — see autoClosePreviousDay() in
-//   orders.js — which zeroes both numbers for every item via the
-//   reset_box_stock() RPC.
+//   orders.js — which zeroes the Box for every item via reset_box_stock().
+//   Stock is untouched by day-close (restocking is a separate, manual Settings
+//   action) — only the Box (today's cooked buffer) resets automatically.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const BOX_TRACKED_CATEGORIES = ['skewer', 'no-kuah', 'custom-unit'];
@@ -102,39 +122,41 @@ async function resetBoxStock() {
     }
 }
 
-// ── Order-time deduction (admin "New Order" walk-in form) ──────────────────
-// Called from saveOrder() in orders.js BEFORE the raw-stock check, so the
-// stock check can run against the smaller shortfall instead of the full
-// ordered quantity. Returns { shortfallItems, boxUsed }:
-//   shortfallItems – same shape as the items passed in, but qty replaced by
-//                    "how much still needs fresh stock/cooking" for
-//                    Box-tracked categories (untouched for everything else).
-//   boxUsed        – { itemId: amount } actually available to take from the
-//                    Box right now — NOT yet applied. Call applyBoxUsage()
-//                    with this only after confirming the order will go
-//                    through (see saveOrder()), so a failed stock check
-//                    never leaves the Box wrongly drawn down.
-function computeBoxUsage(items) {
-    const shortfallItems = {};
-    const boxUsed = {};
-    Object.entries(items || {}).forEach(([id, item]) => {
-        if (item.qty <= 0 || !BOX_TRACKED_CATEGORIES.includes(item.category)) {
-            shortfallItems[id] = { ...item };
-            return;
-        }
-        const avail = getBoxQty(id);
-        const used  = Math.min(avail, item.qty);
-        if (used > 0) boxUsed[id] = used;
-        shortfallItems[id] = { ...item, qty: item.qty - used };
-    });
-    return { shortfallItems, boxUsed };
+// ── Cooking: raw Stock → cooked Box (the ONLY place Stock gets touched by
+// the Box system). Called from saveBoxModal() below for a manual increase.
+// Never blocks — if addedQty exceeds what Stock shows, Stock just clamps to
+// 0 (same "trust the staff over the number" pattern used everywhere else in
+// this app, e.g. deductStock/adjustStockUI in stock.js).
+async function cookIntoBox(id, addedQty) {
+    if (addedQty <= 0) return;
+    const currentStock = (typeof getStockFor === 'function') ? getStockFor(id) : null;
+    if (currentStock !== null && currentStock !== undefined) {
+        // null/undefined = unlimited (no stock row) — leave it untouched.
+        const newStock = Math.max(0, currentStock - addedQty);
+        if (typeof setStockFor === 'function') setStockFor(id, newStock);
+    }
+    await adjustBoxStock(id, addedQty);
 }
 
-// Actually deduct the Box amounts computed above. cooked_total is
-// deliberately left alone — see the header comment.
-async function applyBoxUsage(boxUsed) {
-    for (const [id, amount] of Object.entries(boxUsed || {})) {
-        if (amount > 0) await adjustBoxStock(id, -amount, 0);
+// ── Packing (Ready button, Prepare → Prepared) — see markPrepared() in
+// orders.js. Takes this order's Box-tracked items out of the Box. Never
+// blocks and never touches Stock (that was already spent when it was cooked).
+async function deductBoxForPacking(items) {
+    for (const [id, item] of Object.entries(items || {})) {
+        if (item.qty > 0 && BOX_TRACKED_CATEGORIES.includes(item.category)) {
+            await adjustBoxStock(id, -item.qty);
+        }
+    }
+}
+
+// ── Un-packing (cancelling an order that's already Prepared but not yet
+// paid) — see deleteOrderConfirm() in orders.js. Puts the already-cooked
+// items back in the Box for the next order. Never touches Stock.
+async function returnItemsToBox(items) {
+    for (const [id, item] of Object.entries(items || {})) {
+        if (item.qty > 0 && BOX_TRACKED_CATEGORIES.includes(item.category)) {
+            await adjustBoxStock(id, item.qty);
+        }
     }
 }
 
@@ -204,19 +226,23 @@ function adjustBoxModalInput(delta) {
 }
 
 // Save = compute the delta from what's currently stored, then apply it.
-// Going UP counts as "just cooked a fresh batch" (cooked_total rises too).
-// Going DOWN does not touch cooked_total — see header comment for why.
+// Going UP = "just cooked a fresh batch" — deducts Stock too (see
+// cookIntoBox). Going DOWN = a manual removal (grabbed from the box, or a
+// correction) — Stock is untouched, since that was already spent at cook time.
 async function saveBoxModal() {
     const id = _boxModalItemId;
     if (!id) { closeBoxModal(); return; }
 
-    const newVal   = Math.max(0, parseInt(document.getElementById('boxModalInput').value) || 0);
-    const current  = getBoxQty(id);
-    const delta    = newVal - current;
-    const cookedDelta = delta > 0 ? delta : 0;
+    const newVal  = Math.max(0, parseInt(document.getElementById('boxModalInput').value) || 0);
+    const current = getBoxQty(id);
+    const delta   = newVal - current;
 
     closeBoxModal();
-    await adjustBoxStock(id, delta, cookedDelta);
+    if (delta > 0) {
+        await cookIntoBox(id, delta);
+    } else if (delta < 0) {
+        await adjustBoxStock(id, delta);
+    }
 }
 
 function resetBoxModalInput() {
