@@ -123,7 +123,8 @@ async function resetBoxStock() {
 }
 
 // ── Cooking: raw Stock → cooked Box (the ONLY place Stock gets touched by
-// the Box system). Called from saveBoxModal() below for a manual increase.
+// the Box system). Called from adjustBoxModalInput/applyBoxModalInputChange
+// below for a manual increase (see index.html's Box modal).
 // Never blocks — if addedQty exceeds what Stock shows, Stock just clamps to
 // 0 (same "trust the staff over the number" pattern used everywhere else in
 // this app, e.g. deductStock/adjustStockUI in stock.js).
@@ -176,75 +177,94 @@ function renderBoxBar() {
         `<span class="box-chip box-chip-add" onclick="openBoxAddPicker()" role="button" tabindex="0">+ Add</span>`;
 }
 
-// ── UI: edit an existing Box item (steppers + exact number) ────────────────
+// ── UI: edit an existing Box item (steppers + exact number, auto-saves) ────
 function openBoxModal(id) {
     _boxModalItemId = id;
     const menuById = {};
     getMenuItems().forEach(m => { menuById[m.id] = m.name; });
     document.getElementById('boxModalTitle').textContent = `📦 ${menuById[id] || id}`;
+    document.getElementById('boxModalQtyLabel').textContent = 'Box quantity';
     document.getElementById('boxModalInput').value = getBoxQty(id);
+    document.getElementById('boxModalInput').disabled = false;
     document.getElementById('boxModalPicker').style.display = 'none';
     document.getElementById('boxModalInputRow').style.display = '';
     showModalById('boxModal');
 }
 
-// "+ Add" — shows a grid of item-name buttons instead of a dropdown, so
-// picking which item to add is one tap instead of open-dropdown-then-select.
+// "+ Add" — shows a grid of item-name buttons (3 per row) AND the quantity
+// section together on one screen. The quantity controls stay disabled until
+// an item button is tapped; tapping one enables them immediately, no
+// separate "confirm" step.
 function openBoxAddPicker() {
     _boxModalItemId = null;
     const picker = document.getElementById('boxModalPicker');
     const menuItems = getMenuItems().filter(m => BOX_TRACKED_CATEGORIES.includes(m.category));
     picker.innerHTML = menuItems.map(m =>
-        `<button type="button" class="box-picker-btn" onclick="selectBoxAddItem('${m.id}')">${escapeHtml(m.name)}</button>`
+        `<button type="button" class="box-picker-btn" data-item-id="${m.id}" onclick="selectBoxAddItem('${m.id}')">${escapeHtml(m.name)}</button>`
     ).join('');
-    picker.style.display = 'flex';
-    document.getElementById('boxModalInputRow').style.display = 'none';
+    picker.style.display = 'grid';
     document.getElementById('boxModalTitle').textContent = '📦 Add item to Box — pick one';
+    document.getElementById('boxModalQtyLabel').textContent = 'Tap an item above first';
+    const input = document.getElementById('boxModalInput');
+    input.value = '';
+    input.disabled = true;
+    document.getElementById('boxModalInputRow').style.display = '';
     showModalById('boxModal');
 }
 
-// Tapping an item button above selects it immediately (no separate confirm
-// step) and reveals the quantity input for it — same stepper flow as
-// editing an item already in the box.
+// Tapping an item button above selects it immediately (highlights it) and
+// enables the quantity section right below for it — same auto-save steppers
+// as editing an item already in the box.
 function selectBoxAddItem(id) {
     _boxModalItemId = id;
+    document.querySelectorAll('#boxModalPicker .box-picker-btn').forEach(btn => {
+        btn.classList.toggle('box-picker-btn-selected', btn.dataset.itemId === id);
+    });
     const menuById = {};
     getMenuItems().forEach(m => { menuById[m.id] = m.name; });
-    document.getElementById('boxModalTitle').textContent = `📦 ${menuById[id] || id}`;
-    document.getElementById('boxModalInput').value = getBoxQty(id);
-    document.getElementById('boxModalPicker').style.display = 'none';
-    document.getElementById('boxModalInputRow').style.display = '';
+    document.getElementById('boxModalQtyLabel').textContent = `Box quantity — ${menuById[id] || id}`;
+    const input = document.getElementById('boxModalInput');
+    input.value = getBoxQty(id);
+    input.disabled = false;
 }
 
 function closeBoxModal() {
     hideModalById('boxModal');
 }
 
-function adjustBoxModalInput(delta) {
-    const input = document.getElementById('boxModalInput');
-    input.value = Math.max(0, (parseInt(input.value) || 0) + delta);
+// Steppers auto-save immediately — each tap both updates the number shown
+// and commits the change (cookIntoBox for a rise, a plain Box-only removal
+// for a drop), no separate Save button needed.
+async function adjustBoxModalInput(delta) {
+    const id = _boxModalItemId;
+    if (!id) return; // "+ Add" flow, before an item's been picked yet
+    const input   = document.getElementById('boxModalInput');
+    const current = Math.max(0, parseInt(input.value) || 0);
+    const newVal  = Math.max(0, current + delta);
+    input.value = newVal;
+    if (delta > 0) await cookIntoBox(id, delta);
+    else if (delta < 0) await adjustBoxStock(id, delta);
 }
 
-// Save = compute the delta from what's currently stored, then apply it.
-// Going UP = "just cooked a fresh batch" — deducts Stock too (see
-// cookIntoBox). Going DOWN = a manual removal (grabbed from the box, or a
-// correction) — Stock is untouched, since that was already spent at cook time.
-async function saveBoxModal() {
+// Typing an exact number and tabbing/clicking away (or hitting Enter) saves
+// it the same way — computed as a delta from the current stored qty.
+async function applyBoxModalInputChange() {
     const id = _boxModalItemId;
-    if (!id) { closeBoxModal(); return; }
-
-    const newVal  = Math.max(0, parseInt(document.getElementById('boxModalInput').value) || 0);
+    if (!id) return;
+    const input   = document.getElementById('boxModalInput');
+    const newVal  = Math.max(0, parseInt(input.value) || 0);
     const current = getBoxQty(id);
     const delta   = newVal - current;
-
-    closeBoxModal();
-    if (delta > 0) {
-        await cookIntoBox(id, delta);
-    } else if (delta < 0) {
-        await adjustBoxStock(id, delta);
-    }
+    input.value = newVal;
+    if (delta > 0) await cookIntoBox(id, delta);
+    else if (delta < 0) await adjustBoxStock(id, delta);
 }
 
-function resetBoxModalInput() {
+// Also auto-saves — zeroes this item's Box qty immediately.
+async function resetBoxModalInput() {
+    const id = _boxModalItemId;
+    if (!id) return;
+    const current = getBoxQty(id);
     document.getElementById('boxModalInput').value = 0;
+    if (current > 0) await adjustBoxStock(id, -current);
 }

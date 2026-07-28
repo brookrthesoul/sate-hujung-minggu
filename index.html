@@ -604,15 +604,18 @@
     </div>
 
     <!-- BOX MODAL (Prepare tab Box bar — tap a chip to edit that item's box qty,
-         or "+ Add" to put a new item into the box for the first time. See box.js. -->
+         or "+ Add" to put a new item into the box for the first time. See box.js.
+         Every change (stepper tap, typed number, Reset) auto-saves instantly —
+         there's no separate Save step. -->
     <div id="boxModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center;">
-        <div style="background:white; border-radius:18px; padding:24px; width:92%; max-width:340px; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+        <div style="background:white; border-radius:18px; padding:24px; width:92%; max-width:360px; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
             <h3 id="boxModalTitle" style="margin:0 0 12px;">📦 Item</h3>
-            <!-- Only shown for "+ Add" (picking WHICH item to add to the box) -->
-            <div id="boxModalPicker" style="display:none; flex-wrap:wrap; gap:8px; margin-bottom:14px;"></div>
+            <!-- Only shown for "+ Add" — pick WHICH item, 3 per row, then the
+                 quantity section right below fills in for it. -->
+            <div id="boxModalPicker" style="display:none; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:16px;"></div>
             <div id="boxModalInputRow">
-                <label style="font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px;">Box quantity</label>
-                <input type="number" id="boxModalInput" min="0" step="1" style="width:100%;text-align:center;font-size:20px;font-weight:700;padding:10px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;margin:8px 0 10px;">
+                <label id="boxModalQtyLabel" style="font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.5px;">Box quantity</label>
+                <input type="number" id="boxModalInput" min="0" step="1" onchange="applyBoxModalInputChange()" style="width:100%;text-align:center;font-size:20px;font-weight:700;padding:10px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;margin:8px 0 10px;">
                 <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:18px;">
                     <button type="button" onclick="adjustBoxModalInput(-10)" style="width:38px;height:38px;border-radius:8px;border:2px solid #6c757d;background:#e9ecef;font-weight:900;font-size:13px;cursor:pointer;color:#343a40;padding:0;">−10</button>
                     <button type="button" onclick="adjustBoxModalInput(-5)" style="width:38px;height:38px;border-radius:8px;border:2px solid #6c757d;background:#e9ecef;font-weight:900;font-size:13px;cursor:pointer;color:#343a40;padding:0;">−5</button>
@@ -622,11 +625,10 @@
                     <button type="button" onclick="adjustBoxModalInput(10)" style="width:38px;height:38px;border-radius:8px;border:2px solid #6c757d;background:#e9ecef;font-weight:900;font-size:13px;cursor:pointer;color:#343a40;padding:0;">+10</button>
                 </div>
             </div>
-            <p style="font-size:11px;color:#999;margin:-6px 0 14px;">Adding = just cooked a batch (also deducts Manage Stock). Removing = grabbed from box or a correction (Stock untouched).</p>
+            <p style="font-size:11px;color:#999;margin:-6px 0 14px;">Adding = just cooked a batch (also deducts Manage Stock). Removing = grabbed from box or a correction (Stock untouched). Every change saves instantly.</p>
             <div style="display:flex; gap:8px;">
-                <button onclick="saveBoxModal()" style="flex:1; background:#28a745; color:white; border:none; border-radius:10px; padding:12px; font-size:14px; font-weight:bold; cursor:pointer; margin:0;">💾 Save</button>
-                <button onclick="resetBoxModalInput()" style="background:#ffc107; color:#333; border:none; border-radius:10px; padding:12px 14px; font-size:14px; cursor:pointer; margin:0;">Reset</button>
-                <button onclick="closeBoxModal()" style="background:#6c757d; color:white; border:none; border-radius:10px; padding:12px 16px; font-size:14px; cursor:pointer; margin:0;">Cancel</button>
+                <button onclick="resetBoxModalInput()" style="flex:1; background:#ffc107; color:#333; border:none; border-radius:10px; padding:12px; font-size:14px; cursor:pointer; margin:0;">Reset to 0</button>
+                <button onclick="closeBoxModal()" style="flex:1; background:#6c757d; color:white; border:none; border-radius:10px; padding:12px; font-size:14px; font-weight:bold; cursor:pointer; margin:0;">Done</button>
             </div>
         </div>
     </div>
