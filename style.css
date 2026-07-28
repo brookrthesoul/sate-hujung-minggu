@@ -414,6 +414,22 @@
     border-style: dashed;
     font-weight: 600;
 }
+.box-picker-btn {
+    background: #f1f3f5;
+    color: #212529;
+    border: 1px solid #ced4da;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.box-picker-btn:active {
+    background: #6ea8fe;
+    color: white;
+    border-color: #6ea8fe;
+}
 
 /* ─── Stock indicators (New Order page) ──────────────────────────────────── */
 .stock-indicator {

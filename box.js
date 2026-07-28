@@ -166,17 +166,32 @@ function openBoxModal(id) {
     showModalById('boxModal');
 }
 
-// "+ Add" — same modal, but with an item picker shown first since this item
-// isn't in the box yet (or is at 0, so it's not currently listed).
+// "+ Add" — shows a grid of item-name buttons instead of a dropdown, so
+// picking which item to add is one tap instead of open-dropdown-then-select.
 function openBoxAddPicker() {
     _boxModalItemId = null;
     const picker = document.getElementById('boxModalPicker');
     const menuItems = getMenuItems().filter(m => BOX_TRACKED_CATEGORIES.includes(m.category));
-    picker.innerHTML = menuItems.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
-    picker.style.display = '';
-    document.getElementById('boxModalTitle').textContent = '📦 Add item to Box';
-    document.getElementById('boxModalInput').value = 0;
+    picker.innerHTML = menuItems.map(m =>
+        `<button type="button" class="box-picker-btn" onclick="selectBoxAddItem('${m.id}')">${escapeHtml(m.name)}</button>`
+    ).join('');
+    picker.style.display = 'flex';
+    document.getElementById('boxModalInputRow').style.display = 'none';
+    document.getElementById('boxModalTitle').textContent = '📦 Add item to Box — pick one';
     showModalById('boxModal');
+}
+
+// Tapping an item button above selects it immediately (no separate confirm
+// step) and reveals the quantity input for it — same stepper flow as
+// editing an item already in the box.
+function selectBoxAddItem(id) {
+    _boxModalItemId = id;
+    const menuById = {};
+    getMenuItems().forEach(m => { menuById[m.id] = m.name; });
+    document.getElementById('boxModalTitle').textContent = `📦 ${menuById[id] || id}`;
+    document.getElementById('boxModalInput').value = getBoxQty(id);
+    document.getElementById('boxModalPicker').style.display = 'none';
+    document.getElementById('boxModalInputRow').style.display = '';
 }
 
 function closeBoxModal() {
@@ -192,8 +207,7 @@ function adjustBoxModalInput(delta) {
 // Going UP counts as "just cooked a fresh batch" (cooked_total rises too).
 // Going DOWN does not touch cooked_total — see header comment for why.
 async function saveBoxModal() {
-    const picker = document.getElementById('boxModalPicker');
-    const id     = _boxModalItemId || (picker.style.display !== 'none' ? picker.value : null);
+    const id = _boxModalItemId;
     if (!id) { closeBoxModal(); return; }
 
     const newVal   = Math.max(0, parseInt(document.getElementById('boxModalInput').value) || 0);
