@@ -22,6 +22,13 @@ function switchTab(tab) {
     if (index === -1) return;
     slideTo(index, true);
 
+    // Stock indicators on this tab depend on live pending-demand data from
+    // other orders (Stock + Box − everything pending elsewhere — see
+    // _availableFor in stock.js), which can change while you're away from
+    // this tab (e.g. placing an order navigates away automatically) — so
+    // refresh them every time this tab becomes active, not just when the
+    // form is first rendered.
+    if (tab === 'home' && typeof updateStockIndicators === 'function') updateStockIndicators();
     if (tab === 'orders') loadOrders();
     if (tab === 'preorder') loadPreorders();
     if (tab === 'settings') {
@@ -48,6 +55,7 @@ function switchTab(tab) {
                 document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === index));
                 document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', i === index));
                 const tab = TABS[index];
+                if (tab === 'home')      { if (typeof updateStockIndicators === 'function') updateStockIndicators(); }
                 if (tab === 'orders')   loadOrders();
                 if (tab === 'preorder') loadPreorders();
                 if (tab === 'ratio')    { if (typeof updateSliderLabel==='function') updateSliderLabel(); if (typeof calculateRatio==='function') calculateRatio(); }
