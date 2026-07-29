@@ -754,3 +754,54 @@ html.dark-mode .stp-colon { color: #eee; }
 }
 .time-input-wrap.has-value .time-clear-btn { display: block; }
 .time-clear-btn:active { background: #999; }
+
+/* ── Settings accordion sections (Menu/Info/Others sub-tabs) ────────────── */
+.settings-accordion {
+    border: 1px solid #e2e5e9;
+    border-radius: 12px;
+    margin-top: 14px;
+    overflow: hidden;
+}
+.settings-accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 14px 16px;
+    cursor: pointer;
+    background: #f8f9fa;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+.settings-accordion-header h3 {
+    margin: 0 !important;
+}
+.settings-accordion-header:active {
+    background: #eef1f4;
+}
+.settings-accordion-chevron {
+    color: #999;
+    font-size: 13px;
+    transition: transform 0.15s ease;
+    flex-shrink: 0;
+}
+.settings-accordion.open .settings-accordion-chevron {
+    transform: rotate(90deg);
+}
+.settings-accordion-body {
+    padding: 16px 16px 20px;
+}
+.settings-accordion-body > h3:first-child {
+    margin-top: 0 !important;
+}
+
+html.dark-mode .settings-accordion {
+    border-color: #333;
+}
+html.dark-mode .settings-accordion-header {
+    background: #1c1c1e;
+    color: #f2f2f2;
+}
+html.dark-mode .settings-accordion-header:active {
+    background: #26262a;
+}
