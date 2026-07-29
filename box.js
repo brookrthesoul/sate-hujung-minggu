@@ -83,6 +83,15 @@ window._applyBoxRows = function(rows, replace) {
     if (typeof updateSateSummaryBar === 'function') {
         updateSateSummaryBar(_lastPrepareOrdersForSate || []);
     }
+    // The New Order form's stock indicators are Box-aware too (Stock + Box
+    // combined — see _availableFor in stock.js) — box data can finish
+    // loading AFTER those indicators first render (e.g. on a fresh page
+    // load, if the stock sync resolves before the box sync does), so they
+    // need a nudge to re-render whenever box data changes, not just when
+    // stock itself changes.
+    if (typeof updateStockIndicators === 'function') {
+        updateStockIndicators();
+    }
 };
 
 async function loadBoxStock() {
