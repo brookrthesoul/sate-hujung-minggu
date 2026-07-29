@@ -108,13 +108,30 @@ function adjustStock(oldItems, newItems) {
 }
 
 // Update stock indicator labels on the home/new order page
-function updateStockIndicators() {
+// Stock and Box (see box.js) are the same underlying inventory, just in a
+// different state — so "how much is available" for this indicator is
+// Stock + Box, minus whatever's already pending in other Prepare orders
+// (same combined-availability formula saveOrder() actually checks against —
+// see computePendingDemandByItem() in orders.js). Keeping this in sync with
+// that formula matters: showing a different number here than what actually
+// gets checked at Save time would just create a new confusing mismatch.
+function _availableFor(id) {
     const stock = getStock();
+    const raw   = stock[id];
+    if (raw === undefined || raw === null) return null; // unlimited
+    const boxQty   = (typeof getBoxQty === 'function') ? getBoxQty(id) : 0;
+    const pending  = (typeof computePendingDemandByItem === 'function' && typeof _lastPrepareOrdersForSate !== 'undefined')
+        ? (computePendingDemandByItem(_lastPrepareOrdersForSate)[id] || 0)
+        : 0;
+    return Math.max(0, raw + boxQty - pending);
+}
+
+function updateStockIndicators() {
     getMenuItems().forEach(item => {
         const el = document.getElementById(`stock-indicator-${item.id}`);
         if (!el) return;
-        const qty = stock[item.id];
-        if (qty === undefined || qty === null) {
+        const qty = _availableFor(item.id);
+        if (qty === null) {
             el.textContent = '';
             el.className = 'stock-indicator';
         } else if (qty === 0) {
@@ -202,11 +219,10 @@ function checkStockInput(id, value) {
     const el  = document.getElementById(`stock-indicator-${id}`);
     if (!el) return;
     const qty   = parseInt(value) || 0;
-    const stock = getStock();
-    const avail = stock[id];
-    if (avail === undefined || avail === null) { el.textContent = ''; el.className = 'stock-indicator'; return; }
+    const avail = _availableFor(id);
+    if (avail === null) { el.textContent = ''; el.className = 'stock-indicator'; return; }
     if (qty === 0) {
-        // Just show current stock
+        // Just show current availability
         updateStockIndicators();
         return;
     }

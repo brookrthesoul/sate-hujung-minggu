@@ -961,10 +961,21 @@ function adjQty(gridId, itemId, delta) {
     onQtyInput(gridId, itemId, val);
 }
 
+// Stock and Box (see box.js on the admin side) are the same underlying
+// inventory, just cooked vs not — so "how much is available" here is
+// Stock + Box combined. (This is a quick client-side hint only; the
+// authoritative check — which also accounts for other pending orders —
+// happens server-side in place_customer_order/edit_my_order.)
+function _customerAvailFor(itemId) {
+    const rawStock = stockData[itemId];
+    if (rawStock === undefined || rawStock === null || rawStock === -1) return -1; // unlimited
+    return rawStock + (boxData[itemId] || 0);
+}
+
 function onQtyInput(gridId, itemId, value) {
     let qty     = parseInt(value) || 0;
     const hint  = document.getElementById(`hint_${gridId}_${itemId}`);
-    const avail = stockData[itemId];
+    const avail = _customerAvailFor(itemId);
     const item  = menuItems.find(m => m.id === itemId);
     const cat   = item ? item.category : '';
 
@@ -1558,8 +1569,8 @@ async function saveEdit() {
         const newQty = qtys[item.id] || 0;
         const diff   = newQty - oldQty;
         if (diff > 0) {
-            const avail = stockData[item.id];
-            if (avail !== undefined && avail !== null && avail !== -1 && avail < diff) {
+            const avail = _customerAvailFor(item.id);
+            if (avail !== -1 && avail < diff) {
                 alert(`❌ Insufficient stock for ${item.name} — only ${avail} extra available`);
                 return;
             }
