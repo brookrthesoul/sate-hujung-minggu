@@ -527,41 +527,62 @@ function playUrgentAlertSound() {
         if (!_urgentAudioCtx) _unlockUrgentAudioCtx(); // fallback if no gesture has fired yet
         const ctx = _urgentAudioCtx;
         if (!ctx) return;
-        if (ctx.state === 'suspended') ctx.resume();
-        const now = ctx.currentTime;
 
-        const beepLen   = 0.45; // each beep's duration, seconds
-        const beepGap   = 0.6;  // gap between beeps within a set
-        const setGap    = 1.1;  // gap between the 3-beep sets
-        const beepsPerSet = 3;
-        const sets         = 3;
+        // Schedule relative to ctx.currentTime measured AFTER resume actually
+        // completes — not before. resume() is async; scheduling immediately
+        // after calling it (without waiting) anchors the beep times to a
+        // still-suspended clock, so playback can start audibly late once the
+        // context actually wakes up. This was the main cause of the sound
+        // lagging a few seconds behind the card visually pinning.
+        const schedule = () => {
+            const now = ctx.currentTime;
 
-        for (let s = 0; s < sets; s++) {
-            for (let b = 0; b < beepsPerSet; b++) {
-                const offset = s * (beepsPerSet * beepGap + setGap) + b * beepGap;
-                const osc  = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(880, now + offset);
-                gain.gain.setValueAtTime(0.0001, now + offset);
-                gain.gain.exponentialRampToValueAtTime(0.35, now + offset + 0.01);
-                gain.gain.setValueAtTime(0.35, now + offset + beepLen - 0.08);
-                gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + beepLen);
-                osc.connect(gain).connect(ctx.destination);
-                osc.start(now + offset);
-                osc.stop(now + offset + beepLen + 0.02);
+            const beepLen   = 0.45; // each beep's duration, seconds
+            const beepGap   = 0.6;  // gap between beeps within a set
+            const setGap    = 1.1;  // gap between the 3-beep sets
+            const beepsPerSet = 3;
+            const sets         = 3;
+
+            for (let s = 0; s < sets; s++) {
+                for (let b = 0; b < beepsPerSet; b++) {
+                    const offset = s * (beepsPerSet * beepGap + setGap) + b * beepGap;
+                    const osc  = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, now + offset);
+                    gain.gain.setValueAtTime(0.0001, now + offset);
+                    gain.gain.exponentialRampToValueAtTime(0.35, now + offset + 0.01);
+                    gain.gain.setValueAtTime(0.35, now + offset + beepLen - 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + beepLen);
+                    osc.connect(gain).connect(ctx.destination);
+                    osc.start(now + offset);
+                    osc.stop(now + offset + beepLen + 0.02);
+                }
             }
+        };
+
+        if (ctx.state === 'suspended') {
+            ctx.resume().then(schedule).catch(e => console.warn('AudioContext resume failed:', e));
+        } else {
+            schedule();
         }
     } catch(e) { console.warn('Urgent alert sound failed:', e); }
 }
 
 // Look for orders that just crossed the 15-min-to-pickup line and haven't
-// been alerted on yet. Runs independently of which tab is currently open.
-async function checkUrgentOrders() {
+// been alerted on yet. Accepts an already-fetched/normalized orders array
+// when the caller has one handy (e.g. loadOrders() — see below) so this can
+// run on EVERY re-render, not just the 60s fallback timer. That matters:
+// the visual pin (isOrderPinned, recalculated fresh on every render) can
+// flip the moment ANY re-render happens — a realtime update, a tab switch,
+// anything — while the sound used to only get checked once every 60s on its
+// own separate timer. Coupling the two to the same renders keeps them in
+// lockstep instead of drifting apart by however long was left on that timer.
+async function checkUrgentOrders(preloadedOrders) {
     try {
         const now    = Date.now();
         const today  = dayKey();
-        const orders = (await getAllOrders()).map(normalizeOrder);
+        const orders = preloadedOrders || (await getAllOrders()).map(normalizeOrder);
         let newlyUrgent = false;
 
         orders.forEach(o => {
@@ -582,6 +603,16 @@ async function checkUrgentOrders() {
 }
 
 // Check every minute if any preorder should move to Prepare
+// Periodic fallback: moves due preorders into Prepare, and checks for newly-
+// urgent orders regardless of which sub-tab is currently open (checkUrgentOrders
+// inside loadOrders() only fires when loadOrders() actually runs, which the
+// currentOrderSubTab guard below skips unless you're on Prepare — this call
+// is what still catches it if you're sitting on Prepared/Paid/Done instead).
+// Was every 60s — shortened to 10s so the worst-case gap between the card
+// visually pinning and the sound playing is a lot smaller (the two fixes in
+// checkUrgentOrders/playUrgentAlertSound close most of the gap directly;
+// this tightens the remaining "nothing else happened to trigger a render"
+// case for whenever this timer alone is what catches it).
 function startPreorderTimer() {
     setInterval(async () => {
         const today   = dayKey();
@@ -597,10 +628,11 @@ function startPreorderTimer() {
             loadPreorders();
         }
         // Sound alert for any order that just became urgent (15min pin logic)
-        checkUrgentOrders();
-        // Also refresh prepare sort every minute (for 15min pin logic)
+        // — reuses the orders array already fetched above.
+        checkUrgentOrders(orders);
+        // Also refresh prepare sort every tick (for 15min pin logic)
         if (currentOrderSubTab === 'prepare') loadOrders();
-    }, 60 * 1000); // every 60 seconds
+    }, 10 * 1000);
 }
 
 // ---------- Auto day-close ----------
@@ -896,6 +928,10 @@ async function loadOrders() {
     if (_editingIds.size > 0) return;
     try {
         const orders  = (await getAllOrders()).map(normalizeOrder);
+        // Same render, same moment the visual pin can change — see the
+        // comment on checkUrgentOrders for why this needs to happen here
+        // rather than only on its own separate timer.
+        checkUrgentOrders(orders);
         const sortDir = document.getElementById('sortOrders').value;
         orders.sort((a,b) => sortDir==='asc' ? a.createdAt-b.createdAt : b.createdAt-a.createdAt);
 
