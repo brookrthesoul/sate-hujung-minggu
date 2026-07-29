@@ -225,7 +225,7 @@
         <div id="stab-menu-content" class="settings-subtab-content active">
             <div class="settings-accordion">
                 <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-menuPrices')">
-                    <span>🍽️ Menu &amp; Prices</span>
+                    <h3 style="margin:0;">🍽️ Menu &amp; Prices</h3>
                     <span class="settings-accordion-chevron">▸</span>
                 </div>
                 <div class="settings-accordion-body" id="acc-menuPrices" style="display:none;">
@@ -269,7 +269,7 @@
 
             <div class="settings-accordion" id="kuahRatioSettingGroup">
                 <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-kuahRatio')">
-                    <span>🥜 Kuah Kacang Ratio</span>
+                    <h3 style="margin:0;">🥜 Kuah Kacang Ratio</h3>
                     <span class="settings-accordion-chevron">▸</span>
                 </div>
                 <div class="settings-accordion-body" id="acc-kuahRatio" style="display:none;">
@@ -289,7 +289,7 @@
 
             <div class="settings-accordion">
                 <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-manageStock')">
-                    <span>📦 Manage Stock</span>
+                    <h3 style="margin:0;">📦 Manage Stock</h3>
                     <span class="settings-accordion-chevron">▸</span>
                 </div>
                 <div class="settings-accordion-body" id="acc-manageStock" style="display:none;">
@@ -305,7 +305,7 @@
         <div id="stab-info-content" class="settings-subtab-content">
             <div class="settings-accordion">
                 <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-customerMenuContent')">
-                    <span>ℹ️ Customer Menu Page Content</span>
+                    <h3 style="margin:0;">ℹ️ Customer Menu Page Content</h3>
                     <span class="settings-accordion-chevron">▸</span>
                 </div>
                 <div class="settings-accordion-body" id="acc-customerMenuContent" style="display:none;">
@@ -373,13 +373,44 @@
                     <p id="infoSaveStatus" style="font-size:12px;color:#28a745;min-height:16px;margin-top:6px;"></p>
                 </div>
             </div>
+
+            <div class="settings-accordion">
+                <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-contactUs')">
+                    <h3 style="margin:0;">☎️ Contact Us</h3>
+                    <span class="settings-accordion-chevron">▸</span>
+                </div>
+                <div class="settings-accordion-body" id="acc-contactUs" style="display:none;">
+                    <p style="font-size:13px;color:#666;margin-bottom:12px;">
+                        Shown in a "Contact Us" popup on the customer order page (a phone icon next to the busy status).
+                        Leave any field blank to leave it out of the popup — the icon itself is hidden if all three are blank.
+                    </p>
+                    <div class="settings-group" style="display:block;">
+                        <label style="width:auto;display:block;margin-bottom:6px;">📱 WhatsApp Number</label>
+                        <input type="tel" id="contactPhoneInput" placeholder="e.g. +60123456789"
+                            style="width:100%;margin-left:0;padding:9px;border-radius:10px;border:1px solid #ddd;font-size:14px;box-sizing:border-box;">
+                        <p style="font-size:12px;color:#888;margin-top:4px;">Include the country code (e.g. +60 for Malaysia) so the WhatsApp link works correctly.</p>
+                    </div>
+                    <div class="settings-group" style="display:block;margin-top:14px;">
+                        <label style="width:auto;display:block;margin-bottom:6px;">✉️ Email</label>
+                        <input type="email" id="contactEmailInput" placeholder="e.g. hello@myshop.com"
+                            style="width:100%;margin-left:0;padding:9px;border-radius:10px;border:1px solid #ddd;font-size:14px;box-sizing:border-box;">
+                    </div>
+                    <div class="settings-group" style="display:block;margin-top:14px;">
+                        <label style="width:auto;display:block;margin-bottom:6px;">📍 Shop Address</label>
+                        <textarea id="contactAddressInput" rows="2" placeholder="e.g. 12, Jalan ABC, 43000 Kajang, Selangor"
+                            style="width:100%;padding:9px;border-radius:10px;border:1px solid #ddd;font-size:14px;resize:vertical;font-family:inherit;box-sizing:border-box;"></textarea>
+                    </div>
+                    <button onclick="saveContactUs()" style="margin-top:16px;">💾 Save Contact Info</button>
+                    <p id="contactUsSaveStatus" style="font-size:12px;color:#28a745;min-height:16px;margin-top:6px;"></p>
+                </div>
+            </div>
         </div>
 
         <!-- Others -->
         <div id="stab-others-content" class="settings-subtab-content">
             <div class="settings-accordion">
                 <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-appearance')">
-                    <span>🌓 Appearance</span>
+                    <h3 style="margin:0;">🌓 Appearance</h3>
                     <span class="settings-accordion-chevron">▸</span>
                 </div>
                 <div class="settings-accordion-body" id="acc-appearance" style="display:none;">
@@ -395,7 +426,7 @@
 
             <div class="settings-accordion">
                 <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-businessName')">
-                    <span>🏪 Business Name</span>
+                    <h3 style="margin:0;">🏪 Business Name</h3>
                     <span class="settings-accordion-chevron">▸</span>
                 </div>
                 <div class="settings-accordion-body" id="acc-businessName" style="display:none;">
@@ -416,7 +447,7 @@
 
             <div class="settings-accordion">
                 <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-receiptPrinter')">
-                    <span>🖨️ Receipt Printer</span>
+                    <h3 style="margin:0;">🖨️ Receipt Printer</h3>
                     <span class="settings-accordion-chevron">▸</span>
                 </div>
                 <div class="settings-accordion-body" id="acc-receiptPrinter" style="display:none;">
@@ -434,7 +465,7 @@
 
             <div class="settings-accordion">
                 <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-installApp')">
-                    <span>📲 Install App</span>
+                    <h3 style="margin:0;">📲 Install App</h3>
                     <span class="settings-accordion-chevron">▸</span>
                 </div>
                 <div class="settings-accordion-body" id="acc-installApp" style="display:none;">
@@ -445,7 +476,7 @@
 
             <div class="settings-accordion">
                 <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-supabaseSync')">
-                    <span>☁️ Supabase Sync</span>
+                    <h3 style="margin:0;">☁️ Supabase Sync</h3>
                     <span class="settings-accordion-chevron">▸</span>
                 </div>
                 <div class="settings-accordion-body" id="acc-supabaseSync" style="display:none;">
@@ -496,7 +527,7 @@
 
             <div class="settings-accordion">
                 <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-busyThresholds')">
-                    <span>📊 Busy Status Thresholds</span>
+                    <h3 style="margin:0;">📊 Busy Status Thresholds</h3>
                     <span class="settings-accordion-chevron">▸</span>
                 </div>
                 <div class="settings-accordion-body" id="acc-busyThresholds" style="display:none;">
@@ -583,7 +614,7 @@
 
             <div class="settings-accordion">
                 <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-orderNotifications')">
-                    <span>🔔 New Order Notifications</span>
+                    <h3 style="margin:0;">🔔 New Order Notifications</h3>
                     <span class="settings-accordion-chevron">▸</span>
                 </div>
                 <div class="settings-accordion-body" id="acc-orderNotifications" style="display:none;">

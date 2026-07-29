@@ -21,6 +21,53 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .busy-ok     { background: #d4edda; color: #155724; }
 .busy-busy   { background: #f8d7da; color: #721c24; }
 
+.contact-us-btn {
+    background: #f1f3f5;
+    border: 1px solid #dee2e6;
+    color: #333;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+.contact-us-btn:active { background: #e2e6ea; }
+html.dark-mode .contact-us-btn { background: #2c2c2e; border-color: #444; color: #eee; }
+html.dark-mode .contact-us-btn:active { background: #38383a; }
+
+.contact-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid #eee;
+}
+.contact-row:last-of-type { border-bottom: none; }
+.contact-row-icon { font-size: 20px; flex-shrink: 0; width: 24px; text-align: center; }
+.contact-row-main { flex: 1; min-width: 0; cursor: pointer; }
+.contact-row-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.4px; }
+.contact-row-value { font-size: 15px; font-weight: 600; color: #1a1a1a; word-break: break-word; }
+.contact-copy-btn {
+    flex-shrink: 0;
+    background: #f1f3f5;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #333;
+}
+.contact-copy-btn:active { background: #e2e6ea; }
+html.dark-mode .contact-row { border-bottom-color: #333; }
+html.dark-mode .contact-row-value { color: #f2f2f2; }
+html.dark-mode .contact-copy-btn { background: #2c2c2e; border-color: #444; color: #eee; }
+html.dark-mode .contact-copy-btn:active { background: #38383a; }
+
 .badge-tooltip {
     position: fixed;
     background: rgba(20,20,20,0.92);
@@ -326,7 +373,10 @@ button:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.88);
 
 <div class="nav">
     <h1 id="shopName">🏪 Shop</h1>
-    <span id="busyBadge" class="busy-badge busy-none">No Order</span>
+    <div style="display:flex; align-items:center; gap:8px;">
+        <span id="busyBadge" class="busy-badge busy-none">No Order</span>
+        <button type="button" id="contactUsBtn" class="contact-us-btn" onclick="openContactUsModal()" aria-label="Contact Us" style="display:none;">📞</button>
+    </div>
 </div>
 
 <div class="tab-bar">
@@ -406,6 +456,17 @@ button:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.88);
         </div>
         <div class="modal-actions">
             <button class="modal-back-btn" style="flex:1;" onclick="closePoliciesModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- CONTACT US MODAL -->
+<div class="modal-overlay" id="contactUsModal">
+    <div class="modal-box">
+        <div class="modal-title">📞 Contact Us</div>
+        <div id="contactUsModalContent"></div>
+        <div class="modal-actions">
+            <button class="modal-back-btn" style="flex:1;" onclick="closeContactUsModal()">Close</button>
         </div>
     </div>
 </div>
@@ -515,6 +576,9 @@ let busyCustomWeight  = 100;
 let currentBusyLevel = 'none'; // 'none' | 'ok' | 'busy' — kept in sync with the busy badge
 let kuahRatio       = 10;    // default: 1 scoop per 10 skewers
 let preorderEnabled = true;  // default: allowed
+let contactPhone   = '';  // WhatsApp number — see Contact Us popup / renderContactUsModal()
+let contactEmail   = '';
+let contactAddress = '';
 let myOrderId  = localStorage.getItem(ORDER_ID_KEY); // legacy single order
 let myOrderIds = JSON.parse(localStorage.getItem(ORDER_IDS_KEY) || '[]');
 let myOrder    = null;
@@ -621,7 +685,7 @@ function initBusyBadgeTooltip() {
 
 async function loadShopStatus() {
     try {
-        const rows = await sbFetch('settings?key=in.(shopOpen,notBusyMax,businessName,kuahRatio,preorderEnabled,busySkewerEnabled,busySkewerWeight,busyCustomEnabled,busyCustomMax,busyCustomWeight)&select=key,value');
+        const rows = await sbFetch('settings?key=in.(shopOpen,notBusyMax,businessName,kuahRatio,preorderEnabled,busySkewerEnabled,busySkewerWeight,busyCustomEnabled,busyCustomMax,busyCustomWeight,contactPhone,contactEmail,contactAddress)&select=key,value');
         (rows || []).forEach(r => {
             if (r.key === 'shopOpen')      shopIsOpen = r.value === 'true';
             if (r.key === 'notBusyMax')    busySkewerMax = parseInt(r.value) || 300;
@@ -633,10 +697,14 @@ async function loadShopStatus() {
             if (r.key === 'kuahRatio')     kuahRatio      = parseInt(r.value) || 10;
             if (r.key === 'preorderEnabled') preorderEnabled = r.value !== 'false';
             if (r.key === 'businessName')  updateShopName(r.value);
+            if (r.key === 'contactPhone')   contactPhone   = r.value || '';
+            if (r.key === 'contactEmail')   contactEmail   = r.value || '';
+            if (r.key === 'contactAddress') contactAddress = r.value || '';
         });
     } catch(e) { shopIsOpen = true; }
     updateShopBanner();
     updatePreorderUI();
+    renderContactUsModal();
 }
 
 function payBadgeHTML(o) {
@@ -1310,6 +1378,90 @@ function renderPoliciesModal(policies) {
 }
 function closePoliciesModal() {
     closeModalById('policiesModal');
+}
+
+// ── Contact Us popup — phone (redirects to WhatsApp), email, address ───────
+// Content is built once whenever loadShopStatus() runs (contact info rarely
+// changes and loads alongside the other shop settings), rather than
+// re-fetching every time the popup opens.
+function renderContactUsModal() {
+    const btn = document.getElementById('contactUsBtn');
+    const hasAny = contactPhone || contactEmail || contactAddress;
+    if (btn) btn.style.display = hasAny ? 'flex' : 'none';
+    if (!hasAny) return;
+
+    const rows = [];
+    if (contactPhone) {
+        // wa.me needs digits only (with country code, no +/spaces/dashes)
+        const digits = contactPhone.replace(/[^\d]/g, '');
+        rows.push(`
+            <div class="contact-row">
+                <span class="contact-row-icon">💬</span>
+                <a class="contact-row-main" href="https://wa.me/${digits}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;">
+                    <div class="contact-row-label">WhatsApp</div>
+                    <div class="contact-row-value">${escapeHtmlOrder(contactPhone)}</div>
+                </a>
+                <button class="contact-copy-btn" onclick="copyContactText('phone', this)">📋 Copy</button>
+            </div>`);
+    }
+    if (contactEmail) {
+        rows.push(`
+            <div class="contact-row">
+                <span class="contact-row-icon">✉️</span>
+                <a class="contact-row-main" href="mailto:${contactEmail}" style="text-decoration:none;color:inherit;">
+                    <div class="contact-row-label">Email</div>
+                    <div class="contact-row-value">${escapeHtmlOrder(contactEmail)}</div>
+                </a>
+                <button class="contact-copy-btn" onclick="copyContactText('email', this)">📋 Copy</button>
+            </div>`);
+    }
+    if (contactAddress) {
+        const mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(contactAddress);
+        rows.push(`
+            <div class="contact-row">
+                <span class="contact-row-icon">📍</span>
+                <a class="contact-row-main" href="${mapsUrl}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;">
+                    <div class="contact-row-label">Address</div>
+                    <div class="contact-row-value">${escapeHtmlOrder(contactAddress)}</div>
+                </a>
+                <button class="contact-copy-btn" onclick="copyContactText('address', this)">📋 Copy</button>
+            </div>`);
+    }
+    const content = document.getElementById('contactUsModalContent');
+    if (content) content.innerHTML = rows.join('');
+}
+
+function openContactUsModal() {
+    openModalById('contactUsModal');
+}
+function closeContactUsModal() {
+    closeModalById('contactUsModal');
+}
+
+async function copyContactText(kind, btn) {
+    const text = kind === 'phone' ? contactPhone : kind === 'email' ? contactEmail : contactAddress;
+    if (!text) return;
+    const restore = (label) => { const orig = btn.textContent; btn.textContent = label; setTimeout(() => { btn.textContent = orig; }, 1500); };
+    try {
+        await navigator.clipboard.writeText(text);
+        restore('✅ Copied');
+    } catch (e) {
+        // Fallback for browsers/contexts without Clipboard API permission
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            restore('✅ Copied');
+        } catch (e2) {
+            restore('⚠️ Failed');
+        }
+    }
 }
 
 // ── Confirm + submit order ─────────────────────────────────────────────────────

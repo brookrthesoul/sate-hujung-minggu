@@ -63,6 +63,7 @@ function switchTab(tab) {
                     switchSettingsTab('menu');
                     if (typeof initBusyThresholds === 'function') initBusyThresholds();
                     if (typeof initBusinessName   === 'function') initBusinessName();
+                    if (typeof initContactUs === 'function') initContactUs();
                     if (typeof initKuahRatio      === 'function') initKuahRatio();
                     if (typeof initPreorderToggle === 'function') initPreorderToggle();
                     const stored = localStorage.getItem(SYNC_BAR_KEY);
@@ -98,6 +99,7 @@ window.onload = () => {
         if (typeof initBusyThresholds === 'function') initBusyThresholds();
         // Restore business name
         if (typeof initBusinessName === 'function') initBusinessName();
+        if (typeof initContactUs === 'function') initContactUs();
         // Restore kuah ratio
         if (typeof initKuahRatio === 'function') initKuahRatio();
         // Restore preorder toggle
@@ -161,6 +163,7 @@ function switchSettingsTab(tab) {
     }
     if (tab === 'others') {
         if (typeof initBusinessName    === 'function') initBusinessName();
+        if (typeof initContactUs === 'function') initContactUs();
         if (typeof initBusyThresholds  === 'function') initBusyThresholds();
         if (typeof initPreorderToggle  === 'function') initPreorderToggle();
         if (typeof initKuahRatio       === 'function') initKuahRatio();
@@ -403,6 +406,39 @@ async function saveBusinessName() {
     status.style.color = '#28a745';
     status.textContent = '✅ Saved!';
     setTimeout(() => { status.textContent = ''; }, 3000);
+}
+
+// ─── Contact Us (customer-page popup — phone icon next to the busy badge) ──
+function initContactUs() {
+    const phoneInput   = document.getElementById('contactPhoneInput');
+    const emailInput   = document.getElementById('contactEmailInput');
+    const addressInput = document.getElementById('contactAddressInput');
+    if (phoneInput)   phoneInput.value   = localStorage.getItem('shmContactPhone')   || '';
+    if (emailInput)   emailInput.value   = localStorage.getItem('shmContactEmail')   || '';
+    if (addressInput) addressInput.value = localStorage.getItem('shmContactAddress') || '';
+}
+
+async function saveContactUs() {
+    const status = document.getElementById('contactUsSaveStatus');
+    const phone   = (document.getElementById('contactPhoneInput')   || {}).value?.trim()   || '';
+    const email   = (document.getElementById('contactEmailInput')   || {}).value?.trim()   || '';
+    const address = (document.getElementById('contactAddressInput') || {}).value?.trim()   || '';
+
+    localStorage.setItem('shmContactPhone', phone);
+    localStorage.setItem('shmContactEmail', email);
+    localStorage.setItem('shmContactAddress', address);
+
+    if (typeof window._writeSetting === 'function') {
+        await window._writeSetting('contactPhone', phone);
+        await window._writeSetting('contactEmail', email);
+        await window._writeSetting('contactAddress', address);
+    }
+
+    if (status) {
+        status.style.color = '#28a745';
+        status.textContent = '✅ Saved!';
+        setTimeout(() => { status.textContent = ''; }, 3000);
+    }
 }
 
 // ─── Kuah kacang ratio setting ────────────────────────────────────────────────

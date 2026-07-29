@@ -768,6 +768,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch(e) { console.warn('Business name sync error:', e); }
 
+    // Sync Contact Us info from Supabase (see box.js-adjacent Contact Us
+    // popup on the customer page — this is just the admin-side edit form)
+    try {
+        const phone   = await window._readSetting('contactPhone');
+        const email   = await window._readSetting('contactEmail');
+        const address = await window._readSetting('contactAddress');
+        if (phone   !== null) localStorage.setItem('shmContactPhone', phone);
+        if (email   !== null) localStorage.setItem('shmContactEmail', email);
+        if (address !== null) localStorage.setItem('shmContactAddress', address);
+        if (typeof initContactUs === 'function') initContactUs();
+    } catch(e) { console.warn('Contact Us sync error:', e); }
+
     // Sync kuah ratio from Supabase
     try {
         const ratio = await window._readSetting('kuahRatio');
