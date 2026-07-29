@@ -92,3 +92,25 @@
             document.getElementById('balanceAmount').innerText = 'RM' + (balance < 0 ? 0 : balance).toFixed(2);
             document.getElementById('totalSpent').innerText = 'RM' + totalCost.toFixed(2);
         }
+
+        // Jumps to the New Order tab and fills in the Ayam/Daging quantity
+        // fields with whatever the Allocator just worked out — so staff don't
+        // have to retype the numbers by hand. Only touches those two fields;
+        // anything else already in the form is left as-is.
+        function fillNewOrderFromAllocator() {
+            const ayamQty   = parseInt(document.getElementById('ayamCount').innerText) || 0;
+            const dagingQty = parseInt(document.getElementById('dagingCount').innerText) || 0;
+
+            switchTab('home');
+
+            const ayamInput   = document.getElementById('qty-ayam');
+            const dagingInput = document.getElementById('qty-daging');
+            if (ayamInput) {
+                ayamInput.value = ayamQty || '';
+                if (typeof checkStockInput === 'function') checkStockInput('ayam', ayamInput.value);
+            }
+            if (dagingInput) {
+                dagingInput.value = dagingQty || '';
+                if (typeof checkStockInput === 'function') checkStockInput('daging', dagingInput.value);
+            }
+        }
