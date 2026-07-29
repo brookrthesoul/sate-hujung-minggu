@@ -675,6 +675,7 @@ function showSyncToast(msg) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     updateOnlineBadge(navigator.onLine);
+    if (typeof restoreSettingsAccordions === 'function') restoreSettingsAccordions();
 
     // Listen for NEW_ORDER messages from the service worker (background detection)
     if (navigator.serviceWorker) {

@@ -177,6 +177,43 @@ function switchSettingsTab(tab) {
     }
 }
 
+// ─── Settings accordion sections (Menu/Info/Others sub-tabs) ──────────────
+// Each section (Menu & Prices, Manage Stock, Appearance, etc.) collapses by
+// default so the settings list doesn't read as one long wall of controls.
+// Open/closed state persists across visits via localStorage, keyed per
+// section id, so a section you use often stays open next time you come back.
+const SETTINGS_ACCORDION_KEY = 'shmSettingsAccordionOpen';
+
+function _getOpenAccordions() {
+    try { return JSON.parse(localStorage.getItem(SETTINGS_ACCORDION_KEY)) || {}; }
+    catch(e) { return {}; }
+}
+
+function toggleSettingsAccordion(id) {
+    const body = document.getElementById(id);
+    const wrap = body ? body.closest('.settings-accordion') : null;
+    if (!body || !wrap) return;
+    const isOpen = wrap.classList.toggle('open');
+    body.style.display = isOpen ? '' : 'none';
+
+    const open = _getOpenAccordions();
+    open[id] = isOpen;
+    localStorage.setItem(SETTINGS_ACCORDION_KEY, JSON.stringify(open));
+}
+
+// Restores each accordion's open/closed state on page load — everything
+// starts collapsed unless it was left open on a previous visit.
+function restoreSettingsAccordions() {
+    const open = _getOpenAccordions();
+    document.querySelectorAll('.settings-accordion').forEach(wrap => {
+        const body = wrap.querySelector('.settings-accordion-body');
+        if (!body) return;
+        const isOpen = !!open[body.id];
+        wrap.classList.toggle('open', isOpen);
+        body.style.display = isOpen ? '' : 'none';
+    });
+}
+
 // ─── Dark mode toggle ─────────────────────────────────────────────────────────
 const DARK_MODE_KEY = 'shmDarkMode';
 

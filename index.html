@@ -223,308 +223,383 @@
 
         <!-- Menu | Prices | Stock -->
         <div id="stab-menu-content" class="settings-subtab-content active">
-            <h3 style="margin-top:20px;">🍽️ Menu &amp; Prices</h3>
-            <div id="menuList"></div>
-
-            <h3 style="margin-top:24px;">➕ Add New Menu Item</h3>
-            <div class="settings-group">
-                <label>Name</label>
-                <input type="text" id="newItemName" placeholder="e.g. Sate Kambing">
-            </div>
-            <div class="settings-group">
-                <label>Price (RM)</label>
-                <input type="number" id="newItemPrice" step="0.01" min="0" placeholder="0.00">
-            </div>
-            <div class="settings-group">
-                <label>Type</label>
-                <select id="newItemType" onchange="toggleNewItemUnitLabel()">
-                    <option value="skewer">🍢 Sate (+ kuah kacang)</option>
-                    <option value="no-kuah">🍖 Sate (tiada kuah kacang)</option>
-                    <option value="side">🍽️ Side dish (+ 2 kuah)</option>
-                    <option value="side-1kuah">🍽️ Side dish (+ 1 kuah)</option>
-                    <option value="side-none">🍽️ Side dish (no kuah)</option>
-                    <option value="kuah-only">🥜 Kuah kacang sahaja</option>
-                    <option value="custom-unit">📦 Custom unit (not skewer/kuah — e.g. cake, pastry)</option>
-                </select>
-            </div>
-            <div class="settings-group" id="newItemUnitLabelGroup" style="display:none;">
-                <label>Unit label</label>
-                <input type="text" id="newItemUnitLabel" placeholder="e.g. slice, pcs, whole" maxlength="20">
-                <p style="font-size:12px;color:#888;margin-top:4px;">Shown on orders and receipts, e.g. "3 slice" or "5 pcs".</p>
-            </div>
-            <div style="display:flex;gap:8px;margin-top:16px;">
-                <button onclick="addMenuItem()" style="width:auto;flex:1;margin:0;">Add Item</button>
-                <button class="secondary" onclick="resetToDefaultMenu()" style="width:auto;flex:1;margin:0;">Reset to Default Menu</button>
-            </div>
-            <p style="font-size:13px; color:#6c757d; margin-top:8px;">
-                Changing prices or the menu affects future calculations and new orders. Existing orders keep their original totals.
-            </p>
-
-            <div id="kuahRatioSettingGroup">
-                <h3 style="margin-top:24px;">🥜 Kuah Kacang Ratio</h3>
-                <p style="font-size:13px;color:#666;margin-bottom:8px;">
-                    How many skewers per 1 scoop of kuah kacang.
-                </p>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="font-size:13px;font-weight:600;">1 scoop per</span>
-                    <input type="number" id="kuahRatioInput" min="1" step="1" value="10"
-                        style="width:70px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;"
-                        onchange="saveKuahRatio()">
-                    <span style="font-size:13px;font-weight:600;">skewers</span>
+            <div class="settings-accordion">
+                <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-menuPrices')">
+                    <span>🍽️ Menu &amp; Prices</span>
+                    <span class="settings-accordion-chevron">▸</span>
                 </div>
-                <p id="kuahRatioStatus" style="font-size:12px;color:#28a745;min-height:16px;margin-top:4px;"></p>
+                <div class="settings-accordion-body" id="acc-menuPrices" style="display:none;">
+                    <div id="menuList"></div>
+
+                    <h3 style="margin-top:24px;">➕ Add New Menu Item</h3>
+                    <div class="settings-group">
+                        <label>Name</label>
+                        <input type="text" id="newItemName" placeholder="e.g. Sate Kambing">
+                    </div>
+                    <div class="settings-group">
+                        <label>Price (RM)</label>
+                        <input type="number" id="newItemPrice" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="settings-group">
+                        <label>Type</label>
+                        <select id="newItemType" onchange="toggleNewItemUnitLabel()">
+                            <option value="skewer">🍢 Sate (+ kuah kacang)</option>
+                            <option value="no-kuah">🍖 Sate (tiada kuah kacang)</option>
+                            <option value="side">🍽️ Side dish (+ 2 kuah)</option>
+                            <option value="side-1kuah">🍽️ Side dish (+ 1 kuah)</option>
+                            <option value="side-none">🍽️ Side dish (no kuah)</option>
+                            <option value="kuah-only">🥜 Kuah kacang sahaja</option>
+                            <option value="custom-unit">📦 Custom unit (not skewer/kuah — e.g. cake, pastry)</option>
+                        </select>
+                    </div>
+                    <div class="settings-group" id="newItemUnitLabelGroup" style="display:none;">
+                        <label>Unit label</label>
+                        <input type="text" id="newItemUnitLabel" placeholder="e.g. slice, pcs, whole" maxlength="20">
+                        <p style="font-size:12px;color:#888;margin-top:4px;">Shown on orders and receipts, e.g. "3 slice" or "5 pcs".</p>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:16px;">
+                        <button onclick="addMenuItem()" style="width:auto;flex:1;margin:0;">Add Item</button>
+                        <button class="secondary" onclick="resetToDefaultMenu()" style="width:auto;flex:1;margin:0;">Reset to Default Menu</button>
+                    </div>
+                    <p style="font-size:13px; color:#6c757d; margin-top:8px;">
+                        Changing prices or the menu affects future calculations and new orders. Existing orders keep their original totals.
+                    </p>
+                </div>
             </div>
 
-            <h3 style="margin-top:24px;">📦 Manage Stock</h3>
-            <p style="font-size:13px;color:#666;margin-bottom:12px;">
-                Set stock levels for each item. Leave blank for no limit. Use +/- to restock mid-day.
-            </p>
-            <div id="stockManagerList"></div>
+            <div class="settings-accordion" id="kuahRatioSettingGroup">
+                <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-kuahRatio')">
+                    <span>🥜 Kuah Kacang Ratio</span>
+                    <span class="settings-accordion-chevron">▸</span>
+                </div>
+                <div class="settings-accordion-body" id="acc-kuahRatio" style="display:none;">
+                    <p style="font-size:13px;color:#666;margin-bottom:8px;">
+                        How many skewers per 1 scoop of kuah kacang.
+                    </p>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span style="font-size:13px;font-weight:600;">1 scoop per</span>
+                        <input type="number" id="kuahRatioInput" min="1" step="1" value="10"
+                            style="width:70px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;"
+                            onchange="saveKuahRatio()">
+                        <span style="font-size:13px;font-weight:600;">skewers</span>
+                    </div>
+                    <p id="kuahRatioStatus" style="font-size:12px;color:#28a745;min-height:16px;margin-top:4px;"></p>
+                </div>
+            </div>
+
+            <div class="settings-accordion">
+                <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-manageStock')">
+                    <span>📦 Manage Stock</span>
+                    <span class="settings-accordion-chevron">▸</span>
+                </div>
+                <div class="settings-accordion-body" id="acc-manageStock" style="display:none;">
+                    <p style="font-size:13px;color:#666;margin-bottom:12px;">
+                        Set stock levels for each item. Leave blank for no limit. Use +/- to restock mid-day.
+                    </p>
+                    <div id="stockManagerList"></div>
+                </div>
+            </div>
         </div>
 
         <!-- Info (shown as the "Menu" tab on the customer order page) -->
         <div id="stab-info-content" class="settings-subtab-content">
-            <h3 style="margin-top:20px;">ℹ️ Customer Menu Page Content</h3>
-            <p style="font-size:13px;color:#666;margin-bottom:12px;">
-                This content appears on the "Menu" tab of your customer order page.
-            </p>
-
-            <div class="settings-group" style="display:block;">
-                <label style="width:auto;display:block;margin-bottom:6px;">Header</label>
-                <input type="text" id="infoHeaderInput" placeholder="e.g. Our Menu"
-                    style="width:100%;margin-left:0;padding:9px;border-radius:10px;border:1px solid #ddd;font-size:14px;">
-            </div>
-
-            <h3 style="margin-top:20px;">🎨 Menu Page Background</h3>
-            <p style="font-size:13px;color:#666;margin-bottom:10px;">
-                Set a background colour, or upload a photo to use as the background of the customer Menu page — whichever you pick, only one is used at a time.<br>
-                📐 <strong>Best photo size: 1080 × 1920px</strong> (portrait, phone-screen shape). It fills and covers the screen like a wallpaper, so it may get cropped a little at the edges — keep important details centred. Use a JPG or PNG under 2MB so it loads quickly.
-            </p>
-            <div style="display:flex; gap:8px; margin-bottom:12px;">
-                <label class="pay-radio-label" style="flex:1;">
-                    <input type="radio" name="infoBgType" id="infoBgTypeColor" value="color" onchange="setInfoBgType('color')"> 🎨 Solid colour
-                </label>
-                <label class="pay-radio-label" style="flex:1;">
-                    <input type="radio" name="infoBgType" id="infoBgTypeImage" value="image" onchange="setInfoBgType('image')"> 🖼️ Photo
-                </label>
-            </div>
-
-            <div id="infoBgColorBox" style="display:none; align-items:center; gap:12px; margin-bottom:16px;">
-                <input type="color" id="infoBgColorInput" value="#f5f5f5" onchange="updateInfoBgColor(this.value)"
-                    style="width:56px; height:40px; padding:2px; border-radius:8px; border:1px solid #ddd; cursor:pointer;">
-                <span style="font-size:13px;color:#666;">This colour fills the background of the customer Menu page.</span>
-            </div>
-
-            <div id="infoBgImageBox" style="display:none; margin-bottom:16px;">
-                <div id="infoBgImagePreviewWrap" style="width:100%; height:140px; border-radius:12px; overflow:hidden; background:#eee; display:flex; align-items:center; justify-content:center; margin-bottom:8px;">
-                    <span id="infoBgImagePreviewEmpty" style="font-size:12px;color:#999;">No photo uploaded</span>
-                    <img id="infoBgImagePreview" src="" alt="" style="display:none; width:100%; height:100%; object-fit:cover;">
+            <div class="settings-accordion">
+                <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-customerMenuContent')">
+                    <span>ℹ️ Customer Menu Page Content</span>
+                    <span class="settings-accordion-chevron">▸</span>
                 </div>
-                <input type="file" accept="image/*" id="infoBgFile" style="display:none;" onchange="handleInfoBgImageUpload(this)">
-                <div style="display:flex; gap:8px;">
-                    <button class="secondary" id="infoBgUploadBtn" style="margin:0;flex:1;" onclick="document.getElementById('infoBgFile').click()">📤 Upload Photo</button>
-                    <button class="secondary" style="margin:0;flex:0 0 auto;padding:10px 14px;background:#dc3545;" onclick="removeInfoBgImage()">🗑️ Remove</button>
+                <div class="settings-accordion-body" id="acc-customerMenuContent" style="display:none;">
+                    <p style="font-size:13px;color:#666;margin-bottom:12px;">
+                        This content appears on the "Menu" tab of your customer order page.
+                    </p>
+
+                    <div class="settings-group" style="display:block;">
+                        <label style="width:auto;display:block;margin-bottom:6px;">Header</label>
+                        <input type="text" id="infoHeaderInput" placeholder="e.g. Our Menu"
+                            style="width:100%;margin-left:0;padding:9px;border-radius:10px;border:1px solid #ddd;font-size:14px;">
+                    </div>
+
+                    <h3 style="margin-top:20px;">🎨 Menu Page Background</h3>
+                    <p style="font-size:13px;color:#666;margin-bottom:10px;">
+                        Set a background colour, or upload a photo to use as the background of the customer Menu page — whichever you pick, only one is used at a time.<br>
+                        📐 <strong>Best photo size: 1080 × 1920px</strong> (portrait, phone-screen shape). It fills and covers the screen like a wallpaper, so it may get cropped a little at the edges — keep important details centred. Use a JPG or PNG under 2MB so it loads quickly.
+                    </p>
+                    <div style="display:flex; gap:8px; margin-bottom:12px;">
+                        <label class="pay-radio-label" style="flex:1;">
+                            <input type="radio" name="infoBgType" id="infoBgTypeColor" value="color" onchange="setInfoBgType('color')"> 🎨 Solid colour
+                        </label>
+                        <label class="pay-radio-label" style="flex:1;">
+                            <input type="radio" name="infoBgType" id="infoBgTypeImage" value="image" onchange="setInfoBgType('image')"> 🖼️ Photo
+                        </label>
+                    </div>
+
+                    <div id="infoBgColorBox" style="display:none; align-items:center; gap:12px; margin-bottom:16px;">
+                        <input type="color" id="infoBgColorInput" value="#f5f5f5" onchange="updateInfoBgColor(this.value)"
+                            style="width:56px; height:40px; padding:2px; border-radius:8px; border:1px solid #ddd; cursor:pointer;">
+                        <span style="font-size:13px;color:#666;">This colour fills the background of the customer Menu page.</span>
+                    </div>
+
+                    <div id="infoBgImageBox" style="display:none; margin-bottom:16px;">
+                        <div id="infoBgImagePreviewWrap" style="width:100%; height:140px; border-radius:12px; overflow:hidden; background:#eee; display:flex; align-items:center; justify-content:center; margin-bottom:8px;">
+                            <span id="infoBgImagePreviewEmpty" style="font-size:12px;color:#999;">No photo uploaded</span>
+                            <img id="infoBgImagePreview" src="" alt="" style="display:none; width:100%; height:100%; object-fit:cover;">
+                        </div>
+                        <input type="file" accept="image/*" id="infoBgFile" style="display:none;" onchange="handleInfoBgImageUpload(this)">
+                        <div style="display:flex; gap:8px;">
+                            <button class="secondary" id="infoBgUploadBtn" style="margin:0;flex:1;" onclick="document.getElementById('infoBgFile').click()">📤 Upload Photo</button>
+                            <button class="secondary" style="margin:0;flex:0 0 auto;padding:10px 14px;background:#dc3545;" onclick="removeInfoBgImage()">🗑️ Remove</button>
+                        </div>
+                    </div>
+
+                    <h3 style="margin-top:20px;">🖼️ Pictures &amp; Descriptions</h3>
+                    <p style="font-size:13px;color:#666;margin-bottom:10px;">
+                        Add a picture and/or description for each menu highlight, and pick a layout for each row individually.<br>
+                        📐 <strong>Picture left/right rows: 1000 × 1000px</strong> (square) — shown as a square thumbnail.<br>
+                        📐 <strong>Picture-only (banner) rows: 1600 × 1000px</strong> (wide banner) — shown full-width.<br>
+                        📐 <strong>Picture-only (short banner) rows: 1600 × 500px</strong> — same width, half the height.<br>
+                        The preview in each row below now matches these shapes, so what you see here is what customers will see.
+                    </p>
+                    <div id="infoItemList"></div>
+                    <button class="secondary" onclick="addInfoItem()" style="margin-top:6px;">➕ Add Item</button>
+
+                    <h3 style="margin-top:24px;">📝 Other Info</h3>
+                    <p style="font-size:13px;color:#666;margin-bottom:8px;">
+                        Any extra text to show below the pictures (e.g. opening hours, location, contact).
+                    </p>
+                    <textarea id="infoOtherInput" rows="4" placeholder="e.g. Open Fri–Sun, 6pm–11pm. WhatsApp us at..."
+                        style="width:100%;padding:10px;border:1px solid #ddd;border-radius:10px;font-size:14px;resize:vertical;font-family:inherit;"></textarea>
+
+                    <button onclick="saveCustomerInfo()" style="margin-top:16px;">💾 Save Menu Page Content</button>
+                    <p id="infoSaveStatus" style="font-size:12px;color:#28a745;min-height:16px;margin-top:6px;"></p>
                 </div>
             </div>
-
-            <h3 style="margin-top:20px;">🖼️ Pictures &amp; Descriptions</h3>
-            <p style="font-size:13px;color:#666;margin-bottom:10px;">
-                Add a picture and/or description for each menu highlight, and pick a layout for each row individually.<br>
-                📐 <strong>Picture left/right rows: 1000 × 1000px</strong> (square) — shown as a square thumbnail.<br>
-                📐 <strong>Picture-only (banner) rows: 1600 × 1000px</strong> (wide banner) — shown full-width.<br>
-                📐 <strong>Picture-only (short banner) rows: 1600 × 500px</strong> — same width, half the height.<br>
-                The preview in each row below now matches these shapes, so what you see here is what customers will see.
-            </p>
-            <div id="infoItemList"></div>
-            <button class="secondary" onclick="addInfoItem()" style="margin-top:6px;">➕ Add Item</button>
-
-            <h3 style="margin-top:24px;">📝 Other Info</h3>
-            <p style="font-size:13px;color:#666;margin-bottom:8px;">
-                Any extra text to show below the pictures (e.g. opening hours, location, contact).
-            </p>
-            <textarea id="infoOtherInput" rows="4" placeholder="e.g. Open Fri–Sun, 6pm–11pm. WhatsApp us at..."
-                style="width:100%;padding:10px;border:1px solid #ddd;border-radius:10px;font-size:14px;resize:vertical;font-family:inherit;"></textarea>
-
-            <button onclick="saveCustomerInfo()" style="margin-top:16px;">💾 Save Menu Page Content</button>
-            <p id="infoSaveStatus" style="font-size:12px;color:#28a745;min-height:16px;margin-top:6px;"></p>
         </div>
 
         <!-- Others -->
         <div id="stab-others-content" class="settings-subtab-content">
-            <h3 style="margin-top:20px;">🌓 Appearance</h3>
-            <div class="settings-group" style="display:flex; align-items:center; gap:12px;">
-                <label class="toggle-switch">
-                    <input type="checkbox" id="darkModeToggle" onchange="setDarkMode(this.checked)">
-                    <span class="toggle-slider"></span>
-                </label>
-                <span style="font-size:13px;">Dark Mode — stays on after you refresh or reopen the app</span>
-            </div>
-
-            <h3 style="margin-top:20px;">🏪 Business Name</h3>
-            <p style="font-size:13px;color:#666;margin-bottom:8px;">
-                Used on receipts, PDF reports and the customer order page.
-            </p>
-            <div style="display:flex;gap:8px;align-items:center;">
-                <input type="text" id="businessNameInput" placeholder="e.g. My Shop"
-                    style="flex:1;min-width:0;padding:9px;border-radius:10px;border:1px solid #ddd;font-size:14px;">
-                <button onclick="saveBusinessName()"
-                    style="width:auto;flex:0 0 auto;margin:0;padding:9px 16px;background:#28a745;color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">
-                    Save
-                </button>
-            </div>
-            <p id="businessNameStatus" style="font-size:12px;color:#28a745;min-height:16px;margin-top:4px;"></p>
-
-            <h3 style="margin-top:24px;">🖨️ Receipt Printer</h3>
-            <div class="settings-group">
-                <label>Paper Size</label>
-                <select id="paperSize" onchange="savePaperSize()">
-                    <option value="58">58mm (~32 chars)</option>
-                    <option value="80">80mm (~48 chars)</option>
-                </select>
-            </div>
-            <p id="printerStatus" style="font-size:14px; color:#6c757d;">⭕ Not connected</p>
-            <button class="secondary" onclick="connectPrinter()">Connect Printer</button>
-
-            <h3 style="margin-top:24px;">📲 Install App</h3>
-            <p id="installAppHint" style="font-size:14px; color:#6c757d;"></p>
-            <button id="installAppBtn" class="secondary" style="display:none;" onclick="installApp()">Install App</button>
-
-            <h3 style="margin-top:24px;">☁️ Supabase Sync</h3>
-            <p style="font-size:13px; color:#6c757d;">
-                Orders sync automatically to Supabase when online, and queue offline changes until reconnected.<br>
-                All devices update in real-time whenever any device saves an order.
-            </p>
-            <p style="font-size:13px;">Status: <span id="syncStatusSettings"></span></p>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button class="secondary" onclick="syncNow()">🔄 Sync Now</button>
-                <button class="secondary" onclick="pullFromCloud()">📥 Pull from Cloud</button>
-            </div>
-
-            <div class="settings-group" style="margin-top:16px; display:flex; align-items:center; gap:12px;">
-                <label class="toggle-switch">
-                    <input type="checkbox" id="syncToastToggle" onchange="setSyncToastEnabled(this.checked)">
-                    <span class="toggle-slider"></span>
-                </label>
-                <div>
-                    <div style="font-weight:600; font-size:14px;">Sync Alerts</div>
-                    <div id="syncToastHint" style="font-size:12px; color:#6c757d;">🔔 Sync alerts visible</div>
+            <div class="settings-accordion">
+                <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-appearance')">
+                    <span>🌓 Appearance</span>
+                    <span class="settings-accordion-chevron">▸</span>
+                </div>
+                <div class="settings-accordion-body" id="acc-appearance" style="display:none;">
+                    <div class="settings-group" style="display:flex; align-items:center; gap:12px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="darkModeToggle" onchange="setDarkMode(this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span style="font-size:13px;">Dark Mode — stays on after you refresh or reopen the app</span>
+                    </div>
                 </div>
             </div>
 
-            <div class="settings-group" style="margin-top:8px; display:flex; align-items:center; gap:12px;">
-                <label class="toggle-switch">
-                    <input type="checkbox" id="syncBarToggle" onchange="setSyncBarVisible(this.checked)" checked>
-                    <span class="toggle-slider"></span>
-                </label>
-                <div>
-                    <div style="font-weight:600; font-size:14px;">Show Sync Bar</div>
-                    <div style="font-size:12px; color:#6c757d;">The Online / Synced / 🔄 bar at the top</div>
+            <div class="settings-accordion">
+                <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-businessName')">
+                    <span>🏪 Business Name</span>
+                    <span class="settings-accordion-chevron">▸</span>
+                </div>
+                <div class="settings-accordion-body" id="acc-businessName" style="display:none;">
+                    <p style="font-size:13px;color:#666;margin-bottom:8px;">
+                        Used on receipts, PDF reports and the customer order page.
+                    </p>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <input type="text" id="businessNameInput" placeholder="e.g. My Shop"
+                            style="flex:1;min-width:0;padding:9px;border-radius:10px;border:1px solid #ddd;font-size:14px;">
+                        <button onclick="saveBusinessName()"
+                            style="width:auto;flex:0 0 auto;margin:0;padding:9px 16px;background:#28a745;color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">
+                            Save
+                        </button>
+                    </div>
+                    <p id="businessNameStatus" style="font-size:12px;color:#28a745;min-height:16px;margin-top:4px;"></p>
                 </div>
             </div>
 
-            <div class="settings-group" style="margin-top:8px; display:flex; align-items:center; gap:12px;">
-                <label class="toggle-switch">
-                    <input type="checkbox" id="pasteBoxToggle" onchange="setPasteBoxEnabled(this.checked)" checked>
-                    <span class="toggle-slider"></span>
-                </label>
-                <div>
-                    <div style="font-weight:600; font-size:14px;">Paste Customer Message</div>
-                    <div style="font-size:12px; color:#6c757d;">Show/hide the paste box on New Order page</div>
+            <div class="settings-accordion">
+                <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-receiptPrinter')">
+                    <span>🖨️ Receipt Printer</span>
+                    <span class="settings-accordion-chevron">▸</span>
+                </div>
+                <div class="settings-accordion-body" id="acc-receiptPrinter" style="display:none;">
+                    <div class="settings-group">
+                        <label>Paper Size</label>
+                        <select id="paperSize" onchange="savePaperSize()">
+                            <option value="58">58mm (~32 chars)</option>
+                            <option value="80">80mm (~48 chars)</option>
+                        </select>
+                    </div>
+                    <p id="printerStatus" style="font-size:14px; color:#6c757d;">⭕ Not connected</p>
+                    <button class="secondary" onclick="connectPrinter()">Connect Printer</button>
                 </div>
             </div>
 
-            <h3 style="margin-top:24px;">📊 Busy Status Thresholds</h3>
-            <p style="font-size:13px;color:#666;margin-bottom:10px;">
-                Adjust when the customer page shows Not Busy or Busy. Turn on the categories that count
-                toward it — if both are on, each contributes based on how full it is versus its own
-                threshold below, scaled by its weight (handy if one category takes longer to prep per item).
-            </p>
-
-            <div class="settings-group" style="display:flex; align-items:center; gap:12px;">
-                <label class="toggle-switch">
-                    <input type="checkbox" id="busySkewerToggle" onchange="saveBusyThresholds()" checked>
-                    <span class="toggle-slider"></span>
-                </label>
-                <div style="font-weight:600; font-size:14px;">Count Skewers</div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:10px;margin:8px 0 20px;">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="font-size:13px;font-weight:600;min-width:120px;">🟢 Not Busy up to:</span>
-                    <input type="number" id="notBusyMax" min="1" step="1" value="300"
-                        style="width:80px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;"
-                        onchange="saveBusyThresholds()">
-                    <span style="font-size:12px;color:#888;">skewers</span>
+            <div class="settings-accordion">
+                <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-installApp')">
+                    <span>📲 Install App</span>
+                    <span class="settings-accordion-chevron">▸</span>
                 </div>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="font-size:13px;font-weight:600;min-width:120px;">🔴 Busy from:</span>
-                    <input type="number" id="busyFrom" min="1" step="1" value="301"
-                        style="width:80px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;background:#f5f5f5;"
-                        disabled>
-                    <span style="font-size:12px;color:#888;">skewers (auto)</span>
-                </div>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="font-size:13px;font-weight:600;min-width:120px;">⚖️ Weight:</span>
-                    <input type="number" id="skewerWeight" min="1" max="300" step="5" value="100"
-                        style="width:80px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;"
-                        onchange="saveBusyThresholds()">
-                    <span style="font-size:12px;color:#888;">% (used only when both are on)</span>
+                <div class="settings-accordion-body" id="acc-installApp" style="display:none;">
+                    <p id="installAppHint" style="font-size:14px; color:#6c757d;"></p>
+                    <button id="installAppBtn" class="secondary" style="display:none;" onclick="installApp()">Install App</button>
                 </div>
             </div>
 
-            <div class="settings-group" style="display:flex; align-items:center; gap:12px;">
-                <label class="toggle-switch">
-                    <input type="checkbox" id="busyCustomToggle" onchange="saveBusyThresholds()">
-                    <span class="toggle-slider"></span>
-                </label>
-                <div style="font-weight:600; font-size:14px;">Count Custom-unit Items</div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:10px;margin:8px 0 0;">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="font-size:13px;font-weight:600;min-width:120px;">🟢 Not Busy up to:</span>
-                    <input type="number" id="notBusyMaxCustom" min="1" step="1" value="30"
-                        style="width:80px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;"
-                        onchange="saveBusyThresholds()">
-                    <span style="font-size:12px;color:#888;">custom</span>
+            <div class="settings-accordion">
+                <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-supabaseSync')">
+                    <span>☁️ Supabase Sync</span>
+                    <span class="settings-accordion-chevron">▸</span>
                 </div>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="font-size:13px;font-weight:600;min-width:120px;">🔴 Busy from:</span>
-                    <input type="number" id="busyFromCustom" min="1" step="1" value="31"
-                        style="width:80px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;background:#f5f5f5;"
-                        disabled>
-                    <span style="font-size:12px;color:#888;">custom (auto)</span>
-                </div>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="font-size:13px;font-weight:600;min-width:120px;">⚖️ Weight:</span>
-                    <input type="number" id="customWeight" min="1" max="300" step="5" value="100"
-                        style="width:80px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;"
-                        onchange="saveBusyThresholds()">
-                    <span style="font-size:12px;color:#888;">% (used only when both are on)</span>
+                <div class="settings-accordion-body" id="acc-supabaseSync" style="display:none;">
+                    <p style="font-size:13px; color:#6c757d;">
+                        Orders sync automatically to Supabase when online, and queue offline changes until reconnected.<br>
+                        All devices update in real-time whenever any device saves an order.
+                    </p>
+                    <p style="font-size:13px;">Status: <span id="syncStatusSettings"></span></p>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="secondary" onclick="syncNow()">🔄 Sync Now</button>
+                        <button class="secondary" onclick="pullFromCloud()">📥 Pull from Cloud</button>
+                    </div>
+
+                    <div class="settings-group" style="margin-top:16px; display:flex; align-items:center; gap:12px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="syncToastToggle" onchange="setSyncToastEnabled(this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div>
+                            <div style="font-weight:600; font-size:14px;">Sync Alerts</div>
+                            <div id="syncToastHint" style="font-size:12px; color:#6c757d;">🔔 Sync alerts visible</div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group" style="margin-top:8px; display:flex; align-items:center; gap:12px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="syncBarToggle" onchange="setSyncBarVisible(this.checked)" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div>
+                            <div style="font-weight:600; font-size:14px;">Show Sync Bar</div>
+                            <div style="font-size:12px; color:#6c757d;">The Online / Synced / 🔄 bar at the top</div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group" style="margin-top:8px; display:flex; align-items:center; gap:12px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="pasteBoxToggle" onchange="setPasteBoxEnabled(this.checked)" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div>
+                            <div style="font-weight:600; font-size:14px;">Paste Customer Message</div>
+                            <div style="font-size:12px; color:#6c757d;">Show/hide the paste box on New Order page</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="settings-group" style="margin-top:16px; display:flex; align-items:center; gap:12px;">
-                <label class="toggle-switch">
-                    <input type="checkbox" id="preorderEnabledToggle" onchange="setPreorderEnabled(this.checked)" checked>
-                    <span class="toggle-slider"></span>
-                </label>
-                <div>
-                    <div style="font-weight:600; font-size:14px;">Allow Customer Preorder</div>
-                    <div style="font-size:12px; color:#6c757d;">When OFF, customers can only order for today</div>
+            <div class="settings-accordion">
+                <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-busyThresholds')">
+                    <span>📊 Busy Status Thresholds</span>
+                    <span class="settings-accordion-chevron">▸</span>
+                </div>
+                <div class="settings-accordion-body" id="acc-busyThresholds" style="display:none;">
+                    <p style="font-size:13px;color:#666;margin-bottom:10px;">
+                        Adjust when the customer page shows Not Busy or Busy. Turn on the categories that count
+                        toward it — if both are on, each contributes based on how full it is versus its own
+                        threshold below, scaled by its weight (handy if one category takes longer to prep per item).
+                    </p>
+
+                    <div class="settings-group" style="display:flex; align-items:center; gap:12px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="busySkewerToggle" onchange="saveBusyThresholds()" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div style="font-weight:600; font-size:14px;">Count Skewers</div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:10px;margin:8px 0 20px;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:13px;font-weight:600;min-width:120px;">🟢 Not Busy up to:</span>
+                            <input type="number" id="notBusyMax" min="1" step="1" value="300"
+                                style="width:80px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;"
+                                onchange="saveBusyThresholds()">
+                            <span style="font-size:12px;color:#888;">skewers</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:13px;font-weight:600;min-width:120px;">🔴 Busy from:</span>
+                            <input type="number" id="busyFrom" min="1" step="1" value="301"
+                                style="width:80px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;background:#f5f5f5;"
+                                disabled>
+                            <span style="font-size:12px;color:#888;">skewers (auto)</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:13px;font-weight:600;min-width:120px;">⚖️ Weight:</span>
+                            <input type="number" id="skewerWeight" min="1" max="300" step="5" value="100"
+                                style="width:80px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;"
+                                onchange="saveBusyThresholds()">
+                            <span style="font-size:12px;color:#888;">% (used only when both are on)</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-group" style="display:flex; align-items:center; gap:12px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="busyCustomToggle" onchange="saveBusyThresholds()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div style="font-weight:600; font-size:14px;">Count Custom-unit Items</div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:10px;margin:8px 0 0;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:13px;font-weight:600;min-width:120px;">🟢 Not Busy up to:</span>
+                            <input type="number" id="notBusyMaxCustom" min="1" step="1" value="30"
+                                style="width:80px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;"
+                                onchange="saveBusyThresholds()">
+                            <span style="font-size:12px;color:#888;">custom</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:13px;font-weight:600;min-width:120px;">🔴 Busy from:</span>
+                            <input type="number" id="busyFromCustom" min="1" step="1" value="31"
+                                style="width:80px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;background:#f5f5f5;"
+                                disabled>
+                            <span style="font-size:12px;color:#888;">custom (auto)</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:13px;font-weight:600;min-width:120px;">⚖️ Weight:</span>
+                            <input type="number" id="customWeight" min="1" max="300" step="5" value="100"
+                                style="width:80px;padding:7px;border-radius:8px;border:1px solid #ddd;font-size:14px;text-align:center;"
+                                onchange="saveBusyThresholds()">
+                            <span style="font-size:12px;color:#888;">% (used only when both are on)</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-group" style="margin-top:16px; display:flex; align-items:center; gap:12px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="preorderEnabledToggle" onchange="setPreorderEnabled(this.checked)" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div>
+                            <div style="font-weight:600; font-size:14px;">Allow Customer Preorder</div>
+                            <div style="font-size:12px; color:#6c757d;">When OFF, customers can only order for today</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <h3 style="margin-top:24px;">🔔 New Order Notifications</h3>
-            <p style="font-size:13px; color:#6c757d;">
-                Enable this on the <strong>cooking device</strong> to get an alert + sound whenever a new order is placed from another device.
-            </p>
-            <div class="settings-group" style="display:flex; align-items:center; gap:12px;">
-                <label class="toggle-switch">
-                    <input type="checkbox" id="orderNotiToggle" onchange="setOrderNotiEnabled(this.checked)">
-                    <span class="toggle-slider"></span>
-                </label>
-                <div>
-                    <div style="font-weight:600; font-size:14px;">New Order Alert</div>
-                    <div id="orderNotiHint" style="font-size:12px; color:#6c757d;">🔕 Order alerts OFF</div>
+            <div class="settings-accordion">
+                <div class="settings-accordion-header" onclick="toggleSettingsAccordion('acc-orderNotifications')">
+                    <span>🔔 New Order Notifications</span>
+                    <span class="settings-accordion-chevron">▸</span>
+                </div>
+                <div class="settings-accordion-body" id="acc-orderNotifications" style="display:none;">
+                    <p style="font-size:13px; color:#6c757d;">
+                        Enable this on the <strong>cooking device</strong> to get an alert + sound whenever a new order is placed from another device.
+                    </p>
+                    <div class="settings-group" style="display:flex; align-items:center; gap:12px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="orderNotiToggle" onchange="setOrderNotiEnabled(this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div>
+                            <div style="font-weight:600; font-size:14px;">New Order Alert</div>
+                            <div id="orderNotiHint" style="font-size:12px; color:#6c757d;">🔕 Order alerts OFF</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
