@@ -37,6 +37,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     -webkit-tap-highlight-color: transparent;
 }
 .contact-us-btn:active { background: #e2e6ea; }
+.policies-modal-content { color: #444; }
 
 .contact-row {
     display: flex;
@@ -315,6 +316,7 @@ button:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.88);
 
     .modal-box { background: #1c1c1e; color: #eee; }
     .modal-title { color: #f2f2f2; }
+    .policies-modal-content { color: #ccc; }
 
     .spinner { color: #777; }
 
@@ -374,7 +376,7 @@ button:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.88);
 <div class="nav">
     <h1 id="shopName">🏪 Shop</h1>
     <div style="display:flex; align-items:center; gap:8px;">
-        <span id="busyBadge" class="busy-badge busy-none">No Order</span>
+        <span id="busyBadge" class="busy-badge busy-none">No Queue</span>
         <button type="button" id="contactUsBtn" class="contact-us-btn" onclick="openContactUsModal()" aria-label="Contact Us" style="display:none;">📞</button>
     </div>
 </div>
@@ -417,7 +419,7 @@ button:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.88);
         <a href="#" onclick="openPoliciesModal();return false;" style="color:#1a6abf;font-weight:600;text-decoration:none;">Privacy Policy &amp; Terms</a>.
     </p>
 
-    <div class="section-title">📅 Pick-up Time (optional)</div>
+    <div class="section-title">📅 Pick-up Time / Preorder Date (optional)</div>
     <div class="pickup-row">
         <input type="date" id="pickupDate" min="">
         <div class="time-input-wrap">
@@ -427,7 +429,7 @@ button:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.88);
         <input type="hidden" id="pickupTime">
     </div>
     <div id="preorderLabel" style="display:none;font-size:12px;color:#dc3545;font-weight:600;margin-bottom:6px;">
-        ⚠️ Preorder is currently unavailable — you can only order for today.
+        ⚠️ Preorder is currently unavailable.
     </div>
     <div class="time-hint" id="timeHint"></div>
 
@@ -451,7 +453,7 @@ button:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.88);
 <div class="modal-overlay" id="policiesModal">
     <div class="modal-box">
         <div class="modal-title">📄 Privacy Policy &amp; Terms</div>
-        <div id="policiesModalContent" style="max-height:60vh;overflow-y:auto;font-size:13px;color:#444;line-height:1.6;white-space:pre-wrap;">
+        <div id="policiesModalContent" class="policies-modal-content" style="max-height:60vh;overflow-y:auto;font-size:13px;line-height:1.6;white-space:pre-wrap;">
             <div class="spinner">Loading...</div>
         </div>
         <div class="modal-actions">
@@ -543,7 +545,7 @@ const SIDE_CATS    = ['side', 'side-1kuah', 'side-none'];
 // True if this shop's menu uses the skewer/kuah-kacang system at all (mirrors
 // the same check in the admin app's menu.js). Used to keep the "Busy" badge
 // meaningful for shops whose menu is entirely custom-unit items (e.g. a
-// bakery) — otherwise it would stay stuck on "No Order" forever, since it'd
+// bakery) — otherwise it would stay stuck on "No Queue" forever, since it'd
 // only ever be counting a category that doesn't exist in their menu.
 function menuUsesSkewerSystem() {
     return menuItems.some(i => SKEWER_CATS.includes(i.category) || i.category === 'side' || i.category === 'side-1kuah' || i.category === 'kuah-only');
@@ -636,10 +638,10 @@ async function init() {
 }
 
 // Press-and-hold (or hover, on devices with a mouse) tooltip explaining what
-// the No Order / Not Busy / Busy badge means. Shows on press, hides on release.
+// the No Queue / Moderate / Busy badge means. Shows on press, hides on release.
 const BUSY_BADGE_TOOLTIPS = {
-    'No Queue': 'No queue at the moment - your order will be prepared right away!',
-    'Moderate': 'Orders are moving steadily — Typical wait is 8–15 minutes.',
+    'No Queue': 'No queue at the moment — your order will be prepared right away!',
+    'Moderate': 'Orders are moving steadily — Typical wait is 8\u201315 minutes.',
     'Busy':     'We\u2019re busy right now — High order volume. Expect a 30 minute wait or more.'
 };
 
@@ -781,7 +783,9 @@ function updateShopBanner() {
     } else {
         banner.style.background = '#f8d7da';
         banner.style.color      = '#721c24';
-        banner.textContent      = '🔴 We are Closed. You can still place a preorder for a future date.';
+        banner.textContent      = preorderEnabled
+            ? '🔴 We are Closed. You can still place a preorder for a future date.'
+            : '🔴 We are Closed.';
     }
 }
 
@@ -918,7 +922,7 @@ async function loadBoxData() {
 // kitchen still has to DO — so each item's demand has its already-cooked
 // Box qty subtracted first (see box.js on the admin side for the identical
 // "demand minus box" formula behind the "still need to cook" number). A
-// full Box can keep the shop showing Not Busy even with a lot of orders
+// full Box can keep the shop showing Moderate even with a lot of orders
 // queued, since most of the work is already done.
 async function loadBusy() {
     try {
@@ -1232,7 +1236,9 @@ function showOrderSummary() {
         const isToday = !ts || (mode !== 'datetime' && mode !== 'date') ||
             dayKey(ts) === today5;
         if (isToday) {
-            alert('🔴 We are closed. You can still place a preorder by setting a future date.');
+            alert(preorderEnabled
+                ? '🔴 We are closed. You can still place a preorder by setting a future date.'
+                : '🔴 We are closed.');
             return;
         }
     }
