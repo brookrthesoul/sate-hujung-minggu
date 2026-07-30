@@ -638,8 +638,8 @@ async function init() {
 // Press-and-hold (or hover, on devices with a mouse) tooltip explaining what
 // the No Order / Not Busy / Busy badge means. Shows on press, hides on release.
 const BUSY_BADGE_TOOLTIPS = {
-    'No Order': 'No queue at the moment - your order will be prepared right away!',
-    'Not Busy': 'Orders are moving steadily — Typical wait is 8–15 minutes.',
+    'No Queue': 'No queue at the moment - your order will be prepared right away!',
+    'Moderate': 'Orders are moving steadily — Typical wait is 8–15 minutes.',
     'Busy':     'We\u2019re busy right now — High order volume. Expect a 30 minute wait or more'
 };
 
@@ -974,8 +974,8 @@ async function loadBusy() {
         if (busyCustomEnabled) combinedLoad += (customQty / busyCustomMax) * (busyCustomWeight / 100);
 
         const badge = document.getElementById('busyBadge');
-        if (totalQty === 0)        { badge.textContent = 'No Order'; badge.className = 'busy-badge busy-none'; currentBusyLevel = 'none'; }
-        else if (combinedLoad <= 1) { badge.textContent = 'Not Busy'; badge.className = 'busy-badge busy-ok'; currentBusyLevel = 'ok'; }
+        if (totalQty === 0)        { badge.textContent = 'No Queue'; badge.className = 'busy-badge busy-none'; currentBusyLevel = 'none'; }
+        else if (combinedLoad <= 1) { badge.textContent = 'Moderate'; badge.className = 'busy-badge busy-ok'; currentBusyLevel = 'ok'; }
         else                        { badge.textContent = 'Busy';     badge.className = 'busy-badge busy-busy'; currentBusyLevel = 'busy'; }
     } catch(e) {}
 }
