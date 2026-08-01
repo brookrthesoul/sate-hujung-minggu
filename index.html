@@ -800,6 +800,19 @@
 
 
 
+    <!-- LINK ORDERS MODAL -->
+    <div id="linkOrderModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:18px; padding:24px; width:92%; max-width:420px; max-height:80vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,0.3); color:#333;">
+            <h3 style="margin:0 0 4px;">🔗 Link Orders</h3>
+            <p style="margin:0 0 14px; font-size:13px; color:#666;">Select other order(s) to link with <strong id="linkOrderSelfLabel"></strong> for combined tracking and payment.</p>
+            <div id="linkOrderList"></div>
+            <div class="action-buttons" style="margin-top:16px;">
+                <button class="pay-method-btn" onclick="confirmLinkOrders()">🔗 Link Selected</button>
+                <button class="edit-btn" onclick="closeLinkOrderModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- PAYMENT METHOD MODAL -->
     <div id="paymentModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center;">
         <div style="background:white; border-radius:18px; padding:24px; width:92%; max-width:380px; box-shadow:0 8px 32px rgba(0,0,0,0.3);">

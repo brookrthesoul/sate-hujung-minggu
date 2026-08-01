@@ -55,6 +55,8 @@ function normalizeOrder(order) {
     if (order.discountValue  === undefined) order.discountValue  = 0;
     if (order.discountAmount === undefined) order.discountAmount = 0;
     if (order.discountReason === undefined) order.discountReason = '';
+    // Backfill group-link field
+    if (order.groupId === undefined) order.groupId = null;
     // Backfill pickupMode
     if (order.pickupMode === undefined) order.pickupMode = null;
     // Backfill isReady
@@ -933,6 +935,7 @@ async function loadOrders() {
     if (_editingIds.size > 0) return;
     try {
         const orders  = (await getAllOrders()).map(normalizeOrder);
+        _allOrdersCache = orders; // used by getGroupMembers() for linked-order lookups
         // Same render, same moment the visual pin can change — see the
         // comment on checkUrgentOrders for why this needs to happen here
         // rather than only on its own separate timer.
@@ -981,14 +984,37 @@ async function loadOrders() {
         }
 
         updateSateSummaryBar(prepare);
-        renderOrderList('prepareList',  prepare,  'prepare');
-        renderOrderList('preparedList', prepared, 'prepared');
-        renderOrderList('paidList',     paid,     'paid');
+        renderOrderList('prepareList',  clusterGroupedOrders(prepare),  'prepare');
+        renderOrderList('preparedList', clusterGroupedOrders(prepared), 'prepared');
+        renderOrderList('paidList',     clusterGroupedOrders(paid),     'paid');
         renderOrderList('doneList',     done,     'done');
         _syncExpandAllBtn(document.querySelector('#ordersPanel .order-sublist.active'), 'toggleOrdersExpandBtn');
     } catch (e) {
         alert('❌ Failed to load orders: ' + e.message);
     }
+}
+
+// Re-orders a list so linked orders (same groupId) sit right next to each
+// other, without otherwise disturbing the existing sort — each group's
+// cluster appears at the position of whichever member the sort placed
+// first, and the other member(s) are pulled up to sit right after it.
+function clusterGroupedOrders(list) {
+    const result = [];
+    const seen = new Set();
+    list.forEach(o => {
+        if (seen.has(o.id)) return;
+        result.push(o);
+        seen.add(o.id);
+        if (o.groupId) {
+            list.forEach(other => {
+                if (other.id !== o.id && other.groupId === o.groupId && !seen.has(other.id)) {
+                    result.push(other);
+                    seen.add(other.id);
+                }
+            });
+        }
+    });
+    return result;
 }
 
 function renderOrderList(containerId, orderList, stage) {
@@ -1026,7 +1052,117 @@ function renderOrderList(containerId, orderList, stage) {
     }
 }
 
-// ---------- Payment display helper ----------
+// ---------- Order linking (combined tracking/payment for one customer's multiple orders) ----------
+let _allOrdersCache = [];   // refreshed on every loadOrders() — used to look up group members
+let _linkSourceOrderId = null;
+
+// All orders sharing this order's groupId (including itself), or just
+// itself if it isn't linked to anything.
+function getGroupMembers(order) {
+    if (!order.groupId) return [order];
+    return _allOrdersCache.filter(o => o.groupId === order.groupId);
+}
+
+function groupBadgeHTML(order) {
+    if (!order.groupId) return '';
+    const members = getGroupMembers(order).filter(m => !(m.paid && m.pickedUp));
+    if (members.length <= 1) return ''; // group dissolved down to just this order
+    const unpaid = members.filter(m => !m.paymentMethod);
+    const combinedTotal = unpaid.reduce((s,m) => s+(m.totalCost||0), 0);
+    const idsLine = members.map(m => '#' + m.id + (m.paymentMethod ? ' ✅' : '')).join(', ');
+
+    let html = '<div class="payment-badge" style="background:#e7f0ff;color:#1a4d8f;">🔗 Linked: ' + idsLine + '</div>';
+    if (unpaid.length > 0) {
+        html += '<div style="display:flex;align-items:center;gap:8px;margin:6px 0;padding:8px 10px;background:#f8f9fa;border-radius:10px;color:#333;">' +
+            '<span style="font-size:13px;font-weight:600;flex:1;">Combined (unpaid): RM' + combinedTotal.toFixed(2) + '</span>' +
+            '<button type="button" class="pay-method-btn" style="width:auto;padding:6px 14px;margin:0;" onclick="openGroupPaymentModal(\'' + order.groupId + '\')">💳 Pay Together</button>' +
+        '</div>';
+    }
+    return html;
+}
+
+function openLinkOrderModal(orderId) {
+    _linkSourceOrderId = orderId;
+    getAllOrders().then(all => {
+        all = all.map(normalizeOrder);
+        const self = all.find(o => o.id === orderId);
+        if (!self) return;
+        const label = document.getElementById('linkOrderSelfLabel');
+        if (label) label.textContent = '#' + self.id;
+
+        // Candidates: any other still-open order not already in this same group
+        const candidates = all.filter(o =>
+            o.id !== orderId &&
+            !(o.paid && o.pickedUp) &&
+            !(self.groupId && o.groupId === self.groupId)
+        );
+        const listEl = document.getElementById('linkOrderList');
+        if (!listEl) return;
+        if (candidates.length === 0) {
+            listEl.innerHTML = '<p style="color:#999;font-size:13px;">No other open orders to link.</p>';
+        } else {
+            listEl.innerHTML = candidates.map(o => {
+                const itemSummary = Object.values(o.items||{}).filter(r=>r.qty>0).map(r=>r.name+' x'+r.qty).join(', ');
+                return '<label style="display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid #e0e0e0;border-radius:10px;margin-bottom:8px;cursor:pointer;color:#333;">' +
+                    '<input type="checkbox" value="' + o.id + '" style="width:18px;height:18px;flex-shrink:0;margin-top:2px;">' +
+                    '<span style="flex:1;font-size:13px;"><strong>#' + o.id + '</strong> — ' + escapeHtml(itemSummary || 'No items') +
+                    '<br><span style="color:#666;">RM' + (o.totalCost||0).toFixed(2) + (o.customerName ? ' · ' + escapeHtml(o.customerName) : '') + '</span></span>' +
+                '</label>';
+            }).join('');
+        }
+        showModalById('linkOrderModal');
+    });
+}
+
+function closeLinkOrderModal() {
+    const modal = document.getElementById('linkOrderModal');
+    if (modal) modal.style.display = 'none';
+    _linkSourceOrderId = null;
+}
+
+async function confirmLinkOrders() {
+    const checked = [...document.querySelectorAll('#linkOrderList input[type="checkbox"]:checked')].map(el => parseInt(el.value));
+    if (checked.length === 0) { alert('Please select at least one order to link.'); return; }
+
+    const all  = await getAllOrders();
+    const self = all.find(o => o.id === _linkSourceOrderId);
+    if (!self) return;
+
+    const groupId = self.groupId || ('grp' + self.id);
+    self.groupId = groupId;
+    await updateOrder(self);
+
+    for (const id of checked) {
+        const o = all.find(x => x.id === id);
+        if (o) { o.groupId = groupId; await updateOrder(o); }
+    }
+
+    closeLinkOrderModal();
+    loadOrders();
+    if (typeof loadPreorders === 'function') loadPreorders();
+}
+
+async function unlinkOrder(orderId) {
+    if (!confirm('Unlink this order from its group?')) return;
+    const all   = await getAllOrders();
+    const order = all.find(o => o.id === orderId);
+    if (!order) return;
+    const gid = order.groupId;
+    order.groupId = null;
+    await updateOrder(order);
+
+    // If only one member remains, dissolve the group entirely rather than
+    // leaving it "linked" to nobody.
+    const remaining = all.filter(o => o.id !== orderId && o.groupId === gid);
+    if (remaining.length === 1) {
+        remaining[0].groupId = null;
+        await updateOrder(remaining[0]);
+    }
+    loadOrders();
+    if (typeof loadPreorders === 'function') loadPreorders();
+}
+
+
 const _ONLINE_METHODS_BADGE = ['online', 'card', 'boost', 'tng'];
 const _METHOD_ICONS = { online:'💳', card:'💳', boost:'🚀', tng:'🛣️', cash:'💵', both:'🤝' };
 const _METHOD_NAMES = { online:'Online', card:'Card', boost:'Boost', tng:'T&G', cash:'Cash', both:'Both' };
@@ -1250,20 +1386,29 @@ function renderOrderCard(card, rawOrder, stage) {
         const printReceiptBtnPrepare = hasPayment
             ? `<button class="print-btn" style="margin-top:8px;width:100%;" onclick="printOrderReceipt(${o.id})">🖨️ Print Receipt</button>` : '';
 
+        const groupBadge = groupBadgeHTML(o);
+        const linkBtn = o.groupId
+            ? `<button class="edit-btn" onclick="unlinkOrder(${o.id})">✖ Unlink</button>`
+            : `<button class="edit-btn" onclick="openLinkOrderModal(${o.id})">🔗 Link</button>`;
+
         card.innerHTML = isExpanded ? `
             ${header}
             <div class="order-details">${itemBadges}${statsBadges}${contactBadge}</div>
             ${editableDesc}
+            ${groupBadge}
             ${payBadge}
             <div class="action-buttons">
                 <button class="delete-btn" onclick="deleteOrderConfirm(${o.id})">🗑️ Cancel</button>
                 <button class="edit-btn"   onclick="startEditTo(${o.id}, 'prepare')">✏️ Edit</button>
                 <button class="pay-method-btn" onclick="openPaymentModal(${o.id}, ${o.totalCost}, 'prepare')">💳 Payment</button>
             </div>
+            <div class="action-buttons" style="margin-top:8px;">
+                ${linkBtn}
+            </div>
             ${markPaidBtn}
             ${printReceiptBtnPrepare}
             <button class="status-btn done-btn" onclick="markPrepared(${o.id})" style="margin-top:8px;">Ready</button>`
-            : `${header}${payBadge}${miniView}`;
+            : `${header}${groupBadge}${payBadge}${miniView}`;
         return;
     }
 
@@ -1275,6 +1420,11 @@ function renderOrderCard(card, rawOrder, stage) {
 
         const printReceiptBtnPrepared = hasPayment
             ? `<button class="print-btn" style="margin-top:8px;width:100%;" onclick="printOrderReceipt(${o.id})">🖨️ Print Receipt</button>` : '';
+
+        const groupBadge = groupBadgeHTML(o);
+        const linkBtn = o.groupId
+            ? `<button class="edit-btn" onclick="unlinkOrder(${o.id})">✖ Unlink</button>`
+            : `<button class="edit-btn" onclick="openLinkOrderModal(${o.id})">🔗 Link</button>`;
 
         const readyBtn = !o.isReady
             ? `<button class="status-btn" onclick="markReady(${o.id})"
@@ -1288,33 +1438,45 @@ function renderOrderCard(card, rawOrder, stage) {
             <div class="order-details">${itemBadges}${statsBadges}${contactBadge}</div>
             <div class="status-row"><span class="status-mark mark-prepared">✅ Prepared</span></div>
             ${editableDesc}
+            ${groupBadge}
             ${payBadge}
             <div class="action-buttons">
                 <button class="delete-btn" onclick="deleteOrderConfirm(${o.id})">🗑️ Cancel</button>
                 <button class="edit-btn"   onclick="startEditTo(${o.id}, 'prepared')">✏️ Edit</button>
                 <button class="pay-method-btn" onclick="openPaymentModal(${o.id}, ${o.totalCost}, 'prepared')">💳 Payment</button>
             </div>
+            <div class="action-buttons" style="margin-top:8px;">
+                ${linkBtn}
+            </div>
             ${printReceiptBtnPrepared}
             ${readyBtn}
             <button class="status-btn paid" onclick="markPaid(${o.id})" style="margin-top:8px;">✅ Mark as Paid</button>`
-            : `${header}${payBadge}${miniView}`;
+            : `${header}${groupBadge}${payBadge}${miniView}`;
         return;
     }
 
     // ── Paid ──────────────────────────────────────────────────────────────
     if (stage === 'paid') {
+        const groupBadgePaid = groupBadgeHTML(o);
+        const linkBtnPaid = o.groupId
+            ? `<button class="edit-btn" onclick="unlinkOrder(${o.id})">✖ Unlink</button>`
+            : `<button class="edit-btn" onclick="openLinkOrderModal(${o.id})">🔗 Link</button>`;
         card.innerHTML = isExpanded ? `
             ${header}
             <div class="order-details">${itemBadges}${statsBadges}${contactBadge}</div>
             <div class="status-row"><span class="status-mark mark-paid">✅ Paid</span></div>
+            ${groupBadgePaid}
             <div style="margin:8px 0;">${paymentBadgeHTML(o)}</div>
             ${readonlyDesc}
             <div class="action-buttons">
                 <button class="edit-btn"       onclick="undoToPrepared(${o.id})">↩️ Undo</button>
                 <button class="pay-method-btn" onclick="openPaymentModal(${o.id}, ${o.totalCost}, 'paid')">💳 Update Payment</button>
                 <button class="status-btn picked" onclick="markPickedUp(${o.id})">📦 Picked Up</button>
+            </div>
+            <div class="action-buttons" style="margin-top:8px;">
+                ${linkBtnPaid}
             </div>`
-            : `${header}${paymentBadgeHTML(o) ? `<div style="margin:4px 0;">${paymentBadgeHTML(o)}</div>` : ''}${miniView}`;
+            : `${header}${groupBadgePaid}${paymentBadgeHTML(o) ? `<div style="margin:4px 0;">${paymentBadgeHTML(o)}</div>` : ''}${miniView}`;
         return;
     }
 
@@ -1524,6 +1686,7 @@ let _pmTotal   = 0;           // effective total to collect (after discount)
 let _pmOriginalTotal = 0;     // order.totalCost before discount
 let _pmReturnStage = 'prepare';
 let _pmDiscount = { type: null, value: 0, amount: 0, reason: '' };
+let _pmGroupOrderIds = null;  // set when paying multiple linked orders together
 
 // Computes the discount RM amount from a type + raw value, clamped sensibly
 // (percent 0-100, amount capped at the order's own total — never negative).
@@ -1545,6 +1708,7 @@ function openPaymentModal(orderId, total, returnStage) {
     _pmOrderId       = orderId;
     _pmOriginalTotal = total;
     _pmReturnStage   = returnStage;
+    _pmGroupOrderIds = null;
 
     getAllOrders().then(all => {
         const order  = all.find(o => o.id === orderId);
@@ -1563,13 +1727,36 @@ function openPaymentModal(orderId, total, returnStage) {
     });
 }
 
+function openGroupPaymentModal(groupId) {
+    getAllOrders().then(all => {
+        all = all.map(normalizeOrder);
+        const members = all.filter(o => o.groupId === groupId && !(o.paid && o.pickedUp) && !o.paymentMethod);
+        if (members.length === 0) { alert('Nothing left to pay in this group.'); return; }
+
+        _pmOrderId       = null;
+        _pmGroupOrderIds = members.map(m => m.id);
+        _pmOriginalTotal = members.reduce((s,m) => s+(m.totalCost||0), 0);
+        _pmReturnStage   = null;
+        _pmDiscount      = { type: null, value: 0, amount: 0, reason: '' };
+
+        document.querySelectorAll('input[name="payMethod"]').forEach(r => r.checked = r.value === 'online');
+        _recomputePmTotal();
+        _renderDiscountBox();
+        _renderPayInputs('online', null);
+        showModalById('paymentModal');
+    });
+}
+
 function _recomputePmTotal() {
     _pmTotal = Math.max(0, +((_pmOriginalTotal - (_pmDiscount.amount || 0)).toFixed(2)));
     const p = document.getElementById('payModalTotal');
     if (!p) return;
-    p.innerHTML = _pmDiscount.amount > 0
+    const groupNote = (_pmGroupOrderIds && _pmGroupOrderIds.length > 1)
+        ? ` <span style="color:#1a4d8f;">(${_pmGroupOrderIds.length} linked orders: ${_pmGroupOrderIds.map(id=>'#'+id).join(', ')})</span>`
+        : '';
+    p.innerHTML = (_pmDiscount.amount > 0
         ? `Subtotal: RM${_pmOriginalTotal.toFixed(2)} &nbsp;·&nbsp; Discount: <span style="color:#dc3545;">-RM${_pmDiscount.amount.toFixed(2)}</span> &nbsp;·&nbsp; <strong>To collect: RM${_pmTotal.toFixed(2)}</strong>`
-        : `Total: RM${_pmOriginalTotal.toFixed(2)}`;
+        : `Total: RM${_pmOriginalTotal.toFixed(2)}`) + groupNote;
 }
 
 function _renderDiscountBox() {
@@ -1768,6 +1955,60 @@ function _toggleCashSection(prefillVal) {
     }
 }
 
+// Splits `amount` across `weights` proportionally, rounded to cents, with
+// any rounding remainder folded into the last share so the parts always
+// sum to exactly `amount`.
+function _splitProportionally(amount, weights) {
+    const totalWeight = weights.reduce((s,w) => s+w, 0);
+    if (totalWeight <= 0) return weights.map(() => 0);
+    const parts = weights.map(w => +(amount * w / totalWeight).toFixed(2));
+    const sum   = parts.reduce((s,p) => s+p, 0);
+    const diff  = +(amount - sum).toFixed(2);
+    if (parts.length) parts[parts.length-1] = +(parts[parts.length-1] + diff).toFixed(2);
+    return parts;
+}
+
+// Applies one order's share of a payment to it — same logic whether it's
+// the only order being paid, or one of several linked orders being paid
+// together (in which case `total`/`onlineAmt`/`cashAmt` are already this
+// order's proportional slice, computed by the caller).
+function _applyPaymentToOrder(order, method, hasCashSection, onlineAmt, cashAmt, total) {
+    const _ONLINE_METHODS = ['online', 'card', 'boost', 'tng'];
+
+    if (_ONLINE_METHODS.includes(method) && hasCashSection) {
+        const cashOwed   = Math.max(0, total - onlineAmt);
+        const cashChange = cashAmt - cashOwed;
+        order.paymentMethod  = 'both';
+        order._digitalMethod = method;
+        order.paymentOnline  = onlineAmt;
+        order.paymentCash    = cashChange > 0 ? cashOwed : cashAmt;
+        order.cashGiven      = cashAmt;
+        order.cashChange     = cashChange > 0 ? cashChange : 0;
+        order.isDeposit      = false;
+        order.isCashShort    = cashAmt < cashOwed - 0.005;
+        return;
+    }
+
+    order.paymentMethod = method;
+    order.paymentOnline = (method === 'cash')              ? 0 : onlineAmt;
+    order.paymentCash   = _ONLINE_METHODS.includes(method) ? 0 : cashAmt;
+
+    if (_ONLINE_METHODS.includes(method)) {
+        order.isDeposit   = onlineAmt < (total - 0.005);
+        order.isCashShort = false;
+    } else if (method === 'cash') {
+        const cashChange  = cashAmt - total;
+        order.isCashShort = cashAmt < (total - 0.005);
+        order.cashGiven   = cashAmt;
+        order.cashChange  = cashChange > 0 ? cashChange : 0;
+        order.paymentCash = order.isCashShort ? cashAmt : total;
+        order.isDeposit   = false;
+    } else {
+        order.isDeposit   = false;
+        order.isCashShort = false;
+    }
+}
+
 async function confirmPayment() {
     const selected = document.querySelector('input[name="payMethod"]:checked');
     if (!selected) { alert('Please select a payment method.'); return; }
@@ -1791,64 +2032,44 @@ async function confirmPayment() {
         }
     }
 
-    const all   = await getAllOrders();
-    const order = all.find(o => o.id === _pmOrderId);
-    if (!order) return;
+    const all = await getAllOrders();
 
-    order.discountType   = _pmDiscount.type   || null;
-    order.discountValue  = _pmDiscount.value  || 0;
-    order.discountAmount = _pmDiscount.amount || 0;
-    order.discountReason = _pmDiscount.reason || '';
-
-    const _ONLINE_METHODS = ['online', 'card', 'boost', 'tng'];
-    const withCashToggle  = document.getElementById('withCashToggle');
-    const hasCashSection  = withCashToggle && withCashToggle.textContent === 'ON';
-
-    // If digital + cash toggle is on → treat as 'both' but store which digital method
-    if (_ONLINE_METHODS.includes(method) && hasCashSection) {
-        // cashAmt = what customer gave in cash for the cash portion
-        // The cash portion they owe = total - onlineAmt
-        const cashOwed   = Math.max(0, _pmTotal - onlineAmt);
-        const cashChange = cashAmt - cashOwed;
-        order.paymentMethod  = 'both';
-        order._digitalMethod = method;
-        order.paymentOnline  = onlineAmt;
-        order.paymentCash    = cashChange > 0 ? cashOwed : cashAmt; // only keep what we're owed
-        order.cashGiven      = cashAmt;
-        order.cashChange     = cashChange > 0 ? cashChange : 0;
-        order.isDeposit      = false;
-        order.isCashShort    = cashAmt < cashOwed - 0.005;
-        await updateOrder(order);
-        closePaymentModal();
-        loadOrders();
-        if (typeof loadPreorders === 'function') loadPreorders();
-        return;
-    }
-
-    order.paymentMethod = method;
-    order.paymentOnline = (method === 'cash')              ? 0 : onlineAmt;
-    order.paymentCash   = _ONLINE_METHODS.includes(method) ? 0 : cashAmt;
-
-    // Deposit / short flags
-    if (_ONLINE_METHODS.includes(method)) {
-        order.isDeposit   = onlineAmt < (_pmTotal - 0.005);
-        order.isCashShort = false;
-    } else if (method === 'cash') {
-        // cashAmt = what customer physically gave
-        // paymentCash = actual amount we receive (capped at total if they overpay)
-        const cashChange  = cashAmt - _pmTotal;
-        order.isCashShort = cashAmt < (_pmTotal - 0.005);
-        order.cashGiven   = cashAmt;
-        order.cashChange  = cashChange > 0 ? cashChange : 0;
-        // paymentCash stores only what we actually keep (not the change we give back)
-        order.paymentCash = order.isCashShort ? cashAmt : _pmTotal;
-        order.isDeposit   = false;
+    // Single order, or several linked orders being paid together — the
+    // rest of this function treats both the same way, splitting the
+    // entered amounts proportionally across whichever orders are involved.
+    let targetOrders;
+    if (_pmGroupOrderIds && _pmGroupOrderIds.length > 0) {
+        targetOrders = _pmGroupOrderIds.map(id => all.find(o => o.id === id)).filter(Boolean);
     } else {
-        order.isDeposit   = false;
-        order.isCashShort = false;
+        const single = all.find(o => o.id === _pmOrderId);
+        targetOrders = single ? [single] : [];
     }
+    if (targetOrders.length === 0) return;
 
-    await updateOrder(order);
+    // Split the discount across orders by their own sticker price share
+    const discountShares = _splitProportionally(_pmDiscount.amount || 0, targetOrders.map(o => o.totalCost || 0));
+    targetOrders.forEach((o,i) => {
+        o.discountType   = _pmDiscount.type   || null;
+        o.discountValue  = _pmDiscount.value  || 0;
+        o.discountAmount = discountShares[i];
+        o.discountReason = _pmDiscount.reason || '';
+    });
+
+    // Then split what was actually entered (online/cash) by each order's
+    // own post-discount total — so a bigger order gets a bigger slice.
+    const finalTotals  = targetOrders.map(o => Math.max(0, +(((o.totalCost||0) - (o.discountAmount||0)).toFixed(2))));
+    const onlineShares = _splitProportionally(onlineAmt, finalTotals);
+    const cashShares    = _splitProportionally(cashAmt,   finalTotals);
+
+    const withCashToggle = document.getElementById('withCashToggle');
+    const hasCashSection = withCashToggle && withCashToggle.textContent === 'ON';
+
+    targetOrders.forEach((o,i) => {
+        _applyPaymentToOrder(o, method, hasCashSection, onlineShares[i], cashShares[i], finalTotals[i]);
+    });
+
+    for (const o of targetOrders) await updateOrder(o);
+
     closePaymentModal();
     loadOrders();
     if (typeof loadPreorders === 'function') loadPreorders();
