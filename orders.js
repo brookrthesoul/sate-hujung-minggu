@@ -717,7 +717,7 @@ function _showDayCloseModal(unpaidOrders) {
         const stage = !order.prepared ? 'Prepare' : 'Prepared';
 
         modal.innerHTML = `
-            <div style="background:white;border-radius:18px;padding:24px;width:92%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+            <div style="background:white;border-radius:18px;padding:24px;width:92%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.3);color:#333;">
                 <div style="background:#fff3cd;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#856404;">
                     ⚠️ Leftover unpaid order from <strong>${day}</strong>
                 </div>
@@ -1577,7 +1577,7 @@ function _renderDiscountBox() {
     if (!box) return;
     const isOn = !!_pmDiscount.type;
     box.innerHTML =
-        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:' + (isOn ? 10 : 16) + 'px;padding:10px;background:#f8f9fa;border-radius:10px;">' +
+        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:' + (isOn ? 10 : 16) + 'px;padding:10px;background:#f8f9fa;border-radius:10px;color:#333;">' +
             '<span style="font-size:13px;font-weight:600;flex:1;">🏷️ Apply discount?</span>' +
             '<button type="button" id="discountToggle" onclick="_toggleDiscountSection()" ' +
                 'style="padding:6px 16px;border-radius:20px;border:2px solid ' + (isOn ? '#28a745' : '#6c757d') + ';background:' + (isOn ? '#28a745' : 'white') + ';font-size:13px;font-weight:600;cursor:pointer;color:' + (isOn ? 'white' : '#6c757d') + ';">' + (isOn ? 'ON' : 'OFF') + '</button>' +
@@ -1695,7 +1695,7 @@ function _renderPayInputs(method, existingOrder) {
             '<label class="pay-label">' + label + ' Amount (RM)</label>' +
             '<input type="number" id="payOnlineInput" step="0.01" min="0" class="pay-input">' +
             '<div id="onlineDepositHint" class="change-display" style="display:none;"></div>' +
-            '<div style="display:flex;align-items:center;gap:10px;margin-top:14px;padding:10px;background:#f8f9fa;border-radius:10px;">' +
+            '<div style="display:flex;align-items:center;gap:10px;margin-top:14px;padding:10px;background:#f8f9fa;border-radius:10px;color:#333;">' +
                 '<span style="font-size:13px;font-weight:600;flex:1;">+ Cash as well?</span>' +
                 '<button type="button" id="withCashToggle" onclick="_toggleCashSection()" ' +
                     'style="padding:6px 16px;border-radius:20px;border:2px solid #6c757d;background:white;font-size:13px;font-weight:600;cursor:pointer;color:#6c757d;"' +
