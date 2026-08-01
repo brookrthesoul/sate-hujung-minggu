@@ -20,6 +20,7 @@ function slideTo(index, smooth) {
 function switchTab(tab) {
     const index = TABS.indexOf(tab);
     if (index === -1) return;
+    window.scrollTo({ top: 0, behavior: 'instant' });
     slideTo(index, true);
 
     // Stock indicators on this tab depend on live pending-demand data from

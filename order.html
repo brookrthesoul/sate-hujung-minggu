@@ -1832,6 +1832,7 @@ function connectRealtime() {
 
 // ── Tab switch ────────────────────────────────────────────────────────────────
 function switchTab(tab) {
+    window.scrollTo({ top: 0, behavior: 'instant' });
     currentTab = tab;
     document.getElementById('tabMenu').classList.toggle('active',     tab === 'menu');
     document.getElementById('tabNewOrder').classList.toggle('active', tab === 'new');
