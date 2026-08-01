@@ -46,6 +46,19 @@ async function _sbInsert(order) {
     return _rowToOrder(row);
 }
 
+// Insert an order that was created offline, asking the server to keep the
+// same id we already predicted and printed on the receipt (see
+// admin_insert_order_with_id.sql). Falls back to a normal auto-assigned id
+// server-side if that number was somehow already taken.
+async function _sbInsertWithId(id, order) {
+    const { id: _a, updatedAt: _b, ...data } = order;
+    const result = await _sbFetch('rpc/admin_insert_order_with_id', {
+        method: 'POST',
+        body: JSON.stringify({ p_id: id, p_data: data, p_updated_ms: Date.now() })
+    });
+    return { ...result.data, id: result.id, updatedAt: result.updated_ms };
+}
+
 async function _sbUpdate(order) {
     const { id, updatedAt: _a, ...data } = order;
     await _sbFetch(`${TABLE}?id=eq.${id}`, {
@@ -135,7 +148,31 @@ async function _idbReplaceAll(orders) {
     });
 }
 
-// ─── Sync ─────────────────────────────────────────────────────────────────────
+// ─── Offline order numbering ──────────────────────────────────────────────────
+// Predicts the next real order id so a receipt printed while offline shows a
+// normal number (e.g. #164) instead of a giant temp id, and generally *is*
+// the real number once synced (see admin_insert_order_with_id.sql).
+const _NEXT_ORDER_NUM_KEY = 'nextOfflineOrderNumber';
+
+function _peekNextOrderNumber(floorId) {
+    const stored = parseInt(localStorage.getItem(_NEXT_ORDER_NUM_KEY), 10) || 0;
+    return Math.max(stored, (floorId || 0) + 1);
+}
+
+function _commitNextOrderNumber(n) {
+    const stored = parseInt(localStorage.getItem(_NEXT_ORDER_NUM_KEY), 10) || 0;
+    localStorage.setItem(_NEXT_ORDER_NUM_KEY, String(Math.max(n, stored)));
+}
+
+async function _takeNextOrderNumber() {
+    const idbAll  = await _idbGetAll();
+    const localMax = idbAll.length ? Math.max(...idbAll.map(o => o.id)) : 0;
+    const num = _peekNextOrderNumber(localMax);
+    _commitNextOrderNumber(num + 1);
+    return num;
+}
+
+
 
 let _syncing  = false;
 let _draining = false;
@@ -151,10 +188,12 @@ async function syncNow() {
     setSyncStatus('syncing');
     try {
         const remote = await _sbGetAll();
-        // Keep offline-only orders (negative IDs not yet pushed to Supabase)
+        // Keep offline-only orders (not yet pushed to Supabase)
         const localOffline = (await _idbGetAll()).filter(o => o._offline === true);
         await _idbReplaceAll(remote);
         for (const o of localOffline) await _idbPut(o);
+        const knownIds = [...remote.map(o => o.id), ...localOffline.map(o => o.id)];
+        _commitNextOrderNumber((knownIds.length ? Math.max(...knownIds) : 0) + 1);
         setSyncStatus('ok');
         _rerender();
         showSyncToast('✅ Synced');
@@ -185,10 +224,13 @@ async function _drainOfflineQueue() {
         try {
             if (item.op === 'add') {
                 const { id: tempId, updatedAt: _a, _deleted: _b, _offline: _c, ...clean } = item.order;
-                const saved = await _sbInsert(clean);
+                const saved = await _sbInsertWithId(tempId, clean);
                 // Swap temp ID for real Supabase ID in IndexedDB
                 await _idbDelete(tempId);
                 await _idbPut(saved);
+                if (saved.id !== tempId) {
+                    showSyncToast(`⚠️ Order #${tempId} is now #${saved.id} — another order took that number`);
+                }
             } else if (item.op === 'update') {
                 await _sbUpdate(item.order);
             } else if (item.op === 'delete') {
@@ -213,8 +255,10 @@ window._sbAddOrder = async function(order) {
     clean.createdAt = clean.createdAt || Date.now();
 
     if (!navigator.onLine) {
-        // Save locally with a temporary negative ID (won't clash with Supabase serial IDs)
-        const tempId = -Date.now();
+        // Predict the real order number instead of using a placeholder —
+        // this is what's printed on the receipt, so it needs to look (and
+        // ideally BE) the real number, not a giant temp id.
+        const tempId = await _takeNextOrderNumber();
         const tempOrder = { ...clean, id: tempId, _offline: true };
         await _idbPut(tempOrder);
         _offlineQueue.push({ op: 'add', order: tempOrder });
@@ -246,14 +290,28 @@ window._sbUpdateOrder = async function(order) {
 };
 
 window._sbDeleteOrder = async function(id) {
+    // Was this order created while offline and never actually pushed to
+    // Supabase yet? If so there's nothing to delete server-side — just
+    // cancel the pending 'add' so it's never sent at all. (Used to detect
+    // this via a negative id; offline ids now look like real numbers, so
+    // check the _offline flag instead.)
+    const existing = (await _idbGetAll()).find(o => o.id === id);
+    const isUnsyncedLocal = !!(existing && existing._offline === true);
+
     await _idbDelete(id);
     _rerender();
+
+    if (isUnsyncedLocal) {
+        const idx = _offlineQueue.findIndex(item => item.op === 'add' && item.order.id === id);
+        if (idx !== -1) _offlineQueue.splice(idx, 1);
+        return;
+    }
+
     if (navigator.onLine) {
         await _sbDelete(id);
         setTimeout(() => syncNow().catch(console.error), 200);
     } else {
-        // Only queue delete for real IDs (positive = Supabase), not temp offline ones
-        if (id > 0) _offlineQueue.push({ op: 'delete', id });
+        _offlineQueue.push({ op: 'delete', id });
         _pendingSync = true;
         showSyncToast('📴 Deleted offline — will sync when connected');
     }
