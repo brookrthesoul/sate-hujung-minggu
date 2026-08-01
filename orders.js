@@ -50,6 +50,11 @@ function normalizeOrder(order) {
     if (order.paymentMethod  === undefined) order.paymentMethod  = null;
     if (order.paymentOnline  === undefined) order.paymentOnline  = 0;
     if (order.paymentCash    === undefined) order.paymentCash    = 0;
+    // Backfill discount fields
+    if (order.discountType   === undefined) order.discountType   = null;
+    if (order.discountValue  === undefined) order.discountValue  = 0;
+    if (order.discountAmount === undefined) order.discountAmount = 0;
+    if (order.discountReason === undefined) order.discountReason = '';
     // Backfill pickupMode
     if (order.pickupMode === undefined) order.pickupMode = null;
     // Backfill isReady
@@ -1028,7 +1033,7 @@ const _METHOD_NAMES = { online:'Online', card:'Card', boost:'Boost', tng:'T&G', 
 
 function paymentBadgeHTML(order) {
     const m       = order.paymentMethod;
-    const total   = order.totalCost || 0;
+    const total   = orderFinalTotal(order);
     const online  = order.paymentOnline || 0;
     const cash    = order.paymentCash   || 0;
     if (!m) return '';
@@ -1036,28 +1041,33 @@ function paymentBadgeHTML(order) {
     const icon = _METHOD_ICONS[m] || '💳';
     const name = _METHOD_NAMES[m] || m;
 
+    const discountLine = order.discountAmount > 0
+        ? '<div class="payment-badge badge-discount" style="background:#fff3cd;color:#856404;">🏷️ Discount: -RM' + order.discountAmount.toFixed(2) +
+          (order.discountReason ? ' (' + escapeHtml(order.discountReason) + ')' : '') + '</div>'
+        : '';
+
     if (_ONLINE_METHODS_BADGE.includes(m)) {
         if (order.isDeposit) {
             const balance = total - online;
-            return '<div class="payment-badge badge-deposit">' +
+            return discountLine + '<div class="payment-badge badge-deposit">' +
                 icon + ' Deposit (' + name + ') — RM' + online.toFixed(2) +
                 ' &nbsp;|&nbsp; Balance: <strong>RM' + balance.toFixed(2) + '</strong>' +
                 '</div>';
         }
-        return '<div class="payment-badge badge-online">' + icon + ' ' + name + ' — RM' + online.toFixed(2) + '</div>';
+        return discountLine + '<div class="payment-badge badge-online">' + icon + ' ' + name + ' — RM' + online.toFixed(2) + '</div>';
     }
 
     if (m === 'cash') {
         if (order.isCashShort) {
             const short = total - cash;
-            return '<div class="payment-badge badge-short">' +
+            return discountLine + '<div class="payment-badge badge-short">' +
                 '⚠️ Short by <strong>RM' + short.toFixed(2) + '</strong>' +
                 ' &nbsp;|&nbsp; Paid: RM' + cash.toFixed(2) +
                 '</div>';
         }
         const given  = order.cashGiven || cash;
         const change = order.cashChange || 0;
-        let badge = '<div class="payment-badge badge-cash">💵 Cash — RM' + cash.toFixed(2);
+        let badge = discountLine + '<div class="payment-badge badge-cash">💵 Cash — RM' + cash.toFixed(2);
         if (given > cash + 0.005) {
             badge += ' &nbsp;|&nbsp; Given: RM' + given.toFixed(2) + ' &nbsp;|&nbsp; Change: RM' + change.toFixed(2);
         }
@@ -1071,7 +1081,7 @@ function paymentBadgeHTML(order) {
         const dName  = _METHOD_NAMES[dm] || 'Online';
         const given  = order.cashGiven  || cash;
         const change = order.cashChange || 0;
-        let badge = '<div class="payment-badge badge-both">' +
+        let badge = discountLine + '<div class="payment-badge badge-both">' +
             dIcon + ' ' + dName + ': RM' + online.toFixed(2) +
             ' &nbsp;|&nbsp; 💵 Cash: RM' + cash.toFixed(2);
         if (given > cash + 0.005) {
@@ -1510,21 +1520,125 @@ async function deleteOrderConfirm(id) {
 
 // ---------- Payment Modal ----------
 let _pmOrderId = null;
-let _pmTotal   = 0;
+let _pmTotal   = 0;           // effective total to collect (after discount)
+let _pmOriginalTotal = 0;     // order.totalCost before discount
 let _pmReturnStage = 'prepare';
+let _pmDiscount = { type: null, value: 0, amount: 0, reason: '' };
+
+// Computes the discount RM amount from a type + raw value, clamped sensibly
+// (percent 0-100, amount capped at the order's own total — never negative).
+function _calcDiscountAmount(type, value, originalTotal) {
+    const v = Math.max(0, value || 0);
+    if (type === 'percent') return +(originalTotal * Math.min(100, v) / 100).toFixed(2);
+    if (type === 'amount')  return +(Math.min(originalTotal, v)).toFixed(2);
+    return 0;
+}
+
+// The amount actually owed/collected for an order — original total minus
+// whatever discount was applied at payment time. Use this (not raw
+// order.totalCost) anywhere the real amount owed/paid/printed matters.
+function orderFinalTotal(order) {
+    return Math.max(0, +((order.totalCost || 0) - (order.discountAmount || 0)).toFixed(2));
+}
 
 function openPaymentModal(orderId, total, returnStage) {
-    _pmOrderId     = orderId;
-    _pmTotal       = total;
-    _pmReturnStage = returnStage;
+    _pmOrderId       = orderId;
+    _pmOriginalTotal = total;
+    _pmReturnStage   = returnStage;
 
     getAllOrders().then(all => {
         const order  = all.find(o => o.id === orderId);
         const method = (order && order.paymentMethod) || 'online';
         document.querySelectorAll('input[name="payMethod"]').forEach(r => r.checked = r.value === method);
+        _pmDiscount = {
+            type:   (order && order.discountType)   || null,
+            value:  (order && order.discountValue)  || 0,
+            amount: (order && order.discountAmount) || 0,
+            reason: (order && order.discountReason) || ''
+        };
+        _recomputePmTotal();
+        _renderDiscountBox();
         _renderPayInputs(method, order);
         showModalById('paymentModal');
     });
+}
+
+function _recomputePmTotal() {
+    _pmTotal = Math.max(0, +((_pmOriginalTotal - (_pmDiscount.amount || 0)).toFixed(2)));
+    const p = document.getElementById('payModalTotal');
+    if (!p) return;
+    p.innerHTML = _pmDiscount.amount > 0
+        ? `Subtotal: RM${_pmOriginalTotal.toFixed(2)} &nbsp;·&nbsp; Discount: <span style="color:#dc3545;">-RM${_pmDiscount.amount.toFixed(2)}</span> &nbsp;·&nbsp; <strong>To collect: RM${_pmTotal.toFixed(2)}</strong>`
+        : `Total: RM${_pmOriginalTotal.toFixed(2)}`;
+}
+
+function _renderDiscountBox() {
+    const box = document.getElementById('discountBox');
+    if (!box) return;
+    const isOn = !!_pmDiscount.type;
+    box.innerHTML =
+        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:' + (isOn ? 10 : 16) + 'px;padding:10px;background:#f8f9fa;border-radius:10px;">' +
+            '<span style="font-size:13px;font-weight:600;flex:1;">🏷️ Apply discount?</span>' +
+            '<button type="button" id="discountToggle" onclick="_toggleDiscountSection()" ' +
+                'style="padding:6px 16px;border-radius:20px;border:2px solid ' + (isOn ? '#28a745' : '#6c757d') + ';background:' + (isOn ? '#28a745' : 'white') + ';font-size:13px;font-weight:600;cursor:pointer;color:' + (isOn ? 'white' : '#6c757d') + ';">' + (isOn ? 'ON' : 'OFF') + '</button>' +
+        '</div>' +
+        '<div id="discountFields" style="display:' + (isOn ? 'block' : 'none') + ';margin-bottom:16px;">' +
+            '<div style="display:flex;gap:6px;margin-bottom:8px;">' +
+                '<label class="pay-radio-label" style="flex:1;text-align:center;justify-content:center;">' +
+                    '<input type="radio" name="discountType" value="percent" ' + (_pmDiscount.type === 'amount' ? '' : 'checked') + ' onchange="_onDiscountInputChange()"> % Percent' +
+                '</label>' +
+                '<label class="pay-radio-label" style="flex:1;text-align:center;justify-content:center;">' +
+                    '<input type="radio" name="discountType" value="amount" ' + (_pmDiscount.type === 'amount' ? 'checked' : '') + ' onchange="_onDiscountInputChange()"> RM Amount' +
+                '</label>' +
+            '</div>' +
+            '<input type="number" id="discountValueInput" step="0.01" min="0" class="pay-input" placeholder="Discount value" value="' + (_pmDiscount.value > 0 ? _pmDiscount.value : '') + '">' +
+            '<input type="text" id="discountReasonInput" class="pay-input" style="margin-top:8px;" placeholder="Reason (optional) — e.g. regular customer" value="' + escapeHtml(_pmDiscount.reason || '') + '">' +
+            '<div id="discountPreview" style="margin-top:8px;font-size:12.5px;color:#28a745;font-weight:600;"></div>' +
+        '</div>';
+
+    const valEl = document.getElementById('discountValueInput');
+    const reasonEl = document.getElementById('discountReasonInput');
+    if (valEl)    valEl.addEventListener('input', _onDiscountInputChange);
+    if (reasonEl) reasonEl.addEventListener('input', _onDiscountInputChange);
+    _updateDiscountPreview();
+}
+
+function _toggleDiscountSection() {
+    if (_pmDiscount.type) {
+        _pmDiscount = { type: null, value: 0, amount: 0, reason: _pmDiscount.reason };
+    } else {
+        _pmDiscount.type = 'percent';
+    }
+    _renderDiscountBox();
+    _recomputePmTotal();
+    _renderPayInputs(_currentPayMethod(), null);
+}
+
+function _currentPayMethod() {
+    const sel = document.querySelector('input[name="payMethod"]:checked');
+    return sel ? sel.value : 'online';
+}
+
+function _onDiscountInputChange() {
+    const typeEl = document.querySelector('input[name="discountType"]:checked');
+    _pmDiscount.type = typeEl ? typeEl.value : 'percent';
+    const valEl = document.getElementById('discountValueInput');
+    _pmDiscount.value = valEl ? (parseFloat(valEl.value) || 0) : 0;
+    const reasonEl = document.getElementById('discountReasonInput');
+    _pmDiscount.reason = reasonEl ? reasonEl.value.trim() : '';
+    _pmDiscount.amount = _calcDiscountAmount(_pmDiscount.type, _pmDiscount.value, _pmOriginalTotal);
+
+    _updateDiscountPreview();
+    _recomputePmTotal();
+    _renderPayInputs(_currentPayMethod(), null);
+}
+
+function _updateDiscountPreview() {
+    const el = document.getElementById('discountPreview');
+    if (!el) return;
+    el.textContent = _pmDiscount.amount > 0
+        ? '-RM' + _pmDiscount.amount.toFixed(2) + ' off → New total: RM' + Math.max(0, _pmOriginalTotal - _pmDiscount.amount).toFixed(2)
+        : '';
 }
 
 function closePaymentModal() {
@@ -1663,6 +1777,13 @@ async function confirmPayment() {
     const onlineAmt = onlineEl ? (parseFloat(onlineEl.value)||0) : 0;
     const cashAmt   = cashEl   ? (parseFloat(cashEl.value)||0)   : 0;
 
+    // Confirm before saving an unusually large discount (>50% off, or the
+    // whole order) — easy to fat-finger a % vs RM amount by mistake.
+    if (_pmDiscount.amount > 0 && _pmOriginalTotal > 0 && (_pmDiscount.amount / _pmOriginalTotal) > 0.5) {
+        const pct = Math.round(_pmDiscount.amount / _pmOriginalTotal * 100);
+        if (!confirm(`⚠️ This discount is ${pct}% off (RM${_pmDiscount.amount.toFixed(2)} of RM${_pmOriginalTotal.toFixed(2)}). Continue?`)) return;
+    }
+
     if (method === 'both') {
         const sum = onlineAmt + cashAmt;
         if (Math.abs(sum - _pmTotal) > 0.01) {
@@ -1673,6 +1794,11 @@ async function confirmPayment() {
     const all   = await getAllOrders();
     const order = all.find(o => o.id === _pmOrderId);
     if (!order) return;
+
+    order.discountType   = _pmDiscount.type   || null;
+    order.discountValue  = _pmDiscount.value  || 0;
+    order.discountAmount = _pmDiscount.amount || 0;
+    order.discountReason = _pmDiscount.reason || '';
 
     const _ONLINE_METHODS = ['online', 'card', 'boost', 'tng'];
     const withCashToggle  = document.getElementById('withCashToggle');
@@ -1822,8 +1948,14 @@ function _buildPDF(title, subtitle, orders) {
     y = 44; doc.setTextColor(0,0,0);
 
     // Totals
-    const totalRevenue = orders.reduce((s,o) => s+(o.totalCost||0), 0);
-    const totalOrders  = orders.length;
+    // "Gross" = sticker total of items sold (before discount). "Discount" =
+    // total given away. "Net Revenue" = what was actually collected — the
+    // figure that should tie to the payment-method breakdown below.
+    const grossSales    = orders.reduce((s,o) => s+(o.totalCost||0), 0);
+    const totalDiscount = orders.reduce((s,o) => s+(o.discountAmount||0), 0);
+    const netRevenue    = grossSales - totalDiscount;
+    const totalOrders   = orders.length;
+    const discountedOrderCount = orders.filter(o => (o.discountAmount||0) > 0).length;
 
     // Breakdown by each actual payment channel (online / card / boost / tng / cash).
     // IMPORTANT: split ('both') orders record WHICH digital rail was used for
@@ -1856,19 +1988,21 @@ function _buildPDF(title, subtitle, orders) {
         });
     });
 
-    // Summary cards, row 1: Orders | Revenue
+    // Summary cards, row 1: Orders | Gross Sales | Discounts | Net Revenue
     const topCards = [
         {label:'Total Orders',  value: String(totalOrders)},
-        {label:'Total Revenue', value:`RM ${totalRevenue.toFixed(2)}`},
+        {label:'Gross Sales',   value:`RM ${grossSales.toFixed(2)}`},
+        {label:'Discounts Given (' + discountedOrderCount + ')', value:`-RM ${totalDiscount.toFixed(2)}`},
+        {label:'Net Revenue',   value:`RM ${netRevenue.toFixed(2)}`},
     ];
-    const topCardW = COL_W/2;
+    const topCardW = COL_W/4;
     topCards.forEach((c,i) => {
         const cx = MARGIN + i*topCardW;
         doc.setFillColor(...ROW_ALT); doc.setDrawColor(...BORDER);
         doc.roundedRect(cx, y, topCardW-2, 18, 2, 2, 'FD');
-        doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...HEAD_BG);
+        doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...HEAD_BG);
         doc.text(c.value, cx+(topCardW-2)/2, y+10, {align:'center'});
-        doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(100,100,100);
+        doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(100,100,100);
         doc.text(c.label, cx+(topCardW-2)/2, y+16, {align:'center'});
     });
     y += 22;
@@ -1924,7 +2058,7 @@ function _buildPDF(title, subtitle, orders) {
     doc.setFillColor(220,230,240); doc.rect(MARGIN,y,COL_W,LINE_H,'F');
     doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(0);
     doc.text('TOTAL', MARGIN+2, y+LINE_H-1);
-    doc.text(`RM ${totalRevenue.toFixed(2)}`, MARGIN+COL_W-2, y+LINE_H-1, {align:'right'});
+    doc.text(`RM ${grossSales.toFixed(2)}`, MARGIN+COL_W-2, y+LINE_H-1, {align:'right'});
     y += LINE_H+8;
 
     // Per-order table
@@ -1932,11 +2066,12 @@ function _buildPDF(title, subtitle, orders) {
     doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(0);
     doc.text('Order Breakdown', MARGIN, y); y += 5;
     const oCols = [
-        {label:'#',       x:MARGIN,       w:12, align:'left'},
-        {label:'Time',    x:MARGIN+12,    w:28, align:'left'},
-        {label:'Items',   x:MARGIN+40,    w:60, align:'left'},
-        {label:'Payment', x:MARGIN+100,   w:58, align:'left'},
-        {label:'Total',   x:MARGIN+158,   w:20, align:'right'},
+        {label:'#',        x:MARGIN,       w:10, align:'left'},
+        {label:'Time',     x:MARGIN+10,    w:22, align:'left'},
+        {label:'Items',    x:MARGIN+32,    w:44, align:'left'},
+        {label:'Payment',  x:MARGIN+76,    w:46, align:'left'},
+        {label:'Discount', x:MARGIN+122,   w:26, align:'right'},
+        {label:'Total',    x:MARGIN+148,   w:30, align:'right'},
     ];
     doc.setFillColor(...HEAD_BG); doc.rect(MARGIN,y,COL_W,LINE_H+1,'F');
     doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica','bold');
@@ -1955,17 +2090,22 @@ function _buildPDF(title, subtitle, orders) {
             const dm = order._digitalMethod || 'online';
             payStr = (_MN[dm]||dm) + ':RM' + (order.paymentOnline||0).toFixed(2) + ' C:RM' + (order.paymentCash||0).toFixed(2);
         }
+        const discAmt = order.discountAmount || 0;
+        const discStr = discAmt > 0 ? '-RM' + discAmt.toFixed(2) : '-';
 
-        const wrappedItems = doc.splitTextToSize(itemSummary, 58);
+        const wrappedItems = doc.splitTextToSize(itemSummary, oCols[2].w - 2);
         const rowH = Math.max(LINE_H, wrappedItems.length*4+3);
         checkPage(rowH+1);
         if (idx%2===0) { doc.setFillColor(...ROW_ALT); doc.rect(MARGIN,y,COL_W,rowH,'F'); }
         doc.setTextColor(0); doc.setFontSize(8); doc.setFont('helvetica','normal');
-        doc.text(`#${order.id}`,  MARGIN+2, y+5);
-        doc.text(timeStr,         MARGIN+14, y+5);
-        doc.text(wrappedItems,    MARGIN+42, y+5);
-        doc.text(payStr,          MARGIN+102, y+5);
-        doc.text(`RM ${(order.totalCost||0).toFixed(2)}`, MARGIN+COL_W-2, y+5, {align:'right'});
+        doc.text(`#${order.id}`,  oCols[0].x+2, y+5);
+        doc.text(timeStr,         oCols[1].x+2, y+5);
+        doc.text(wrappedItems,    oCols[2].x+2, y+5);
+        doc.text(payStr,          oCols[3].x+2, y+5);
+        if (discAmt > 0) doc.setTextColor(200,60,60);
+        doc.text(discStr, oCols[4].x+oCols[4].w-2, y+5, {align:'right'});
+        doc.setTextColor(0);
+        doc.text(`RM ${orderFinalTotal(order).toFixed(2)}`, oCols[5].x+oCols[5].w-2, y+5, {align:'right'});
         y += rowH;
     });
 

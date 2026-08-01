@@ -183,10 +183,15 @@ async function printOrder(id) {
             receipt = receipt.line(formatLine(`${r.name} x${r.qty}`, formatRM(r.cost), COLS));
         });
 
-        const totalLine = formatLine('TOTAL', formatRM((order.totalCost || 0)), COLS);
+        const totalLine = formatLine('TOTAL', formatRM(orderFinalTotal(order)), COLS);
 
         receipt = receipt.line(DASH);
         receipt = _appendSummaryLines(receipt, order, items, formatLine, COLS);
+        if (order.discountAmount > 0) {
+            receipt = receipt
+                .line(formatLine('Subtotal', formatRM(order.totalCost || 0), COLS))
+                .line(formatLine('Discount' + (order.discountReason ? ` (${order.discountReason})` : ''), '-' + formatRM(order.discountAmount), COLS));
+        }
         receipt = receipt
             .line(DASH)
             .bold(true)
@@ -262,9 +267,14 @@ async function printOrderReceipt(id) {
 
         receipt = receipt.line(DASH);
         receipt = _appendSummaryLines(receipt, order, items, formatLine, COLS);
+        if (order.discountAmount > 0) {
+            receipt = receipt
+                .line(formatLine('Subtotal', formatRM(order.totalCost || 0), COLS))
+                .line(formatLine('Discount' + (order.discountReason ? ` (${order.discountReason})` : ''), '-' + formatRM(order.discountAmount), COLS));
+        }
         receipt = receipt
             .bold(true)
-            .line(formatLine('TOTAL', formatRM((order.totalCost || 0)), COLS))
+            .line(formatLine('TOTAL', formatRM(orderFinalTotal(order)), COLS))
             .bold(false)
             .line(DASH);
 
@@ -272,7 +282,7 @@ async function printOrderReceipt(id) {
         const method  = order.paymentMethod;
         const online  = order.paymentOnline || 0;
         const cash    = order.paymentCash   || 0;
-        const total   = order.totalCost     || 0;
+        const total   = orderFinalTotal(order);
 
         if (order.isDeposit && method === 'online') {
             const balance = total - online;
