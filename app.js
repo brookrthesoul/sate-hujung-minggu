@@ -308,7 +308,7 @@ function _updateShopUI(isOpen) {
     label.textContent     = isOpen ? 'Open' : 'Closed';
     label.style.color     = isOpen ? '#28a745' : '#dc3545';
     banner.style.display  = 'block';
-    banner.textContent    = isOpen ? '🟢 We are Open' : '🔴 We are Closed';
+    banner.textContent    = isOpen ? '🟢 We are Open today' : '🔴 We are Closed today';
     banner.style.background = isOpen ? '#d4edda' : '#f8d7da';
     banner.style.color      = isOpen ? '#155724' : '#721c24';
 }

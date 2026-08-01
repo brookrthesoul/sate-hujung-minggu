@@ -566,6 +566,7 @@ let menuItems  = [];
 let stockData  = {};
 let boxData    = {}; // { itemId: qty } — Box (already cooked, ready to pack); see box.js on the admin side
 let shopIsOpen  = true;  // default open
+let shopStatusLoaded = false;  // true once we've synced shop status with the server at least once
 // Busy badge thresholds — two independently-toggleable categories. Defaults
 // mirror the admin Settings page (skewers on, custom off) so a shop that
 // hasn't touched these new settings sees no change in behavior.
@@ -703,7 +704,16 @@ async function loadShopStatus() {
             if (r.key === 'contactEmail')   contactEmail   = r.value || '';
             if (r.key === 'contactAddress') contactAddress = r.value || '';
         });
-    } catch(e) { shopIsOpen = true; }
+        shopStatusLoaded = true;
+    } catch(e) {
+        // Can't reach the server (offline, etc). Do NOT assume "open" here —
+        // that previously made the banner claim the shop was open (and let
+        // customers proceed to submit a normal order) even when it was
+        // actually closed. Keep whatever we last confirmed; if we've never
+        // confirmed anything yet, updateShopBanner() shows a neutral
+        // "can't verify" state instead of a false Open/Closed claim.
+        console.warn('Shop status load failed (offline?):', e);
+    }
     updateShopBanner();
     updatePreorderUI();
     renderContactUsModal();
@@ -776,6 +786,12 @@ function updateShopBanner() {
     const banner  = document.getElementById('shopBanner');
     const saveBtn = document.getElementById('saveBtn');
     if (!banner) return;
+    if (!shopStatusLoaded) {
+        banner.style.background = '#fff3cd';
+        banner.style.color      = '#856404';
+        banner.textContent      = '⚠️ Unable to verify shop status — please check your connection before ordering.';
+        return;
+    }
     if (shopIsOpen) {
         banner.style.background = '#d4edda';
         banner.style.color      = '#155724';
@@ -1185,6 +1201,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── Show order summary (validation + preview, no submission yet) ──────────────
 function showOrderSummary() {
+    // We can't validate against real shop-open/preorder/stock state if we've
+    // never actually reached the server. Rather than let the customer fill
+    // everything out on a guess and hit a submission error later, stop them
+    // here with a clear reason.
+    if (!shopStatusLoaded) {
+        alert('⚠️ Unable to verify shop status — please check your internet connection and try again.');
+        return;
+    }
+
     // Validate mandatory customer details first
     const nameEl  = document.getElementById('customerName');
     const phoneEl = document.getElementById('customerPhone');
@@ -1485,6 +1510,18 @@ async function confirmPlaceOrder() {
             if (result.reason === 'blocked') {
                 alert('❌ We\'re unable to process this order. Please contact us directly if you believe this is a mistake.');
                 closeSummary();
+                return;
+            }
+            if (result.reason === 'shop_closed') {
+                alert('🔴 Sorry, we\'re closed and can\'t accept this order right now. Please try again during opening hours.');
+                closeSummary();
+                await loadShopStatus();
+                return;
+            }
+            if (result.reason === 'preorder_disabled') {
+                alert('⚠️ Preorder is currently unavailable — you can only order for today.');
+                closeSummary();
+                await loadShopStatus();
                 return;
             }
             if (result.reason === 'no_items') {
