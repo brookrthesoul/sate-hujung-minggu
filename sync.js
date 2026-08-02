@@ -69,7 +69,18 @@ async function _sbUpdate(order) {
 }
 
 async function _sbDelete(id) {
-    await _sbFetch(`${TABLE}?id=eq.${id}`, { method: 'DELETE' });
+    // A 200 here does NOT guarantee a row was actually removed — PostgREST
+    // returns success even if the filter matched zero rows. Ask for the
+    // deleted row(s) back so we can tell the difference between "deleted"
+    // and "silently matched nothing", which would otherwise let the order
+    // quietly reappear on the next sync with no error ever shown.
+    const result = await _sbFetch(`${TABLE}?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: { 'Prefer': 'return=representation' }
+    });
+    if (!Array.isArray(result) || result.length === 0) {
+        throw new Error(`Server reported success but order #${id} was not found/removed (check RLS policy on 'orders' table for DELETE).`);
+    }
 }
 
 // ─── IndexedDB cache ──────────────────────────────────────────────────────────
