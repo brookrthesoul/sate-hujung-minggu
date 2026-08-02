@@ -81,7 +81,7 @@
         .order-description { background: white; border-radius: 12px; padding: 10px; margin: 10px 0; border: 1px dashed #17a2b8; cursor: text; outline: none; }
         .order-description:focus { border: 2px solid #17a2b8; background: #fff; }
         .action-buttons { display: flex; gap: 8px; }
-        .action-buttons button { margin: 0; padding: 14px 6px; font-size: 14px; }
+        .action-buttons button { margin: 0; padding: 8px; font-size: 16px; }
         .edit-btn { background: #17a2b8; }
         .delete-btn { background: #dc3545; }
         .save-btn { background: #28a745; }
