@@ -207,7 +207,13 @@ async function syncNow() {
     _syncing = true;
     setSyncStatus('syncing');
     try {
-        const remote = (await _sbGetAll()).filter(o => !_recentlyDeletedIds.has(o.id));
+        const rawRemote = await _sbGetAll();
+        const remote = rawRemote.filter(o => !_recentlyDeletedIds.has(o.id));
+        if (_recentlyDeletedIds.size > 0) {
+            console.log('[sync] guard active for:', [..._recentlyDeletedIds],
+                '| raw fetch had', rawRemote.length, 'rows, ids:', rawRemote.map(o=>o.id),
+                '| after filter:', remote.length, 'rows');
+        }
         // Keep offline-only orders (not yet pushed to Supabase)
         const localOffline = (await _idbGetAll()).filter(o => o._offline === true);
         await _idbReplaceAll(remote);
@@ -310,6 +316,7 @@ window._sbUpdateOrder = async function(order) {
 };
 
 window._sbDeleteOrder = async function(id) {
+    console.log('[delete] starting for id', id, typeof id);
     // Was this order created while offline and never actually pushed to
     // Supabase yet? If so there's nothing to delete server-side — just
     // cancel the pending 'add' so it's never sent at all. (Used to detect
@@ -317,6 +324,7 @@ window._sbDeleteOrder = async function(id) {
     // check the _offline flag instead.)
     const existing = (await _idbGetAll()).find(o => o.id === id);
     const isUnsyncedLocal = !!(existing && existing._offline === true);
+    console.log('[delete] existing local record:', existing, '| isUnsyncedLocal:', isUnsyncedLocal);
 
     _recentlyDeletedIds.add(id);
     await _idbDelete(id);
@@ -326,6 +334,7 @@ window._sbDeleteOrder = async function(id) {
         const idx = _offlineQueue.findIndex(item => item.op === 'add' && item.order.id === id);
         if (idx !== -1) _offlineQueue.splice(idx, 1);
         _recentlyDeletedIds.delete(id);
+        console.log('[delete] was unsynced-local, removed pending add op, done.');
         return;
     }
 
@@ -340,7 +349,8 @@ window._sbDeleteOrder = async function(id) {
                 if (attempt > 0) await new Promise(r => setTimeout(r, 600));
                 await _sbDelete(id);
                 ok = true;
-            } catch (e) { lastErr = e; }
+                console.log('[delete] server confirmed row removed, attempt', attempt);
+            } catch (e) { lastErr = e; console.log('[delete] attempt', attempt, 'failed:', e.message); }
         }
         if (ok) {
             setTimeout(() => syncNow().catch(console.error), 200);
@@ -360,7 +370,7 @@ window._sbDeleteOrder = async function(id) {
     // Keep guarding for a while after the delete request itself finishes,
     // to cover any sync that was already in flight (started before the
     // DELETE committed on the server) and hasn't resolved yet.
-    setTimeout(() => _recentlyDeletedIds.delete(id), 15000);
+    setTimeout(() => { _recentlyDeletedIds.delete(id); console.log('[delete] guard cleared for id', id); }, 15000);
 };
 
 // ─── Online / offline ─────────────────────────────────────────────────────────
@@ -388,7 +398,7 @@ window.addEventListener('offline', () => {
 // ─── Polling fallback every 10s ───────────────────────────────────────────────
 
 setInterval(() => {
-    if (navigator.onLine && !_syncing && !_draining) syncNow().catch(console.error);
+    if (navigator.onLine && !_syncing && !_draining) { console.log('[sync] triggered by 10s poll'); syncNow().catch(console.error); }
     // Also refresh menu so price/item changes from other devices appear
     if (navigator.onLine && typeof _loadMenuFromSupabase === 'function') {
         _loadMenuFromSupabase().then(remote => {
@@ -467,6 +477,7 @@ function connectRealtime() {
                     if (typeof window._syncStock === 'function') window._syncStock().catch(console.warn);
                 } else {
                     // Orders changed
+                    console.log('[sync] triggered by websocket, event type:', f.payload?.data?.type, 'record:', f.payload?.data?.record || f.payload?.data?.old_record);
                     if (!_syncing) syncNow().catch(console.error);
                 }
             }
