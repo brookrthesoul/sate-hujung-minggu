@@ -319,8 +319,27 @@ window._sbDeleteOrder = async function(id) {
     }
 
     if (navigator.onLine) {
-        await _sbDelete(id);
-        setTimeout(() => syncNow().catch(console.error), 200);
+        // Retry a couple of times before giving up — a transient failure
+        // here used to leave the guard set forever (blocking it silently)
+        // or, after a reload reset the guard, let the still-undeleted
+        // order quietly reappear with no explanation.
+        let ok = false, lastErr = null;
+        for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+            try {
+                if (attempt > 0) await new Promise(r => setTimeout(r, 600));
+                await _sbDelete(id);
+                ok = true;
+            } catch (e) { lastErr = e; }
+        }
+        if (ok) {
+            setTimeout(() => syncNow().catch(console.error), 200);
+        } else {
+            console.error('Delete failed after retries:', lastErr);
+            _recentlyDeletedIds.delete(id);
+            alert('❌ Could not delete order #' + id + ' — it will reappear. Check your connection and try again.' + (lastErr ? '\n\n' + lastErr.message : ''));
+            syncNow().catch(console.error);
+            return;
+        }
     } else {
         _offlineQueue.push({ op: 'delete', id });
         _pendingSync = true;
