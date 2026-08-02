@@ -177,6 +177,15 @@ async function _takeNextOrderNumber() {
 let _syncing  = false;
 let _draining = false;
 
+// Orders we've just told the server to delete. A concurrent sync (the 10s
+// poll, a websocket event, or even the delete's own follow-up sync) can
+// fetch the full order list from Supabase before that DELETE has actually
+// committed — the fetch still includes the row, and a plain replace-all
+// would put it right back in IndexedDB and on screen a few seconds after
+// it was deleted. Filtering these ids out of every sync for a short window
+// closes that race regardless of which sync call wins it.
+const _recentlyDeletedIds = new Set();
+
 function _rerender() {
     if (typeof loadOrders    === 'function') loadOrders();
     if (typeof loadPreorders === 'function') loadPreorders();
@@ -187,7 +196,7 @@ async function syncNow() {
     _syncing = true;
     setSyncStatus('syncing');
     try {
-        const remote = await _sbGetAll();
+        const remote = (await _sbGetAll()).filter(o => !_recentlyDeletedIds.has(o.id));
         // Keep offline-only orders (not yet pushed to Supabase)
         const localOffline = (await _idbGetAll()).filter(o => o._offline === true);
         await _idbReplaceAll(remote);
@@ -298,12 +307,14 @@ window._sbDeleteOrder = async function(id) {
     const existing = (await _idbGetAll()).find(o => o.id === id);
     const isUnsyncedLocal = !!(existing && existing._offline === true);
 
+    _recentlyDeletedIds.add(id);
     await _idbDelete(id);
     _rerender();
 
     if (isUnsyncedLocal) {
         const idx = _offlineQueue.findIndex(item => item.op === 'add' && item.order.id === id);
         if (idx !== -1) _offlineQueue.splice(idx, 1);
+        _recentlyDeletedIds.delete(id);
         return;
     }
 
@@ -315,6 +326,11 @@ window._sbDeleteOrder = async function(id) {
         _pendingSync = true;
         showSyncToast('📴 Deleted offline — will sync when connected');
     }
+
+    // Keep guarding for a while after the delete request itself finishes,
+    // to cover any sync that was already in flight (started before the
+    // DELETE committed on the server) and hasn't resolved yet.
+    setTimeout(() => _recentlyDeletedIds.delete(id), 15000);
 };
 
 // ─── Online / offline ─────────────────────────────────────────────────────────
