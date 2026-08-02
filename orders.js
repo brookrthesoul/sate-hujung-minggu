@@ -1400,10 +1400,8 @@ function renderOrderCard(card, rawOrder, stage) {
             <div class="action-buttons">
                 <button class="delete-btn" onclick="deleteOrderConfirm(${o.id})">🗑️ Cancel</button>
                 <button class="edit-btn"   onclick="startEditTo(${o.id}, 'prepare')">✏️ Edit</button>
-                <button class="pay-method-btn" onclick="openPaymentModal(${o.id}, ${o.totalCost}, 'prepare')">💳 Payment</button>
-            </div>
-            <div class="action-buttons" style="margin-top:8px;">
                 ${linkBtn}
+                <button class="pay-method-btn" onclick="openPaymentModal(${o.id}, ${o.totalCost}, 'prepare')">💳 Payment</button>
             </div>
             ${markPaidBtn}
             ${printReceiptBtnPrepare}
@@ -1443,10 +1441,8 @@ function renderOrderCard(card, rawOrder, stage) {
             <div class="action-buttons">
                 <button class="delete-btn" onclick="deleteOrderConfirm(${o.id})">🗑️ Cancel</button>
                 <button class="edit-btn"   onclick="startEditTo(${o.id}, 'prepared')">✏️ Edit</button>
-                <button class="pay-method-btn" onclick="openPaymentModal(${o.id}, ${o.totalCost}, 'prepared')">💳 Payment</button>
-            </div>
-            <div class="action-buttons" style="margin-top:8px;">
                 ${linkBtn}
+                <button class="pay-method-btn" onclick="openPaymentModal(${o.id}, ${o.totalCost}, 'prepared')">💳 Payment</button>
             </div>
             ${printReceiptBtnPrepared}
             ${readyBtn}
@@ -1470,11 +1466,9 @@ function renderOrderCard(card, rawOrder, stage) {
             ${readonlyDesc}
             <div class="action-buttons">
                 <button class="edit-btn"       onclick="undoToPrepared(${o.id})">↩️ Undo</button>
+                ${linkBtnPaid}
                 <button class="pay-method-btn" onclick="openPaymentModal(${o.id}, ${o.totalCost}, 'paid')">💳 Update Payment</button>
                 <button class="status-btn picked" onclick="markPickedUp(${o.id})">📦 Picked Up</button>
-            </div>
-            <div class="action-buttons" style="margin-top:8px;">
-                ${linkBtnPaid}
             </div>`
             : `${header}${groupBadgePaid}${paymentBadgeHTML(o) ? `<div style="margin:4px 0;">${paymentBadgeHTML(o)}</div>` : ''}${miniView}`;
         return;
