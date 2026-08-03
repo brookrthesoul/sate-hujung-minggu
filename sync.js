@@ -446,6 +446,22 @@ window.addEventListener('offline', () => {
     _pendingSync = true;
 });
 
+// Background tabs get setInterval throttled by the browser (sometimes to
+// once a minute or less) and can have their websocket connection silently
+// dropped without ever firing a close/error event. Neither the poll nor a
+// dead realtime connection reliably catches up on their own — so force an
+// immediate resync (and reconnect if needed) the moment this tab/app is
+// actually looked at again, rather than leaving it stale indefinitely.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    console.log('[visibility] tab became visible — forcing resync');
+    if (navigator.onLine) {
+        if (!_ws || _ws.readyState !== WebSocket.OPEN) connectRealtime();
+        if (_offlineQueue.length > 0) _drainOfflineQueue().catch(console.error);
+        else syncNow().catch(console.error);
+    }
+});
+
 // ─── Polling fallback every 10s ───────────────────────────────────────────────
 
 setInterval(() => {
