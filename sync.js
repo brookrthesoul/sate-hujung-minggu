@@ -235,8 +235,35 @@ async function syncNow() {
 const pullFromCloud = syncNow;
 
 // ─── Offline queue ────────────────────────────────────────────────────────────
+// Persisted to localStorage — this used to be a plain in-memory array, which
+// meant closing or reloading the app before a pending offline order finished
+// syncing would silently drop that "push this to the server" instruction
+// forever. The order itself (already in IndexedDB) would survive with its
+// _offline flag stuck true, permanently orphaned: never actually reaching
+// the server, yet looking locally like it's just "waiting to sync".
 
-const _offlineQueue = [];
+const _OFFLINE_QUEUE_KEY = 'sate_offlineQueue';
+
+function _loadOfflineQueue() {
+    try {
+        const raw = localStorage.getItem(_OFFLINE_QUEUE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        console.warn('Failed to load persisted offline queue:', e);
+        return [];
+    }
+}
+
+function _saveOfflineQueue() {
+    try { localStorage.setItem(_OFFLINE_QUEUE_KEY, JSON.stringify(_offlineQueue)); }
+    catch (e) { console.warn('Failed to persist offline queue:', e); }
+}
+
+const _offlineQueue = _loadOfflineQueue();
+if (_offlineQueue.length > 0) {
+    console.log('[offline queue] restored', _offlineQueue.length, 'pending op(s) from a previous session:', _offlineQueue);
+}
 
 async function _drainOfflineQueue() {
     if (_offlineQueue.length === 0) { await syncNow(); return; }
@@ -245,6 +272,7 @@ async function _drainOfflineQueue() {
 
     const queue = [..._offlineQueue];
     _offlineQueue.length = 0;
+    _saveOfflineQueue();
 
     for (const item of queue) {
         try {
@@ -267,6 +295,7 @@ async function _drainOfflineQueue() {
             _offlineQueue.push(item); // retry next time
         }
     }
+    _saveOfflineQueue();
 
     _draining = false;
     await syncNow(); // full sync to reconcile all devices
@@ -288,6 +317,7 @@ window._sbAddOrder = async function(order) {
         const tempOrder = { ...clean, id: tempId, _offline: true };
         await _idbPut(tempOrder);
         _offlineQueue.push({ op: 'add', order: tempOrder });
+        _saveOfflineQueue();
         _pendingSync = true;
         _rerender();
         showSyncToast('📴 Saved offline — will sync when connected');
@@ -309,6 +339,7 @@ window._sbUpdateOrder = async function(order) {
         setTimeout(() => syncNow().catch(console.error), 200);
     } else {
         _offlineQueue.push({ op: 'update', order });
+        _saveOfflineQueue();
         _pendingSync = true;
         showSyncToast('📴 Saved offline — will sync when connected');
     }
@@ -332,9 +363,28 @@ window._sbDeleteOrder = async function(id) {
 
     if (isUnsyncedLocal) {
         const idx = _offlineQueue.findIndex(item => item.op === 'add' && item.order.id === id);
-        if (idx !== -1) _offlineQueue.splice(idx, 1);
+        if (idx !== -1) { _offlineQueue.splice(idx, 1); _saveOfflineQueue(); }
+        console.log('[delete] flagged unsynced-local, removed pending add op (found in queue:', idx !== -1, ')');
+
+        // The _offline flag SHOULD mean this never reached the server — but
+        // if that flag is ever stale (it actually synced successfully at
+        // some point and the flag just never got cleared, e.g. the
+        // in-memory offline queue was lost on a reload before it could
+        // finish draining), skipping the server delete here would leave
+        // the row sitting on Supabase, and the very next sync would pull
+        // it right back down. So always also attempt a real server delete
+        // when online — a "nothing there" result is expected/normal for a
+        // genuinely never-synced order, so we don't treat that as a failure.
+        if (navigator.onLine) {
+            try {
+                await _sbDelete(id);
+                console.log('[delete] stale _offline flag confirmed — also removed a matching row on the server for id', id);
+            } catch (e) {
+                console.log('[delete] no matching server row found for id', id, '(expected for a genuinely never-synced order)');
+            }
+        }
+
         _recentlyDeletedIds.delete(id);
-        console.log('[delete] was unsynced-local, removed pending add op, done.');
         return;
     }
 
@@ -363,6 +413,7 @@ window._sbDeleteOrder = async function(id) {
         }
     } else {
         _offlineQueue.push({ op: 'delete', id });
+        _saveOfflineQueue();
         _pendingSync = true;
         showSyncToast('📴 Deleted offline — will sync when connected');
     }
@@ -837,7 +888,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     if (navigator.onLine) {
-        await syncNow();
+        if (_offlineQueue.length > 0) {
+            console.log('[startup] draining', _offlineQueue.length, 'pending offline op(s) instead of a plain sync');
+            await _drainOfflineQueue();
+        } else {
+            await syncNow();
+        }
         connectRealtime();
     } else {
         setSyncStatus('offline');
