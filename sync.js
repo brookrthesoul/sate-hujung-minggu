@@ -274,6 +274,16 @@ async function _drainOfflineQueue() {
     _offlineQueue.length = 0;
     _saveOfflineQueue();
 
+    // If an order created offline gets renumbered on the way in (its
+    // predicted id collided with something already on the server), every
+    // OTHER queued op for that same order — a stage-transition update made
+    // while still offline, a delete — still refers to the old predicted
+    // id. A PATCH/DELETE against an id that doesn't exist matches zero
+    // rows and fails completely silently, with no error, so that update
+    // just vanishes instead of ever reaching the real row. Track and
+    // rewrite ids as we go so the rest of the batch follows the renumber.
+    const idRemap = new Map();
+
     for (const item of queue) {
         try {
             if (item.op === 'add') {
@@ -283,12 +293,15 @@ async function _drainOfflineQueue() {
                 await _idbDelete(tempId);
                 await _idbPut(saved);
                 if (saved.id !== tempId) {
+                    idRemap.set(tempId, saved.id);
                     showSyncToast(`⚠️ Order #${tempId} is now #${saved.id} — another order took that number`);
                 }
             } else if (item.op === 'update') {
-                await _sbUpdate(item.order);
+                const realId = idRemap.has(item.order.id) ? idRemap.get(item.order.id) : item.order.id;
+                await _sbUpdate(realId === item.order.id ? item.order : { ...item.order, id: realId });
             } else if (item.op === 'delete') {
-                await _sbDelete(item.id);
+                const realId = idRemap.has(item.id) ? idRemap.get(item.id) : item.id;
+                await _sbDelete(realId);
             }
         } catch (e) {
             console.error('Queue drain error:', e);
@@ -465,7 +478,15 @@ document.addEventListener('visibilitychange', () => {
 // ─── Polling fallback every 10s ───────────────────────────────────────────────
 
 setInterval(() => {
-    if (navigator.onLine && !_syncing && !_draining) { console.log('[sync] triggered by 10s poll'); syncNow().catch(console.error); }
+    if (navigator.onLine && !_syncing && !_draining) {
+        if (_offlineQueue.length > 0) {
+            console.log('[sync] 10s poll found pending offline queue — draining instead of a plain sync');
+            _drainOfflineQueue().catch(console.error);
+        } else {
+            console.log('[sync] triggered by 10s poll');
+            syncNow().catch(console.error);
+        }
+    }
     // Also refresh menu so price/item changes from other devices appear
     if (navigator.onLine && typeof _loadMenuFromSupabase === 'function') {
         _loadMenuFromSupabase().then(remote => {
