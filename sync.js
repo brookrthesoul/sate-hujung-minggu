@@ -472,12 +472,16 @@ document.addEventListener('visibilitychange', () => {
         if (!_ws || _ws.readyState !== WebSocket.OPEN) connectRealtime();
         if (_offlineQueue.length > 0) _drainOfflineQueue().catch(console.error);
         else syncNow().catch(console.error);
+        syncSettingsFromCloud().catch(console.warn);
     }
 });
 
 // ─── Polling fallback every 10s ───────────────────────────────────────────────
 
+let _pollTick = 0;
+
 setInterval(() => {
+    _pollTick++;
     if (navigator.onLine && !_syncing && !_draining) {
         if (_offlineQueue.length > 0) {
             console.log('[sync] 10s poll found pending offline queue — draining instead of a plain sync');
@@ -501,6 +505,12 @@ setInterval(() => {
                 if (typeof refreshAfterMenuChange === 'function') refreshAfterMenuChange();
             }
         }).catch(() => {});
+    }
+    // Settings (shop open/closed, thresholds, etc.) rarely change, so this
+    // is just a fallback for whenever the websocket happens to be down —
+    // every 3rd tick (~30s) is plenty responsive without being chatty.
+    if (navigator.onLine && _pollTick % 3 === 0) {
+        syncSettingsFromCloud().catch(console.warn);
     }
 }, 10000);
 
@@ -544,6 +554,19 @@ function connectRealtime() {
             }},
             ref: String(_wsRef++)
         }));
+        // Subscribe to settings table — shop open/closed, busy thresholds,
+        // preorder toggle, etc. Without this, a change made on one admin
+        // device only ever reached OTHER admin devices on their next
+        // manual page refresh (the customer-facing order page already
+        // polls this on its own, so it wasn't affected).
+        _ws.send(JSON.stringify({
+            topic: 'realtime:settings-sync', event: 'phx_join',
+            payload: { config: {
+                broadcast: { self: false }, presence: { key: '' },
+                postgres_changes: [{ event: '*', schema: 'public', table: 'settings' }]
+            }},
+            ref: String(_wsRef++)
+        }));
         _wsHB = setInterval(() => {
             if (_ws.readyState === WebSocket.OPEN)
                 _ws.send(JSON.stringify({ topic:'phoenix', event:'heartbeat', payload:{}, ref: String(_wsRef++) }));
@@ -563,6 +586,11 @@ function connectRealtime() {
                 } else if (table.includes('stock')) {
                     // Stock changed on another device — re-sync stock
                     if (typeof window._syncStock === 'function') window._syncStock().catch(console.warn);
+                } else if (table === 'settings' || table.includes('settings')) {
+                    // Shop open/closed, busy thresholds, preorder toggle,
+                    // etc. changed on another device
+                    console.log('[sync] settings changed on another device, event type:', f.payload?.data?.type);
+                    syncSettingsFromCloud().catch(console.warn);
                 } else {
                     // Orders changed
                     console.log('[sync] triggered by websocket, event type:', f.payload?.data?.type, 'record:', f.payload?.data?.record || f.payload?.data?.old_record);
@@ -947,64 +975,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (typeof loadBoxStock === 'function') await loadBoxStock();
     } catch(e) { console.warn('Box stock sync error:', e); }
 
-    // Sync shop status from Supabase
-    try {
-        const remote = await window._readShopStatus();
-        if (remote !== null) {
-            localStorage.setItem('shmShopOpen', remote ? '1' : '0');
-            if (typeof initShopToggle === 'function') initShopToggle();
-        }
-    } catch(e) { console.warn('Shop status sync error:', e); }
-
-    // Sync busy thresholds (skewer + custom) from Supabase
-    try {
-        if (typeof BUSY_SETTINGS !== 'undefined') {
-            for (const s of BUSY_SETTINGS) {
-                const value = await window._readSetting(s.key);
-                if (value !== null) localStorage.setItem(s.storageKey, s.type === 'bool' ? (value === 'true' || value === '1' ? '1' : '0') : value);
-            }
-        }
-        if (typeof initBusyThresholds === 'function') initBusyThresholds();
-    } catch(e) { console.warn('Threshold sync error:', e); }
-
-    // Sync business name from Supabase
-    try {
-        const name = await window._readSetting('businessName');
-        if (name) {
-            localStorage.setItem('shmBusinessName', name);
-            if (typeof initBusinessName === 'function') initBusinessName();
-        }
-    } catch(e) { console.warn('Business name sync error:', e); }
-
-    // Sync Contact Us info from Supabase (see box.js-adjacent Contact Us
-    // popup on the customer page — this is just the admin-side edit form)
-    try {
-        const phone   = await window._readSetting('contactPhone');
-        const email   = await window._readSetting('contactEmail');
-        const address = await window._readSetting('contactAddress');
-        if (phone   !== null) localStorage.setItem('shmContactPhone', phone);
-        if (email   !== null) localStorage.setItem('shmContactEmail', email);
-        if (address !== null) localStorage.setItem('shmContactAddress', address);
-        if (typeof initContactUs === 'function') initContactUs();
-    } catch(e) { console.warn('Contact Us sync error:', e); }
-
-    // Sync kuah ratio from Supabase
-    try {
-        const ratio = await window._readSetting('kuahRatio');
-        if (ratio) {
-            localStorage.setItem('shmKuahRatio', ratio);
-            if (typeof initKuahRatio === 'function') initKuahRatio();
-        }
-    } catch(e) { console.warn('Kuah ratio sync error:', e); }
-
-    // Sync preorder enabled from Supabase
-    try {
-        const pre = await window._readSetting('preorderEnabled');
-        if (pre !== null) {
-            localStorage.setItem('shmPreorderEnabled', pre === 'true' ? '1' : '0');
-            if (typeof initPreorderToggle === 'function') initPreorderToggle();
-        }
-    } catch(e) { console.warn('Preorder toggle sync error:', e); }
+    await syncSettingsFromCloud();
 
     // Run day-close check AFTER sync completes — guaranteed fresh data
     try {
@@ -1324,6 +1295,67 @@ window._readShopStatus = async function() {
     } catch(e) { console.warn('Shop status read failed:', e); }
     return null; // null = not set, treat as open
 };
+
+// Pulls shop-open, busy thresholds, business name, contact info, kuah
+// ratio, and preorder-enabled from Supabase and applies them locally. Used
+// on startup, and ALSO whenever the 'settings' table changes on another
+// device (see connectRealtime's postgres_changes handler) or on the
+// periodic poll — otherwise a toggle made on one admin device (e.g.
+// opening/closing the shop) would only ever show up on other admin
+// devices after a manual refresh, since nothing was re-pulling it live.
+async function syncSettingsFromCloud() {
+    try {
+        const remote = await window._readShopStatus();
+        if (remote !== null) {
+            localStorage.setItem('shmShopOpen', remote ? '1' : '0');
+            if (typeof initShopToggle === 'function') initShopToggle();
+        }
+    } catch(e) { console.warn('Shop status sync error:', e); }
+
+    try {
+        if (typeof BUSY_SETTINGS !== 'undefined') {
+            for (const s of BUSY_SETTINGS) {
+                const value = await window._readSetting(s.key);
+                if (value !== null) localStorage.setItem(s.storageKey, s.type === 'bool' ? (value === 'true' || value === '1' ? '1' : '0') : value);
+            }
+        }
+        if (typeof initBusyThresholds === 'function') initBusyThresholds();
+    } catch(e) { console.warn('Threshold sync error:', e); }
+
+    try {
+        const name = await window._readSetting('businessName');
+        if (name) {
+            localStorage.setItem('shmBusinessName', name);
+            if (typeof initBusinessName === 'function') initBusinessName();
+        }
+    } catch(e) { console.warn('Business name sync error:', e); }
+
+    try {
+        const phone   = await window._readSetting('contactPhone');
+        const email   = await window._readSetting('contactEmail');
+        const address = await window._readSetting('contactAddress');
+        if (phone   !== null) localStorage.setItem('shmContactPhone', phone);
+        if (email   !== null) localStorage.setItem('shmContactEmail', email);
+        if (address !== null) localStorage.setItem('shmContactAddress', address);
+        if (typeof initContactUs === 'function') initContactUs();
+    } catch(e) { console.warn('Contact Us sync error:', e); }
+
+    try {
+        const ratio = await window._readSetting('kuahRatio');
+        if (ratio) {
+            localStorage.setItem('shmKuahRatio', ratio);
+            if (typeof initKuahRatio === 'function') initKuahRatio();
+        }
+    } catch(e) { console.warn('Kuah ratio sync error:', e); }
+
+    try {
+        const pre = await window._readSetting('preorderEnabled');
+        if (pre !== null) {
+            localStorage.setItem('shmPreorderEnabled', pre === 'true' ? '1' : '0');
+            if (typeof initPreorderToggle === 'function') initPreorderToggle();
+        }
+    } catch(e) { console.warn('Preorder toggle sync error:', e); }
+}
 
 // ─── Reset all orders ─────────────────────────────────────────────────────────
 // Deletes all orders from Supabase + IndexedDB and resets the ID sequence to 1.
