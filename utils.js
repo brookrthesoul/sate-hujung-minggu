@@ -236,3 +236,84 @@ function formatTime12hr(hhmm) {
     if (h === 0) h = 12;
     return `${h}:${mStr} ${mer}`;
 }
+
+// ─── Numeric keyboard "Done" bar ───────────────────────────────────────────
+// type="number" inputs bring up the device's on-screen numeric keypad, but
+// unlike the text keyboard it often has no obvious "Done"/return key — the
+// only way to dismiss it is the small "⌄" collapse control (position varies
+// by keyboard app) or tapping empty space above it. This adds a small
+// floating "Done" bar that appears right above the keypad whenever ANY
+// number input in the app is focused, and blurs it (closing the keypad) when
+// tapped. Delegated on `document`, so it automatically covers every number
+// input — including ones rendered later by orders.js/stock.js/menu.js/etc —
+// with nothing to change at each individual <input>.
+(function () {
+    let bar = null;
+    let hideTimer = null;
+
+    function isNumInput(el) {
+        return !!(el && el.matches && el.matches('input[type="number"]'));
+    }
+
+    function ensureBar() {
+        if (bar) return bar;
+        bar = document.createElement('div');
+        bar.className = 'num-done-bar';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'num-done-btn';
+        btn.textContent = 'Done';
+        // pointerdown (fired before focusout) + preventDefault so the input
+        // never actually loses focus to the button itself — we blur it
+        // ourselves right here instead. Without this, tapping the button
+        // would blur-then-refocus and the bar would flicker or the keypad
+        // wouldn't close reliably on the first tap.
+        btn.addEventListener('pointerdown', e => {
+            e.preventDefault();
+            if (isNumInput(document.activeElement)) document.activeElement.blur();
+            hideBar();
+        });
+        bar.appendChild(btn);
+        document.body.appendChild(bar);
+        return bar;
+    }
+
+    function positionBar() {
+        if (!bar) return;
+        const vv = window.visualViewport;
+        // Sit flush above the visible on-screen keyboard. Falls back to the
+        // bottom of the screen on browsers without the visualViewport API.
+        const gap = vv ? (window.innerHeight - vv.height - vv.offsetTop) : 0;
+        bar.style.bottom = Math.max(0, gap) + 'px';
+    }
+
+    function showBar() {
+        clearTimeout(hideTimer);
+        ensureBar();
+        positionBar();
+        requestAnimationFrame(() => bar.classList.add('num-done-open'));
+    }
+
+    function hideBar() {
+        if (bar) bar.classList.remove('num-done-open');
+    }
+
+    document.addEventListener('focusin', e => {
+        if (isNumInput(e.target)) showBar();
+    });
+
+    document.addEventListener('focusout', e => {
+        if (!isNumInput(e.target)) return;
+        // Short grace period: tapping the Done button, or focus moving
+        // straight to another number input, shouldn't cause the bar to
+        // flash closed and reopen.
+        hideTimer = setTimeout(() => {
+            if (!isNumInput(document.activeElement)) hideBar();
+        }, 80);
+    });
+
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', positionBar);
+        window.visualViewport.addEventListener('scroll', positionBar);
+    }
+})();
