@@ -714,6 +714,30 @@
         </div>
     </div>
 
+    <!-- QTY EDITOR MODAL (New Order — tap an item button to set its quantity) -->
+    <div id="qtyEditorModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:18px; padding:24px; width:92%; max-width:360px; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+            <h3 id="qtyEditorTitle" style="margin:0 0 2px;">Item</h3>
+            <div id="qtyEditorPrice" style="font-size:13px;color:#666;margin-bottom:12px;"></div>
+            <input type="number" id="qtyEditorInput" min="0" step="1" placeholder="0"
+                inputmode="numeric" oninput="updateQtyEditorStockHint()">
+            <div id="qtyEditorStockHint" class="stock-indicator" style="text-align:center;margin-top:6px;"></div>
+            <div class="qty-editor-presets">
+                <button type="button" onclick="adjustQtyEditorInput(1)">+1</button>
+                <button type="button" onclick="adjustQtyEditorInput(5)">+5</button>
+                <button type="button" onclick="adjustQtyEditorInput(10)">+10</button>
+                <button type="button" onclick="adjustQtyEditorInput(20)">+20</button>
+                <button type="button" onclick="adjustQtyEditorInput(50)">+50</button>
+                <button type="button" onclick="adjustQtyEditorInput(100)">+100</button>
+            </div>
+            <div class="qty-editor-actions">
+                <button type="button" class="qe-clear" onclick="clearQtyEditorInput()">Clear</button>
+                <button type="button" class="qe-cancel" onclick="cancelQtyEditor()">Cancel</button>
+                <button type="button" class="qe-done" onclick="confirmQtyEditor()">Done</button>
+            </div>
+        </div>
+    </div>
+
     <!-- BOX MODAL (Prepare tab Box bar — tap a chip to edit that item's box qty,
          or "+ Add" to put a new item into the box for the first time. See box.js.
          Every change (stepper tap, typed number, Reset) auto-saves instantly —

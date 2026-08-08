@@ -108,9 +108,11 @@
             if (ayamInput) {
                 ayamInput.value = ayamQty || '';
                 if (typeof checkStockInput === 'function') checkStockInput('ayam', ayamInput.value);
+                if (typeof refreshMenuItemButton === 'function') refreshMenuItemButton('ayam');
             }
             if (dagingInput) {
                 dagingInput.value = dagingQty || '';
                 if (typeof checkStockInput === 'function') checkStockInput('daging', dagingInput.value);
+                if (typeof refreshMenuItemButton === 'function') refreshMenuItemButton('daging');
             }
         }

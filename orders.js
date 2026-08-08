@@ -75,53 +75,122 @@ function normalizeOrder(order) {
 }
 
 // ---------- Home: menu inputs ----------
+// v2: each item is a single tappable button — name, price, current qty
+// badge, and the stock-left hint. Tapping it opens the shared Qty Editor
+// modal below to set the quantity, instead of typing straight into a
+// numeric field. A hidden <input id="qty-${item.id}"> still holds the real
+// value for every existing consumer — getQuantitiesFromHome, checkStockInput,
+// the Ratio allocator's "Fill New Order" button, and the paste-message
+// auto-fill — so none of them need to know the UI changed underneath them.
 function renderHomeMenuInputs() {
     const container = document.getElementById('menuInputs');
     if (!container) return;
     container.innerHTML = getMenuItems().map(item => {
-        const isSate = item.category === 'skewer' || item.category === 'no-kuah';
         const unitSuffix = (item.category === 'custom-unit' && item.unitLabel)
             ? ` <span style="font-weight:400;color:#888;">(${escapeHtml(item.unitLabel)})</span>` : '';
-        if (isSate) {
-            return `<div style="display:flex;flex-direction:column;gap:4px;">
-                <label id="label-${item.id}" style="font-size:13px;font-weight:600;line-height:1.3;">
-                    ${escapeHtml(item.name)}${unitSuffix}<br><span style="font-weight:400;color:#666;">${formatRM(item.price)}</span>
-                </label>
-                <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0"
-                    style="width:100%;box-sizing:border-box;"
-                    oninput="checkStockInput('${item.id}', this.value)">
+        return `<div class="menu-item-cell">
+            <button type="button" class="menu-item-btn" id="menu-item-btn-${item.id}" onclick="openQtyEditor('${item.id}')">
+                <span class="menu-item-name">${escapeHtml(item.name)}${unitSuffix}</span>
+                <span class="menu-item-price">${formatRM(item.price)}</span>
+                <span class="menu-item-qty-badge" id="menu-item-qty-${item.id}">0</span>
                 <span id="stock-indicator-${item.id}" class="stock-indicator"></span>
-            </div>`;
-        } else {
-            return `<div style="display:flex;flex-direction:column;gap:4px;">
-                <label id="label-${item.id}" style="font-size:13px;font-weight:600;line-height:1.3;">
-                    ${escapeHtml(item.name)}${unitSuffix}<br><span style="font-weight:400;color:#666;">${formatRM(item.price)}</span>
-                </label>
-                <div style="display:flex;align-items:center;gap:4px;">
-                    <button type="button" onclick="adjustQty('${item.id}',-1)"
-                        style="width:30px;height:30px;border-radius:7px;border:2px solid #6c757d;background:#e9ecef;font-size:16px;font-weight:900;cursor:pointer;flex-shrink:0;color:#343a40;line-height:1;padding:0;">−</button>
-                    <input type="number" id="qty-${item.id}" min="0" step="1" placeholder="0"
-                        style="flex:1;min-width:0;width:100%;box-sizing:border-box;text-align:center;font-size:15px;font-weight:700;padding:8px 4px;"
-                        oninput="checkStockInput('${item.id}', this.value)">
-                    <button type="button" onclick="adjustQty('${item.id}',+1)"
-                        style="width:30px;height:30px;border-radius:7px;border:2px solid #6c757d;background:#e9ecef;font-size:16px;font-weight:900;cursor:pointer;flex-shrink:0;color:#343a40;line-height:1;padding:0;">+</button>
-                </div>
-                <span id="stock-indicator-${item.id}" class="stock-indicator"></span>
-            </div>`;
-        }
+            </button>
+            <input type="number" id="qty-${item.id}" style="display:none" tabindex="-1" aria-hidden="true">
+        </div>`;
     }).join('');
     if (typeof updateStockIndicators === 'function') updateStockIndicators();
 }
 
-function adjustQty(id, delta) {
-    const el  = document.getElementById('qty-' + id);
-    if (!el) return;
-    const val = Math.max(0, (parseInt(el.value) || 0) + delta);
-    el.value  = val;
-    if (typeof checkStockInput === 'function') checkStockInput(id, val);
-    // If the review modal is already open, keep it in sync with the change
+// ── Qty Editor modal (tap a menu item button → set its quantity) ──────────
+let _qtyEditorItemId = null;
+
+function openQtyEditor(itemId) {
+    const item = getMenuItems().find(i => i.id === itemId);
+    if (!item) return;
+    _qtyEditorItemId = itemId;
+
+    const unitSuffix = (item.category === 'custom-unit' && item.unitLabel) ? ` (${item.unitLabel})` : '';
+    document.getElementById('qtyEditorTitle').textContent = item.name + unitSuffix;
+    document.getElementById('qtyEditorPrice').textContent = formatRM(item.price);
+
+    const hiddenInput = document.getElementById(`qty-${itemId}`);
+    const currentQty  = hiddenInput ? (parseInt(hiddenInput.value) || 0) : 0;
+    const input = document.getElementById('qtyEditorInput');
+    input.value = currentQty || '';
+
+    showModalById('qtyEditorModal');
+    updateQtyEditorStockHint();
+    // Slight delay so focus/select happens after the modal is actually visible
+    setTimeout(() => { input.focus(); input.select(); }, 50);
+}
+
+function adjustQtyEditorInput(delta) {
+    const input = document.getElementById('qtyEditorInput');
+    const val = Math.max(0, (parseInt(input.value) || 0) + delta);
+    input.value = val;
+    updateQtyEditorStockHint();
+}
+
+function clearQtyEditorInput() {
+    const input = document.getElementById('qtyEditorInput');
+    input.value = '';
+    updateQtyEditorStockHint();
+    input.focus();
+}
+
+// Same hint text/logic checkStockInput already used, just reading from the
+// modal's input instead of the (now hidden) per-item field. This is
+// display-only — staff can still enter more than what's "available", same
+// as the old +/- form could.
+function updateQtyEditorStockHint() {
+    if (!_qtyEditorItemId) return;
+    const hint = document.getElementById('qtyEditorStockHint');
+    if (!hint) return;
+    const qty   = parseInt(document.getElementById('qtyEditorInput').value) || 0;
+    const avail = (typeof _availableFor === 'function') ? _availableFor(_qtyEditorItemId) : null;
+    if (avail === null) { hint.textContent = ''; hint.className = 'stock-indicator'; return; }
+    if (avail === 0) { hint.textContent = 'Out of stock'; hint.className = 'stock-indicator stock-out'; return; }
+    if (qty > avail) { hint.textContent = `Insufficient — only ${avail} left`; hint.className = 'stock-indicator stock-out'; return; }
+    const remaining = avail - qty;
+    hint.textContent = qty > 0 ? `${avail} left → ${remaining} after this order` : `${avail} left`;
+    hint.className   = remaining <= 10 ? 'stock-indicator stock-low' : 'stock-indicator stock-ok';
+}
+
+function cancelQtyEditor() {
+    hideModalById('qtyEditorModal');
+    _qtyEditorItemId = null;
+}
+
+function confirmQtyEditor() {
+    if (!_qtyEditorItemId) return;
+    const itemId = _qtyEditorItemId;
+    const qty = Math.max(0, parseInt(document.getElementById('qtyEditorInput').value) || 0);
+
+    const hiddenInput = document.getElementById(`qty-${itemId}`);
+    if (hiddenInput) hiddenInput.value = qty || '';
+    if (typeof checkStockInput === 'function') checkStockInput(itemId, qty);
+    refreshMenuItemButton(itemId);
+
+    hideModalById('qtyEditorModal');
+    _qtyEditorItemId = null;
+
+    // If the review modal is already open, keep it in sync — same as the old +/- buttons did
     const modal = document.getElementById('orderSummaryModal');
     if (modal && modal.style.display === 'flex') reviewOrder();
+}
+
+// Updates one item button's visible quantity badge + highlighted border to
+// match its hidden <input id="qty-*"> value. Called after the Qty Editor
+// confirms a change, and also after anything that sets the hidden input
+// directly — paste-message auto-fill and the Ratio allocator's fill button —
+// so the button always reflects what's actually in the order.
+function refreshMenuItemButton(itemId) {
+    const hiddenInput = document.getElementById(`qty-${itemId}`);
+    const qty   = hiddenInput ? (parseInt(hiddenInput.value) || 0) : 0;
+    const btn   = document.getElementById(`menu-item-btn-${itemId}`);
+    const badge = document.getElementById(`menu-item-qty-${itemId}`);
+    if (badge) { badge.textContent = qty; badge.classList.toggle('show', qty > 0); }
+    if (btn)   btn.classList.toggle('has-qty', qty > 0);
 }
 
 function getQuantitiesFromHome() {
@@ -261,6 +330,7 @@ function clearForm() {
         // of a real "0" character (which turned "10" into "100").
         if (el) el.value = '';
         if (typeof checkStockInput === 'function') checkStockInput(item.id, '');
+        if (typeof refreshMenuItemButton === 'function') refreshMenuItemButton(item.id);
     });
     document.getElementById('orderDescription').value = '';
     const custName  = document.getElementById('customerNameInput');
@@ -2347,7 +2417,9 @@ async function parseOrderMessage() {
     if (filled > 0) {
         status.textContent = `✅ Filled ${filled} item${filled>1?'s':''}`;
         reviewOrder();
-        setTimeout(() => { getMenuItems().forEach(item => { const el=document.getElementById(`qty-${item.id}`); if(el) el.style.background=''; }); }, 3000);
+        // Highlight flash moved to the button (the field it used to live on is
+        // now hidden), cleared after 3s the same as before.
+        setTimeout(() => { getMenuItems().forEach(item => { const btn=document.getElementById(`menu-item-btn-${item.id}`); if(btn) btn.style.background=''; }); }, 3000);
     } else {
         status.textContent = '⚠️ No items recognised. Fill in manually.';
     }
@@ -2386,7 +2458,14 @@ function _applyParsedOrder(parsed) {
     getMenuItems().forEach(item => {
         const el=document.getElementById(`qty-${item.id}`); if(!el) return;
         const qty=parsed[item.id];
-        if(qty&&qty>0){el.value=qty;el.style.background='#e8f5e9';filled++;}
+        if(qty&&qty>0){
+            el.value=qty;
+            if (typeof checkStockInput === 'function') checkStockInput(item.id, qty);
+            if (typeof refreshMenuItemButton === 'function') refreshMenuItemButton(item.id);
+            const btn=document.getElementById(`menu-item-btn-${item.id}`);
+            if (btn) btn.style.background='#e8f5e9';
+            filled++;
+        }
     });
     return filled;
 }
