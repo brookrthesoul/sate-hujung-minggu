@@ -731,14 +731,63 @@
                 <button type="button" onclick="adjustQtyEditorInput(100)">+100</button>
             </div>
             <div class="qty-editor-actions">
-                <button type="button" class="qe-clear" onclick="clearQtyEditorInput()">Clear</button>
-                <button type="button" class="qe-cancel" onclick="cancelQtyEditor()">Cancel</button>
+                <div class="qty-editor-actions-row">
+                    <button type="button" class="qe-clear" onclick="clearQtyEditorInput()">Clear</button>
+                    <button type="button" class="qe-cancel" onclick="cancelQtyEditor()">Cancel</button>
+                    <button type="button" class="qe-next" id="qtyEditorNextBtn" onclick="nextQtyEditor()">Next</button>
+                </div>
                 <button type="button" class="qe-done" onclick="confirmQtyEditor()">Done</button>
             </div>
         </div>
     </div>
 
-    <!-- BOX MODAL (Prepare tab Box bar — tap a chip to edit that item's box qty,
+
+<!-- ITEM STYLE MODAL (Settings → Menu → 🎨 — customize a button's background & text colour) -->
+<div id="itemStyleModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:18px; padding:24px; width:92%; max-width:380px; max-height:88vh; overflow-y:auto; box-sizing:border-box; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+        <h3 style="margin:0 0 4px;color:#1a1a1a;">🎨 Button Style — <span id="styleEditorItemName"></span></h3>
+        <div style="font-size:12px;color:#888;margin-bottom:14px;">Recommended image ~320×200px (16:10) — it's cropped to fit the button automatically.</div>
+
+        <div style="display:flex;justify-content:center;margin-bottom:16px;">
+            <div id="styleEditorPreview" class="menu-item-btn" style="width:140px;pointer-events:none;">
+                <span id="styleEditorPreviewName" class="menu-item-name"></span>
+                <span id="styleEditorPreviewPrice" class="menu-item-price"></span>
+            </div>
+        </div>
+
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px;color:#1a1a1a;">Background image</div>
+        <div id="styleImagePreviewWrap" style="display:none;align-items:center;gap:10px;margin-bottom:8px;">
+            <img id="styleImagePreviewThumb" style="width:56px;height:36px;object-fit:cover;border-radius:6px;border:1px solid #ddd;">
+            <button type="button" onclick="clearStyleImage()" style="width:auto;padding:6px 12px;font-size:12px;background:#dc3545;">Remove image</button>
+        </div>
+        <label style="display:block;">
+            <input type="file" id="styleImageInput" accept="image/*" style="display:none" onchange="handleStyleImageUpload(this)">
+            <span style="display:block;text-align:center;padding:10px;border:2px dashed #ccc;border-radius:10px;font-size:13px;color:#666;cursor:pointer;">📷 Upload image</span>
+        </label>
+
+        <div style="font-size:12px;color:#999;text-align:center;margin:10px 0;">— or —</div>
+
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+            <div style="font-size:13px;font-weight:700;flex:1;color:#1a1a1a;">Background colour</div>
+            <input type="color" id="styleBgColorInput" onchange="onStyleBgColorChange()" style="width:40px;height:32px;padding:2px;">
+            <button type="button" onclick="clearStyleBgColor()" style="width:auto;padding:6px 10px;font-size:12px;background:#6c757d;">Clear</button>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <div style="font-size:13px;font-weight:700;flex:1;color:#1a1a1a;">Text colour</div>
+            <input type="color" id="styleTextColorInput" onchange="onStyleTextColorChange()" style="width:40px;height:32px;padding:2px;">
+            <button type="button" onclick="clearStyleTextColor()" style="width:auto;padding:6px 10px;font-size:12px;background:#6c757d;">Clear</button>
+        </div>
+        <button type="button" onclick="autoPickStyleTextColor()" style="width:100%;margin-bottom:16px;background:#e9ecef;color:#333;font-size:13px;padding:8px;">✨ Auto-pick readable colour</button>
+
+        <div style="display:flex;gap:8px;">
+            <button type="button" onclick="cancelItemStyle()" style="flex:1;background:#6c757d;margin:0;">Cancel</button>
+            <button type="button" onclick="saveItemStyle()" style="flex:1;background:#28a745;margin:0;font-weight:bold;">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- BOX MODAL (Prepare tab Box bar — tap a chip to edit that item's box qty,
          or "+ Add" to put a new item into the box for the first time. See box.js.
          Every change (stepper tap, typed number, Reset) auto-saves instantly —
          there's no separate Save step. -->

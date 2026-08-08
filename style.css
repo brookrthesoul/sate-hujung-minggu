@@ -85,6 +85,7 @@
         .edit-btn { background: #17a2b8; }
         .delete-btn { background: #dc3545; }
         .save-btn { background: #28a745; }
+        .style-btn { background: #6f42c1; }
         .cancel-btn { background: #6c757d; }
         .sort-dropdown { width: 100%; padding: 12px; border-radius: 30px; border: 1px solid #ced4da; margin-bottom: 20px; font-size: 16px; }
         .day-group { margin-bottom: 25px; }
@@ -462,8 +463,8 @@
 }
 .menu-item-btn:active { transform: scale(0.96); }
 .menu-item-btn.has-qty { border-color: #007bff; background: #eaf3ff; }
-.menu-item-name  { font-size: 13px; font-weight: 700; color: #222; line-height: 1.25; }
-.menu-item-price { font-size: 11px; color: #666; }
+.menu-item-name  { font-size: 13px; font-weight: 700; color: var(--item-text-color, #222); line-height: 1.25; }
+.menu-item-price { font-size: 11px; color: var(--item-text-color, #666); }
 .menu-item-qty-badge {
     display: none;
     font-size: 13px;
@@ -497,11 +498,15 @@
     cursor: pointer;
 }
 .qty-editor-presets button:active { transform: scale(0.94); filter: brightness(0.9); }
-.qty-editor-actions { display: flex; gap: 8px; }
-.qty-editor-actions button { flex: 1; margin: 0; padding: 12px; font-size: 14px; border-radius: 10px; }
+.qty-editor-actions { display: flex; flex-direction: column; gap: 8px; }
+.qty-editor-actions-row { display: flex; gap: 8px; }
+.qty-editor-actions button { margin: 0; padding: 12px; font-size: 14px; border-radius: 10px; border: none; cursor: pointer; }
+.qty-editor-actions-row button { flex: 1; }
 .qty-editor-actions .qe-clear  { background: #ffc107; color: #333; }
 .qty-editor-actions .qe-cancel { background: #6c757d; color: #fff; }
-.qty-editor-actions .qe-done   { background: #28a745; color: #fff; font-weight: bold; }
+.qty-editor-actions .qe-next   { background: #17a2b8; color: #fff; font-weight: 600; }
+.qty-editor-actions .qe-next:disabled { opacity: 0.4; cursor: not-allowed; }
+.qty-editor-actions .qe-done   { background: #28a745; color: #fff; font-weight: bold; width: 100%; }
 
 /* ─── Stock indicators (New Order page) ──────────────────────────────────── */
 .stock-indicator {
@@ -762,8 +767,8 @@ html.dark-mode #backToTopBtn { background: #0d6efd; box-shadow: 0 3px 8px rgba(0
 
 html.dark-mode .menu-item-btn { background: #232325; border-color: #3d3d3f; }
 html.dark-mode .menu-item-btn.has-qty { background: #16324f; border-color: #0d6efd; }
-html.dark-mode .menu-item-name { color: #f0f0f0; }
-html.dark-mode .menu-item-price { color: #aaa; }
+html.dark-mode .menu-item-name { color: var(--item-text-color, #f0f0f0); }
+html.dark-mode .menu-item-price { color: var(--item-text-color, #aaa); }
 html.dark-mode .qty-editor-presets button { background: #2a2a2c; border-color: #5a5a5d; color: #eee; }
 
 /* ── Numeric keyboard "Done" bar (see utils.js) ──────────────────────────── */

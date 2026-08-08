@@ -89,7 +89,7 @@ function renderHomeMenuInputs() {
         const unitSuffix = (item.category === 'custom-unit' && item.unitLabel)
             ? ` <span style="font-weight:400;color:#888;">(${escapeHtml(item.unitLabel)})</span>` : '';
         return `<div class="menu-item-cell">
-            <button type="button" class="menu-item-btn" id="menu-item-btn-${item.id}" onclick="openQtyEditor('${item.id}')">
+            <button type="button" class="menu-item-btn" id="menu-item-btn-${item.id}" style="${menuItemButtonInlineStyle(item)}" onclick="openQtyEditor('${item.id}')">
                 <span class="menu-item-name">${escapeHtml(item.name)}${unitSuffix}</span>
                 <span class="menu-item-price">${formatRM(item.price)}</span>
                 <span class="menu-item-qty-badge" id="menu-item-qty-${item.id}">0</span>
@@ -118,10 +118,14 @@ function openQtyEditor(itemId) {
     const input = document.getElementById('qtyEditorInput');
     input.value = currentQty || '';
 
+    // "Next" is disabled once we're on the last item — nothing further to advance to.
+    const items = getMenuItems();
+    const idx = items.findIndex(i => i.id === itemId);
+    const nextBtn = document.getElementById('qtyEditorNextBtn');
+    if (nextBtn) nextBtn.disabled = (idx === -1 || idx >= items.length - 1);
+
     showModalById('qtyEditorModal');
     updateQtyEditorStockHint();
-    // Slight delay so focus/select happens after the modal is actually visible
-    //setTimeout(() => { input.focus(); input.select(); }, 50);
 }
 
 function adjustQtyEditorInput(delta) {
@@ -135,7 +139,7 @@ function clearQtyEditorInput() {
     const input = document.getElementById('qtyEditorInput');
     input.value = '';
     updateQtyEditorStockHint();
-    //input.focus();
+    input.focus();
 }
 
 // Same hint text/logic checkStockInput already used, just reading from the
@@ -161,7 +165,10 @@ function cancelQtyEditor() {
     _qtyEditorItemId = null;
 }
 
-function confirmQtyEditor() {
+// Saves whatever's currently in the input to the item being edited, without
+// closing the popup — shared by Done (which then closes) and Next (which
+// then advances to the following item instead).
+function _commitQtyEditor() {
     if (!_qtyEditorItemId) return;
     const itemId = _qtyEditorItemId;
     const qty = Math.max(0, parseInt(document.getElementById('qtyEditorInput').value) || 0);
@@ -171,12 +178,32 @@ function confirmQtyEditor() {
     if (typeof checkStockInput === 'function') checkStockInput(itemId, qty);
     refreshMenuItemButton(itemId);
 
-    hideModalById('qtyEditorModal');
-    _qtyEditorItemId = null;
-
     // If the review modal is already open, keep it in sync — same as the old +/- buttons did
     const modal = document.getElementById('orderSummaryModal');
     if (modal && modal.style.display === 'flex') reviewOrder();
+}
+
+function confirmQtyEditor() {
+    if (!_qtyEditorItemId) return;
+    _commitQtyEditor();
+    hideModalById('qtyEditorModal');
+    _qtyEditorItemId = null;
+}
+
+// Saves the current item's quantity (same as Done), then opens the next
+// item's editor in place so quantities can be filled in one continuous pass.
+// Closes instead, on the last item.
+function nextQtyEditor() {
+    if (!_qtyEditorItemId) return;
+    const items = getMenuItems();
+    const idx = items.findIndex(i => i.id === _qtyEditorItemId);
+    _commitQtyEditor();
+    if (idx === -1 || idx >= items.length - 1) {
+        hideModalById('qtyEditorModal');
+        _qtyEditorItemId = null;
+        return;
+    }
+    openQtyEditor(items[idx + 1].id);
 }
 
 // Updates one item button's visible quantity badge + highlighted border to

@@ -142,8 +142,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .menu-item-btn.has-qty { border-color: #007bff; background: #eaf3ff; }
 .menu-item-btn.out-of-stock:not(.has-qty) { opacity: 0.55; }
 .menu-item-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.menu-item-name  { font-size: 12px; font-weight: 700; color: #222; line-height: 1.3; }
-.menu-item-price { font-size: 11px; color: #888; }
+.menu-item-name  { font-size: 12px; font-weight: 700; color: var(--item-text-color, #222); line-height: 1.3; }
+.menu-item-price { font-size: 11px; color: var(--item-text-color, #888); }
 .menu-item-qty-badge {
     display: none;
     font-size: 12px;
@@ -182,10 +182,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     cursor: pointer;
 }
 .qty-editor-presets button:active { transform: scale(0.94); }
-.qty-editor-actions button { flex: 1; padding: 12px; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; }
+.qty-editor-actions { display: flex; flex-direction: column; gap: 8px; }
+.qty-editor-actions-row { display: flex; gap: 8px; }
+.qty-editor-actions button { margin: 0; padding: 12px; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; }
+.qty-editor-actions-row button { flex: 1; }
 .qty-editor-actions .qe-clear  { background: #ffc107; color: #333; }
 .qty-editor-actions .qe-cancel { background: #6c757d; color: #fff; }
-.qty-editor-actions .qe-done   { background: #28a745; color: #fff; font-weight: 700; }
+.qty-editor-actions .qe-next   { background: #17a2b8; color: #fff; font-weight: 600; }
+.qty-editor-actions .qe-next:disabled { opacity: 0.4; cursor: not-allowed; }
+.qty-editor-actions .qe-done   { background: #28a745; color: #fff; font-weight: 700; width: 100%; }
 .stock-warn { color: #fd7e14; }
 
 /* ── Pickup time ── */
@@ -361,8 +366,8 @@ button:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.88);
 
     .menu-item-btn { background: #232325; border-color: #3d3d3f; }
     .menu-item-btn.has-qty { background: #16324f; border-color: #4da3ff; }
-    .menu-item-name { color: #f0f0f0; }
-    .menu-item-price { color: #999; }
+    .menu-item-name { color: var(--item-text-color, #f0f0f0); }
+    .menu-item-price { color: var(--item-text-color, #999); }
     .qty-editor-price { color: #aaa; }
     #custQtyEditorInput { background: #2a2a2c; color: #eee; border-color: #3d3d3f; }
     .qty-editor-presets button { background: #2a2a2c; border-color: #3d3d3f; color: #eee; }
@@ -614,8 +619,11 @@ button:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.88);
             <button type="button" onclick="adjustCustQtyEditorInput(100)">+100</button>
         </div>
         <div class="modal-actions qty-editor-actions">
-            <button type="button" class="qe-clear" onclick="clearCustQtyEditorInput()">Clear</button>
-            <button type="button" class="qe-cancel" onclick="cancelCustQtyEditor()">Cancel</button>
+            <div class="qty-editor-actions-row">
+                <button type="button" class="qe-clear" onclick="clearCustQtyEditorInput()">Clear</button>
+                <button type="button" class="qe-cancel" onclick="cancelCustQtyEditor()">Cancel</button>
+                <button type="button" class="qe-next" id="custQtyEditorNextBtn" onclick="nextCustQtyEditor()">Next</button>
+            </div>
             <button type="button" class="qe-done" onclick="confirmCustQtyEditor()">Done</button>
         </div>
     </div>
@@ -1021,16 +1029,21 @@ const DEFAULT_MENU = [
 
 async function loadMenu() {
     try {
-        const rows = await sbFetch('menu?select=id,name,price,category&order=sort_order.asc');
+        const rows = await sbFetch('menu?select=id,name,price,category,bgImage:bg_image,bgColor:bg_color,textColor:text_color&order=sort_order.asc');
         if (rows && rows.length) {
             menuItems = rows;
+            localStorage.setItem('menuItems', JSON.stringify(menuItems)); // offline fallback cache
         } else {
             // Table empty or doesn't exist yet — use defaults
             menuItems = DEFAULT_MENU.map(i => ({ ...i }));
         }
     } catch(e) {
-        console.warn('Menu load failed, using defaults:', e);
-        menuItems = DEFAULT_MENU.map(i => ({ ...i }));
+        // Offline / unreachable — fall back to the last successfully loaded menu
+        // (including any custom prices, items, and button styling), not the
+        // hardcoded defaults, so offline customers still see the real menu.
+        console.warn('Menu load failed, using cached/local fallback:', e);
+        const saved = localStorage.getItem('menuItems');
+        menuItems = saved ? JSON.parse(saved) : DEFAULT_MENU.map(i => ({ ...i }));
     }
 }
 
@@ -1135,6 +1148,16 @@ async function loadBusy() {
     } catch(e) {}
 }
 
+// Builds the inline style for one item's New Order button from its saved
+// bgImage/bgColor/textColor (set by the admin in Settings → Menu → 🎨).
+function menuItemButtonInlineStyle(item) {
+    let css = '';
+    if (item.bgImage)      css += `background-image:url('${item.bgImage}');background-size:cover;background-position:center;`;
+    else if (item.bgColor) css += `background-color:${item.bgColor};`;
+    if (item.textColor)    css += `--item-text-color:${item.textColor};`;
+    return css;
+}
+
 // ── Menu grid render ──────────────────────────────────────────────────────────
 // v2: each item is a single tappable button (name, price, qty badge, stock
 // hint) instead of a numeric field with +/- buttons. Tapping it opens the
@@ -1150,7 +1173,7 @@ function renderMenuGrid(containerId = 'menuGrid', existingItems = {}) {
         const unitSuffix = (item.category === 'custom-unit' && item.unitLabel)
             ? ` <span style="font-weight:400;color:#888;">(${escapeHtmlOrder(item.unitLabel)})</span>` : '';
         return `<div class="menu-cell">
-            <button type="button" class="menu-item-btn" id="btn_${containerId}_${item.id}"
+            <button type="button" class="menu-item-btn" id="btn_${containerId}_${item.id}" style="${menuItemButtonInlineStyle(item)}"
                 onclick="openCustQtyEditor('${containerId}','${item.id}')">
                 <span class="menu-item-name">${item.name}${unitSuffix}</span>
                 <span class="menu-item-price">${formatRM(item.price)}</span>
@@ -1257,10 +1280,19 @@ function openCustQtyEditor(gridId, itemId) {
     const input = document.getElementById('custQtyEditorInput');
     input.value = currentQty || '';
 
+    // "Next" is disabled once there's no further editable (not out-of-stock-and-locked)
+    // item after this one.
+    const idx = menuItems.findIndex(m => m.id === itemId);
+    let hasNext = false;
+    for (let i = idx + 1; i < menuItems.length; i++) {
+        const nb = document.getElementById(`btn_${gridId}_${menuItems[i].id}`);
+        if (!nb || !nb.disabled) { hasNext = true; break; }
+    }
+    const nextBtn = document.getElementById('custQtyEditorNextBtn');
+    if (nextBtn) nextBtn.disabled = !hasNext;
+
     openModalById('custQtyEditorModal');
     updateCustQtyEditorHint();
-    // Slight delay so focus/select happens after the popup is actually visible
-    //setTimeout(() => { input.focus(); input.select(); }, 50);
 }
 
 function adjustCustQtyEditorInput(delta) {
@@ -1274,7 +1306,7 @@ function clearCustQtyEditorInput() {
     const input = document.getElementById('custQtyEditorInput');
     input.value = '';
     updateCustQtyEditorHint();
-    //input.focus();
+    input.focus();
 }
 
 function updateCustQtyEditorHint() {
@@ -1309,14 +1341,42 @@ function cancelCustQtyEditor() {
     _custQtyEditorItemId = null;
 }
 
-function confirmCustQtyEditor() {
+// Saves whatever's currently in the input to the item being edited, without
+// closing the popup — shared by Done (which then closes) and Next (which
+// then advances to the following item instead).
+function _commitCustQtyEditor() {
     if (!_custQtyEditorItemId) return;
-    const gridId  = _custQtyEditorGridId;
-    const itemId  = _custQtyEditorItemId;
-    const qty     = Math.max(0, parseInt(document.getElementById('custQtyEditorInput').value) || 0);
+    const qty = Math.max(0, parseInt(document.getElementById('custQtyEditorInput').value) || 0);
     // Reuses the exact same clamp/hint/badge/disable logic the grid already
     // relies on elsewhere (e.g. loadStock()'s live refresh) — one source of truth.
-    onQtyInput(gridId, itemId, qty);
+    onQtyInput(_custQtyEditorGridId, _custQtyEditorItemId, qty);
+}
+
+function confirmCustQtyEditor() {
+    if (!_custQtyEditorItemId) return;
+    _commitCustQtyEditor();
+    closeModalById('custQtyEditorModal');
+    _custQtyEditorGridId = null;
+    _custQtyEditorItemId = null;
+}
+
+// Saves the current item's quantity (same as Done), then opens the next
+// editable item in the same grid so quantities can be filled in one
+// continuous pass. Skips over any item that's out-of-stock-and-locked.
+// Closes instead, if there's nothing further to advance to.
+function nextCustQtyEditor() {
+    if (!_custQtyEditorItemId) return;
+    const gridId = _custQtyEditorGridId;
+    const startIdx = menuItems.findIndex(m => m.id === _custQtyEditorItemId);
+    _commitCustQtyEditor();
+
+    for (let i = startIdx + 1; i < menuItems.length; i++) {
+        const nextBtn = document.getElementById(`btn_${gridId}_${menuItems[i].id}`);
+        if (!nextBtn || !nextBtn.disabled) {
+            openCustQtyEditor(gridId, menuItems[i].id);
+            return;
+        }
+    }
     closeModalById('custQtyEditorModal');
     _custQtyEditorGridId = null;
     _custQtyEditorItemId = null;

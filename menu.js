@@ -32,7 +32,7 @@ async function _menuFetch(path, opts = {}) {
 }
 
 async function _loadMenuFromSupabase() {
-    const rows = await _menuFetch(`${MENU_TABLE}?select=id,name,price,category,unitLabel:unit_label&order=sort_order.asc`);
+    const rows = await _menuFetch(`${MENU_TABLE}?select=id,name,price,category,unitLabel:unit_label,bgImage:bg_image,bgColor:bg_color,textColor:text_color&order=sort_order.asc`);
     return rows && rows.length ? rows : null;
 }
 
@@ -46,6 +46,9 @@ async function _saveMenuToSupabase(items) {
         price:      item.price,
         category:   item.category,
         unit_label: item.unitLabel || null,
+        bg_image:   item.bgImage   || null,
+        bg_color:   item.bgColor   || null,
+        text_color: item.textColor || null,
         sort_order: idx
     }));
     await _menuFetch(MENU_TABLE, {
@@ -261,6 +264,7 @@ function renderSettingsMenuList() {
             <input type="number" id="price-${item.id}" step="0.01" min="0" value="${item.price}">
             <div class="menu-row-actions">
                 <button class="small save-btn" onclick="saveMenuItemPrice('${item.id}')" title="Save price${item.category === 'custom-unit' ? ' & unit' : ''}">💾</button>
+                <button class="small style-btn" onclick="openItemStyleEditor('${item.id}')" title="Customize button background & text colour">🎨</button>
                 <button class="small delete-btn" onclick="deleteMenuItem('${item.id}')" title="Delete item">🗑️</button>
             </div>
         </div>
@@ -384,4 +388,186 @@ function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str == null ? '' : String(str);
     return div.innerHTML;
+}
+
+// ── Item button style editor (Settings → Menu → 🎨) ─────────────────────────
+// Lets each menu item's New Order button carry its own background (an
+// uploaded image or a solid colour) and its own text colour, so branding
+// stays readable no matter what's behind the text. Edits are held in draft
+// variables until Save — Cancel just discards them, same pattern as the
+// Qty Editor popup.
+let _styleEditorItemId          = null;
+let _styleEditorBgImage         = null; // data URL or null
+let _styleEditorBgColor         = null; // hex or null
+let _styleEditorTextColor       = null; // hex or null
+let _styleEditorImageLuminance  = null; // 0–1, cached from the freshest upload this session
+
+const ITEM_STYLE_MAX_W = 320; // uploaded images are downscaled to roughly button-sized
+const ITEM_STYLE_MAX_H = 200; // before being stored, so the DB never holds full-res photos
+
+function openItemStyleEditor(id) {
+    const item = getMenuItem(id);
+    if (!item) return;
+    _styleEditorItemId         = id;
+    _styleEditorBgImage        = item.bgImage   || null;
+    _styleEditorBgColor        = item.bgColor   || null;
+    _styleEditorTextColor      = item.textColor || null;
+    _styleEditorImageLuminance = null;
+
+    document.getElementById('styleEditorItemName').textContent   = item.name;
+    document.getElementById('styleBgColorInput').value   = _styleEditorBgColor   || '#f8f9fa';
+    document.getElementById('styleTextColorInput').value = _styleEditorTextColor || '#222222';
+    const fileInput = document.getElementById('styleImageInput');
+    if (fileInput) fileInput.value = '';
+
+    _refreshStyleEditorPreview();
+    if (typeof showModalById === 'function') showModalById('itemStyleModal');
+}
+
+function handleStyleImageUpload(fileInput) {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { alert('Please choose an image file.'); return; }
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+            // Cover-fit resize down to roughly button size, so every stored image
+            // is small and consistent regardless of what was originally uploaded.
+            let { width, height } = img;
+            const scale = Math.min(ITEM_STYLE_MAX_W / width, ITEM_STYLE_MAX_H / height, 1);
+            width  = Math.max(1, Math.round(width  * scale));
+            height = Math.max(1, Math.round(height * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = width; canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            _styleEditorBgImage        = canvas.toDataURL('image/jpeg', 0.78);
+            _styleEditorImageLuminance = _computeCanvasLuminance(ctx, width, height);
+            _refreshStyleEditorPreview();
+        };
+        img.onerror = () => alert('Could not read that image — please try a different file.');
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function clearStyleImage() {
+    _styleEditorBgImage        = null;
+    _styleEditorImageLuminance = null;
+    const fileInput = document.getElementById('styleImageInput');
+    if (fileInput) fileInput.value = '';
+    _refreshStyleEditorPreview();
+}
+
+function onStyleBgColorChange() {
+    _styleEditorBgColor = document.getElementById('styleBgColorInput').value;
+    _refreshStyleEditorPreview();
+}
+function clearStyleBgColor() {
+    _styleEditorBgColor = null;
+    _refreshStyleEditorPreview();
+}
+function onStyleTextColorChange() {
+    _styleEditorTextColor = document.getElementById('styleTextColorInput').value;
+    _refreshStyleEditorPreview();
+}
+function clearStyleTextColor() {
+    _styleEditorTextColor = null;
+    _refreshStyleEditorPreview();
+}
+
+// Suggests black or white text based on how bright the current background is
+// — a starting point, not a guarantee; the live preview above it is the real
+// check for whether it's actually readable.
+function autoPickStyleTextColor() {
+    let luminance = 0.5; // neutral guess when we have no better signal
+    if (_styleEditorBgImage && _styleEditorImageLuminance != null) {
+        luminance = _styleEditorImageLuminance;
+    } else if (_styleEditorBgColor) {
+        luminance = _hexLuminance(_styleEditorBgColor);
+    }
+    const suggested = luminance > 0.55 ? '#1a1a1a' : '#ffffff';
+    _styleEditorTextColor = suggested;
+    document.getElementById('styleTextColorInput').value = suggested;
+    _refreshStyleEditorPreview();
+}
+
+function _hexLuminance(hex) {
+    const c = (hex || '').replace('#', '');
+    if (c.length !== 6) return 0.5;
+    const r = parseInt(c.substr(0, 2), 16) / 255;
+    const g = parseInt(c.substr(2, 2), 16) / 255;
+    const b = parseInt(c.substr(4, 2), 16) / 255;
+    return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+function _computeCanvasLuminance(ctx, w, h) {
+    try {
+        const data = ctx.getImageData(0, 0, w, h).data;
+        let total = 0, count = 0;
+        // Sample every ~10th pixel — plenty accurate for a rough estimate, much faster than every pixel.
+        for (let i = 0; i < data.length; i += 40) {
+            total += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+            count++;
+        }
+        return count ? (total / count) / 255 : 0.5;
+    } catch (e) {
+        return 0.5; // shouldn't happen for a local file, but don't let it break the picker
+    }
+}
+
+function _refreshStyleEditorPreview() {
+    const item = getMenuItem(_styleEditorItemId);
+    if (!item) return;
+    const preview = document.getElementById('styleEditorPreview');
+    if (!preview) return;
+
+    preview.style.backgroundImage    = _styleEditorBgImage ? `url('${_styleEditorBgImage}')` : '';
+    preview.style.backgroundSize     = 'cover';
+    preview.style.backgroundPosition = 'center';
+    preview.style.backgroundColor    = _styleEditorBgImage ? 'transparent' : (_styleEditorBgColor || '#f8f9fa');
+
+    const nameEl  = document.getElementById('styleEditorPreviewName');
+    const priceEl = document.getElementById('styleEditorPreviewPrice');
+    if (nameEl)  { nameEl.textContent  = item.name;               nameEl.style.color  = _styleEditorTextColor || ''; }
+    if (priceEl) { priceEl.textContent = formatRM(item.price);    priceEl.style.color = _styleEditorTextColor || ''; }
+
+    const imgWrap = document.getElementById('styleImagePreviewWrap');
+    const imgThumb = document.getElementById('styleImagePreviewThumb');
+    if (imgWrap)  imgWrap.style.display = _styleEditorBgImage ? 'flex' : 'none';
+    if (imgThumb) imgThumb.src = _styleEditorBgImage || '';
+}
+
+function cancelItemStyle() {
+    if (typeof hideModalById === 'function') hideModalById('itemStyleModal');
+    _styleEditorItemId = null;
+    _styleEditorImageLuminance = null;
+}
+
+function saveItemStyle() {
+    const item = getMenuItem(_styleEditorItemId);
+    if (!item) return;
+    if (_styleEditorBgImage)   item.bgImage   = _styleEditorBgImage;   else delete item.bgImage;
+    if (_styleEditorBgColor)   item.bgColor   = _styleEditorBgColor;   else delete item.bgColor;
+    if (_styleEditorTextColor) item.textColor = _styleEditorTextColor; else delete item.textColor;
+
+    saveMenu();
+    if (typeof hideModalById === 'function') hideModalById('itemStyleModal');
+    refreshAfterMenuChange();
+    _styleEditorItemId = null;
+    _styleEditorImageLuminance = null;
+}
+
+// Builds the inline style for one item's New Order button from its saved
+// bgImage/bgColor/textColor — shared shape used by both the admin grid
+// (orders.js) and the customer grid (order.html).
+function menuItemButtonInlineStyle(item) {
+    let css = '';
+    if (item.bgImage)      css += `background-image:url('${item.bgImage}');background-size:cover;background-position:center;`;
+    else if (item.bgColor) css += `background-color:${item.bgColor};`;
+    if (item.textColor)    css += `--item-text-color:${item.textColor};`;
+    return css;
 }
