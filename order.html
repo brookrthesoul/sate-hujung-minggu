@@ -1260,7 +1260,7 @@ function openCustQtyEditor(gridId, itemId) {
     openModalById('custQtyEditorModal');
     updateCustQtyEditorHint();
     // Slight delay so focus/select happens after the popup is actually visible
-    setTimeout(() => { input.focus(); input.select(); }, 50);
+    //setTimeout(() => { input.focus(); input.select(); }, 50);
 }
 
 function adjustCustQtyEditorInput(delta) {
@@ -1274,7 +1274,7 @@ function clearCustQtyEditorInput() {
     const input = document.getElementById('custQtyEditorInput');
     input.value = '';
     updateCustQtyEditorHint();
-    input.focus();
+    //input.focus();
 }
 
 function updateCustQtyEditorHint() {
