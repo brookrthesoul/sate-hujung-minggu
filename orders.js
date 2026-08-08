@@ -121,7 +121,7 @@ function openQtyEditor(itemId) {
     showModalById('qtyEditorModal');
     updateQtyEditorStockHint();
     // Slight delay so focus/select happens after the modal is actually visible
-    setTimeout(() => { input.focus(); input.select(); }, 50);
+    //setTimeout(() => { input.focus(); input.select(); }, 50);
 }
 
 function adjustQtyEditorInput(delta) {
@@ -135,7 +135,7 @@ function clearQtyEditorInput() {
     const input = document.getElementById('qtyEditorInput');
     input.value = '';
     updateQtyEditorStockHint();
-    input.focus();
+    //input.focus();
 }
 
 // Same hint text/logic checkStockInput already used, just reading from the
