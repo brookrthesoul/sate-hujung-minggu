@@ -118,6 +118,74 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .stock-hint { font-size: 11px; font-weight: 600; min-height: 14px; }
 .stock-out { color: #dc3545; }
 .stock-low { color: #d68910; }
+
+/* ── New Order: item buttons (v2 — tap-to-edit-quantity) ─────────────────── */
+.menu-item-btn {
+    all: unset;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 100%;
+    min-height: 84px;
+    background: #f8f9fa;
+    border: 2px solid #e0e0e0;
+    border-radius: 14px;
+    padding: 10px 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.08s, transform 0.08s, border-color 0.08s;
+}
+.menu-item-btn:active { transform: scale(0.96); }
+.menu-item-btn.has-qty { border-color: #007bff; background: #eaf3ff; }
+.menu-item-btn.out-of-stock:not(.has-qty) { opacity: 0.55; }
+.menu-item-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.menu-item-name  { font-size: 12px; font-weight: 700; color: #222; line-height: 1.3; }
+.menu-item-price { font-size: 11px; color: #888; }
+.menu-item-qty-badge {
+    display: none;
+    font-size: 12px;
+    font-weight: 800;
+    color: #fff;
+    background: #007bff;
+    border-radius: 20px;
+    padding: 2px 10px;
+    margin-top: 1px;
+}
+.menu-item-qty-badge.show { display: inline-block; }
+
+/* Qty Editor popup */
+.qty-editor-price { font-size: 13px; color: #666; margin: -8px 0 12px; }
+#custQtyEditorInput {
+    width: 100%; box-sizing: border-box; text-align: center;
+    font-size: 24px; font-weight: 800; padding: 12px;
+    border: 1px solid #ddd; border-radius: 10px;
+}
+#custQtyEditorInput:focus { outline: none; border-color: #007bff; }
+.qty-editor-presets { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin: 14px 0 4px; }
+.qty-editor-presets button {
+    all: unset;
+    box-sizing: border-box;
+    width: 50px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    background: #f5f5f5;
+    font-weight: 700;
+    font-size: 13px;
+    color: #333;
+    cursor: pointer;
+}
+.qty-editor-presets button:active { transform: scale(0.94); }
+.qty-editor-actions button { flex: 1; padding: 12px; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; }
+.qty-editor-actions .qe-clear  { background: #ffc107; color: #333; }
+.qty-editor-actions .qe-cancel { background: #6c757d; color: #fff; }
+.qty-editor-actions .qe-done   { background: #28a745; color: #fff; font-weight: 700; }
 .stock-warn { color: #fd7e14; }
 
 /* ── Pickup time ── */
@@ -290,6 +358,14 @@ button:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.88);
     .menu-cell button[type=button] { background: #2a2a2c !important; border-color: #3d3d3f !important; color: #eee !important; }
     .menu-cell.out-of-stock label { color: #777; }
     .stock-hint { color: #aaa; }
+
+    .menu-item-btn { background: #232325; border-color: #3d3d3f; }
+    .menu-item-btn.has-qty { background: #16324f; border-color: #4da3ff; }
+    .menu-item-name { color: #f0f0f0; }
+    .menu-item-price { color: #999; }
+    .qty-editor-price { color: #aaa; }
+    #custQtyEditorInput { background: #2a2a2c; color: #eee; border-color: #3d3d3f; }
+    .qty-editor-presets button { background: #2a2a2c; border-color: #3d3d3f; color: #eee; }
 
     .pickup-row input { background: #2a2a2c; color: #eee; border-color: #3d3d3f; }
     .time-hint { color: #999; }
@@ -518,6 +594,30 @@ button:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.88);
             <button class="modal-back-btn" onclick="closeSummary()">Back</button>
         </div>
         <div id="busyWarning" class="summary-busy-warning" style="display:none;"></div>
+    </div>
+</div>
+
+<!-- QTY EDITOR MODAL (New Order — tap an item button to set its quantity) -->
+<div class="modal-overlay" id="custQtyEditorModal">
+    <div class="modal-box">
+        <div class="modal-title" id="custQtyEditorTitle">Item</div>
+        <div class="qty-editor-price" id="custQtyEditorPrice"></div>
+        <input type="number" id="custQtyEditorInput" min="0" step="1" placeholder="0"
+            inputmode="numeric" oninput="updateCustQtyEditorHint()">
+        <div class="stock-hint" id="custQtyEditorHint" style="text-align:center;margin-top:6px;"></div>
+        <div class="qty-editor-presets">
+            <button type="button" onclick="adjustCustQtyEditorInput(1)">+1</button>
+            <button type="button" onclick="adjustCustQtyEditorInput(5)">+5</button>
+            <button type="button" onclick="adjustCustQtyEditorInput(10)">+10</button>
+            <button type="button" onclick="adjustCustQtyEditorInput(20)">+20</button>
+            <button type="button" onclick="adjustCustQtyEditorInput(50)">+50</button>
+            <button type="button" onclick="adjustCustQtyEditorInput(100)">+100</button>
+        </div>
+        <div class="modal-actions qty-editor-actions">
+            <button type="button" class="qe-clear" onclick="clearCustQtyEditorInput()">Clear</button>
+            <button type="button" class="qe-cancel" onclick="cancelCustQtyEditor()">Cancel</button>
+            <button type="button" class="qe-done" onclick="confirmCustQtyEditor()">Done</button>
+        </div>
     </div>
 </div>
 
@@ -1036,52 +1136,35 @@ async function loadBusy() {
 }
 
 // ── Menu grid render ──────────────────────────────────────────────────────────
+// v2: each item is a single tappable button (name, price, qty badge, stock
+// hint) instead of a numeric field with +/- buttons. Tapping it opens the
+// shared Qty Editor popup (openCustQtyEditor) below. A hidden
+// <input id="qty_${containerId}_${item.id}"> still holds the real value —
+// getQtys(), loadStock()'s live refresh, and everything else that reads it
+// keeps working unchanged.
 function renderMenuGrid(containerId = 'menuGrid', existingItems = {}) {
     const grid = document.getElementById(containerId);
     if (!grid) return;
-    const SATE_CATS = ['skewer', 'no-kuah'];
     grid.innerHTML = menuItems.map(item => {
-        const qty    = existingItems[item.id] || 0;
-        const isSate = SATE_CATS.includes(item.category);
+        const qty = existingItems[item.id] || 0;
         const unitSuffix = (item.category === 'custom-unit' && item.unitLabel)
             ? ` <span style="font-weight:400;color:#888;">(${escapeHtmlOrder(item.unitLabel)})</span>` : '';
-        if (isSate) {
-            return `<div class="menu-cell">
-                <label for="qty_${containerId}_${item.id}">${item.name}${unitSuffix}<br><span>${formatRM(item.price)}</span></label>
-                <input type="number" id="qty_${containerId}_${item.id}" min="0" step="1" value="${qty || ''}" placeholder="0"
-                    data-baseline="${qty}"
-                    oninput="onQtyInput('${containerId}','${item.id}',this.value)">
+        return `<div class="menu-cell">
+            <button type="button" class="menu-item-btn" id="btn_${containerId}_${item.id}"
+                onclick="openCustQtyEditor('${containerId}','${item.id}')">
+                <span class="menu-item-name">${item.name}${unitSuffix}</span>
+                <span class="menu-item-price">${formatRM(item.price)}</span>
+                <span class="menu-item-qty-badge" id="badge_${containerId}_${item.id}">${qty || 0}</span>
                 <span class="stock-hint" id="hint_${containerId}_${item.id}"></span>
-            </div>`;
-        } else {
-            return `<div class="menu-cell">
-                <label for="qty_${containerId}_${item.id}">${item.name}${unitSuffix}<br><span>${formatRM(item.price)}</span></label>
-                <div style="display:flex;align-items:center;gap:4px;">
-                    <button type="button" class="qty-minus-btn" onclick="adjQty('${containerId}','${item.id}',-1)"
-                        style="width:30px;height:30px;border-radius:7px;border:1px solid #ddd;background:#f5f5f5;font-size:15px;font-weight:bold;cursor:pointer;flex-shrink:0;padding:0;">−</button>
-                    <input type="number" id="qty_${containerId}_${item.id}" min="0" step="1" value="${qty || ''}" placeholder="0"
-                        data-baseline="${qty}"
-                        style="flex:1;min-width:0;text-align:center;"
-                        oninput="onQtyInput('${containerId}','${item.id}',this.value)">
-                    <button type="button" class="qty-plus-btn" onclick="adjQty('${containerId}','${item.id}',+1)"
-                        style="width:30px;height:30px;border-radius:7px;border:1px solid #ddd;background:#f5f5f5;font-size:15px;font-weight:bold;cursor:pointer;flex-shrink:0;padding:0;">+</button>
-                </div>
-                <span class="stock-hint" id="hint_${containerId}_${item.id}"></span>
-            </div>`;
-        }
+            </button>
+            <input type="number" id="qty_${containerId}_${item.id}" min="0" step="1" value="${qty || ''}"
+                data-baseline="${qty}" style="display:none" tabindex="-1" aria-hidden="true">
+        </div>`;
     }).join('');
 
     // Populate stock hints right away so "Out of stock" / low-stock shows immediately,
-    // instead of only appearing after the customer types or taps +/-.
+    // instead of only appearing after the customer opens each item's editor.
     menuItems.forEach(item => onQtyInput(containerId, item.id, existingItems[item.id] || 0));
-}
-
-function adjQty(gridId, itemId, delta) {
-    const el  = document.getElementById('qty_' + gridId + '_' + itemId);
-    if (!el) return;
-    const val = Math.max(0, (parseInt(el.value) || 0) + delta);
-    el.value  = val;
-    onQtyInput(gridId, itemId, val);
 }
 
 // Stock and Box (see box.js on the admin side) are the same underlying
@@ -1103,7 +1186,8 @@ function onQtyInput(gridId, itemId, value) {
     const cat   = item ? item.category : '';
 
     const input = document.getElementById(`qty_${gridId}_${itemId}`);
-    const cell  = input ? input.closest('.menu-cell') : null;
+    const btn   = document.getElementById(`btn_${gridId}_${itemId}`);
+    const badge = document.getElementById(`badge_${gridId}_${itemId}`);
     // baseline = qty this item already had when the grid was rendered (e.g. an
     // already-placed order being edited). Out-of-stock only blocks going ABOVE
     // that — it never wipes out something the customer already has.
@@ -1112,20 +1196,19 @@ function onQtyInput(gridId, itemId, value) {
 
     if (isOutOfStock && qty > baseline) {
         qty = baseline;
-        if (input) input.value = baseline || '';
     }
+    if (input) input.value = qty || '';
 
-    if (input) {
-        // Only fully lock the field when there's nothing already owned to protect —
-        // otherwise keep it editable so the customer can still reduce/remove it.
-        input.disabled = isOutOfStock && baseline === 0;
+    if (badge) {
+        badge.textContent = qty;
+        badge.classList.toggle('show', qty > 0);
     }
-    if (cell) {
-        cell.classList.toggle('out-of-stock', isOutOfStock);
-        const plusBtn  = cell.querySelector('.qty-plus-btn');
-        const minusBtn = cell.querySelector('.qty-minus-btn');
-        if (plusBtn)  plusBtn.disabled  = isOutOfStock; // can never add more once stock hits 0
-        if (minusBtn) minusBtn.disabled = isOutOfStock && baseline === 0; // still allow removing what they already have
+    if (btn) {
+        btn.classList.toggle('has-qty', qty > 0);
+        btn.classList.toggle('out-of-stock', isOutOfStock);
+        // Only fully lock the button when there's nothing already owned to protect —
+        // otherwise keep it tappable so the customer can still reduce/remove it.
+        btn.disabled = isOutOfStock && baseline === 0;
     }
 
     if (hint) {
@@ -1147,6 +1230,96 @@ function onQtyInput(gridId, itemId, value) {
         }
     }
     // (Live inline summary removed — the full summary is now only shown in the Next-tap modal, to avoid duplication.)
+}
+
+// ── Qty Editor popup (tap a menu item button → set its quantity) ──────────
+// Shared by both grids (new order 'menuGrid' and the edit-order 'editMenuGrid'),
+// tracked via _custQtyEditorGridId/_custQtyEditorItemId so Done/Cancel/Clear
+// know which cell to write back to.
+let _custQtyEditorGridId = null;
+let _custQtyEditorItemId = null;
+
+function openCustQtyEditor(gridId, itemId) {
+    const item = menuItems.find(m => m.id === itemId);
+    if (!item) return;
+    const btn = document.getElementById(`btn_${gridId}_${itemId}`);
+    if (btn && btn.disabled) return; // out of stock and nothing owned — same guard the old buttons had
+
+    _custQtyEditorGridId = gridId;
+    _custQtyEditorItemId = itemId;
+
+    const unitSuffix = (item.category === 'custom-unit' && item.unitLabel) ? ` (${item.unitLabel})` : '';
+    document.getElementById('custQtyEditorTitle').textContent = item.name + unitSuffix;
+    document.getElementById('custQtyEditorPrice').textContent = formatRM(item.price);
+
+    const hiddenInput = document.getElementById(`qty_${gridId}_${itemId}`);
+    const currentQty  = hiddenInput ? (parseInt(hiddenInput.value) || 0) : 0;
+    const input = document.getElementById('custQtyEditorInput');
+    input.value = currentQty || '';
+
+    openModalById('custQtyEditorModal');
+    updateCustQtyEditorHint();
+    // Slight delay so focus/select happens after the popup is actually visible
+    setTimeout(() => { input.focus(); input.select(); }, 50);
+}
+
+function adjustCustQtyEditorInput(delta) {
+    const input = document.getElementById('custQtyEditorInput');
+    const val = Math.max(0, (parseInt(input.value) || 0) + delta);
+    input.value = val;
+    updateCustQtyEditorHint();
+}
+
+function clearCustQtyEditorInput() {
+    const input = document.getElementById('custQtyEditorInput');
+    input.value = '';
+    updateCustQtyEditorHint();
+    input.focus();
+}
+
+function updateCustQtyEditorHint() {
+    if (!_custQtyEditorItemId) return;
+    const hint = document.getElementById('custQtyEditorHint');
+    if (!hint) return;
+    const item  = menuItems.find(m => m.id === _custQtyEditorItemId);
+    const cat   = item ? item.category : '';
+    const qty   = parseInt(document.getElementById('custQtyEditorInput').value) || 0;
+    const avail = _customerAvailFor(_custQtyEditorItemId);
+    const hiddenInput = document.getElementById(`qty_${_custQtyEditorGridId}_${_custQtyEditorItemId}`);
+    const baseline = hiddenInput ? (parseInt(hiddenInput.dataset.baseline) || 0) : 0;
+
+    if (avail === -1 || avail === undefined || avail === null) { hint.textContent = ''; hint.className = 'stock-hint'; return; }
+    if (avail === 0) {
+        hint.textContent = baseline > 0 ? 'Out of stock — you can still reduce or remove it' : 'Out of stock';
+        hint.className = 'stock-hint stock-out';
+        return;
+    }
+    if (qty > avail && qty > baseline) { hint.textContent = `Insufficient — only ${avail} left`; hint.className = 'stock-hint stock-out'; return; }
+    let threshold = 0;
+    if (SKEWER_CATS.includes(cat)) threshold = 50;
+    else if (SIDE_CATS.includes(cat)) threshold = 10;
+    else if (cat === 'custom-unit') threshold = 10;
+    if (threshold > 0 && avail <= threshold) { hint.textContent = `${avail} left`; hint.className = 'stock-hint stock-low'; }
+    else { hint.textContent = ''; hint.className = 'stock-hint'; }
+}
+
+function cancelCustQtyEditor() {
+    closeModalById('custQtyEditorModal');
+    _custQtyEditorGridId = null;
+    _custQtyEditorItemId = null;
+}
+
+function confirmCustQtyEditor() {
+    if (!_custQtyEditorItemId) return;
+    const gridId  = _custQtyEditorGridId;
+    const itemId  = _custQtyEditorItemId;
+    const qty     = Math.max(0, parseInt(document.getElementById('custQtyEditorInput').value) || 0);
+    // Reuses the exact same clamp/hint/badge/disable logic the grid already
+    // relies on elsewhere (e.g. loadStock()'s live refresh) — one source of truth.
+    onQtyInput(gridId, itemId, qty);
+    closeModalById('custQtyEditorModal');
+    _custQtyEditorGridId = null;
+    _custQtyEditorItemId = null;
 }
 
 function getQtys(gridId = 'menuGrid') {
