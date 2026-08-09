@@ -1439,8 +1439,10 @@ function renderOrderCard(card, rawOrder, stage) {
         }).join('');
         card.innerHTML = `
             ${header}
-            <div class="order-details" id="edit-details-${o.id}">
+            <div class="edit-inputs-grid" id="edit-inputs-${o.id}">
                 ${editInputs}
+            </div>
+            <div class="order-details" id="edit-details-${o.id}">
                 <div class="detail-badge" id="edit-skewerQty-${o.id}" style="${skewerBadgeStyle}">Cucuk: ${o.skewerQty}</div>
                 <div class="detail-badge" id="edit-scoops-${o.id}" style="${skewerBadgeStyle}">${o.scoops} Senduk</div>
                 ${getCustomUnitBadges(o.items)}
