@@ -322,10 +322,9 @@ window._sbAddOrder = async function(order) {
     const { id: _a, updatedAt: _b, _deleted: _c, ...clean } = order;
     clean.createdAt = clean.createdAt || Date.now();
 
-    if (!navigator.onLine) {
-        // Predict the real order number instead of using a placeholder —
-        // this is what's printed on the receipt, so it needs to look (and
-        // ideally BE) the real number, not a giant temp id.
+    // Shared offline-fallback path: predicts the real order number (used on
+    // the printed receipt), marks it _offline, and queues it for later.
+    async function _goOffline() {
         const tempId = await _takeNextOrderNumber();
         const tempOrder = { ...clean, id: tempId, _offline: true };
         await _idbPut(tempOrder);
@@ -337,25 +336,49 @@ window._sbAddOrder = async function(order) {
         return tempId;
     }
 
-    const saved = await _sbInsert(clean);
-    await _idbPut(saved);
-    _rerender();
-    setTimeout(() => syncNow().catch(console.error), 200);
-    return saved.id;
+    if (!navigator.onLine) return _goOffline();
+
+    try {
+        const saved = await _sbInsert(clean);
+        await _idbPut(saved);
+        _rerender();
+        setTimeout(() => syncNow().catch(console.error), 200);
+        return saved.id;
+    } catch (e) {
+        // navigator.onLine said we're connected, but the request still
+        // failed — a flaky connection with no real upstream, a mid-request
+        // drop, a DNS hiccup, etc. Don't lose the order: fall back to the
+        // same offline path a genuinely offline write would take, instead
+        // of letting the exception propagate and the order vanish.
+        console.warn('Insert failed despite navigator.onLine — falling back to offline queue:', e);
+        return _goOffline();
+    }
 };
 
 window._sbUpdateOrder = async function(order) {
     await _idbPut(order);
     _rerender();
+
     if (navigator.onLine) {
-        await _sbUpdate(order);
-        setTimeout(() => syncNow().catch(console.error), 200);
-    } else {
-        _offlineQueue.push({ op: 'update', order });
-        _saveOfflineQueue();
-        _pendingSync = true;
-        showSyncToast('📴 Saved offline — will sync when connected');
+        try {
+            await _sbUpdate(order);
+            setTimeout(() => syncNow().catch(console.error), 200);
+            return order.id;
+        } catch (e) {
+            // Same reasoning as _sbAddOrder above — navigator.onLine can lie.
+            // Without this catch, a failed PATCH here was silently dropped:
+            // never queued, never retried, and the next successful sync
+            // would pull the OLD server state back down over top of it —
+            // which is exactly how status/payment-method changes were
+            // getting quietly reverted after a flaky-connection shift.
+            console.warn('Update failed despite navigator.onLine — queueing for retry:', e);
+        }
     }
+
+    _offlineQueue.push({ op: 'update', order });
+    _saveOfflineQueue();
+    _pendingSync = true;
+    showSyncToast('📴 Saved offline — will sync when connected');
     return order.id;
 };
 
