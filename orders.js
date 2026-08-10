@@ -2001,11 +2001,14 @@ function _renderPayInputs(method, existingOrder) {
 
         document.getElementById('payOnlineInput').value = dVal.toFixed(2);
 
-        document.getElementById('payOnlineInput').addEventListener('input', function() {
-            // A real keystroke here (not the programmatic auto-sync below, which
-            // sets .value directly without going through this listener) means the
-            // staff wants a custom split — stop auto-adjusting this field from cash.
-            _ocbtManuallyEdited = true;
+        document.getElementById('payOnlineInput').addEventListener('input', function(e) {
+            // Only a genuine keystroke should count as "the staff wants a custom
+            // split" and stop the cash-driven auto-sync. e.isTrusted is false for
+            // the programmatic dispatchEvent() calls used elsewhere just to
+            // refresh this hint (e.g. right when the modal opens) — without this
+            // check, that initial refresh alone was permanently blocking the
+            // auto-sync before the staff had touched anything.
+            if (e.isTrusted) _ocbtManuallyEdited = true;
             const paid  = parseFloat(this.value) || 0;
             const hint  = document.getElementById('onlineDepositHint');
             const balance = total - paid;
@@ -2048,7 +2051,6 @@ function _toggleCashSection(prefillVal) {
         if (!_ocbtManuallyEdited) {
             const onlineEl = document.getElementById('payOnlineInput');
             if (onlineEl) { onlineEl.value = _pmTotal.toFixed(2); onlineEl.dispatchEvent(new Event('input')); }
-            _ocbtManuallyEdited = false; // that dispatch just flagged it "manual" — it wasn't, so clear it back
         }
         return;
     }
