@@ -26,7 +26,7 @@ messaging.onBackgroundMessage(payload => {
   });
 });
 
-const CACHE_NAME = 'order-pwa-v2-r8';
+const CACHE_NAME = 'order-pwa-v2-r9';
 
 // The full app shell — precached on install so the app works offline even on
 // the very first load after install (previously this list only had 3 files,

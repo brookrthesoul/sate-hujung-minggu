@@ -2009,18 +2009,7 @@ function _renderPayInputs(method, existingOrder) {
             // check, that initial refresh alone was permanently blocking the
             // auto-sync before the staff had touched anything.
             if (e.isTrusted) _ocbtManuallyEdited = true;
-            const paid  = parseFloat(this.value) || 0;
-            const hint  = document.getElementById('onlineDepositHint');
-            const balance = total - paid;
-            if (paid <= 0) { hint.style.display = 'none'; return; }
-            hint.style.display = 'block';
-            if (balance > 0.005) {
-                hint.className = 'change-display change-short';
-                hint.innerHTML = '&#9888; Deposit — Balance: <strong>RM' + balance.toFixed(2) + '</strong>';
-            } else {
-                hint.className = 'change-display change-ok';
-                hint.innerHTML = '&#10003; Full payment — RM' + paid.toFixed(2);
-            }
+            _updatePayHints();
         });
 
         if (isBoth && cVal > 0) {
@@ -2031,6 +2020,58 @@ function _renderPayInputs(method, existingOrder) {
             }, 50);
         }
         document.getElementById('payOnlineInput').dispatchEvent(new Event('input'));
+    }
+}
+
+// Single source of truth for both payment hints, called after ANY change to
+// either the OCBT amount or the cash-given amount — whichever field the
+// staff just edited. Previously each field only refreshed its own hint, so
+// editing OCBT after already typing a cash amount left the change/short
+// display showing stale numbers computed from the old OCBT value.
+function _updatePayHints() {
+    const onlineEl   = document.getElementById('payOnlineInput');
+    const onlineHint = document.getElementById('onlineDepositHint');
+    const cashBtn    = document.getElementById('withCashToggle');
+    const cashOn     = !!cashBtn && cashBtn.textContent === 'ON';
+    const paid       = onlineEl ? (parseFloat(onlineEl.value) || 0) : 0;
+
+    if (!cashOn) {
+        // No cash portion — plain deposit/full-payment hint on the OCBT amount alone.
+        if (!onlineHint) return;
+        const balance = _pmTotal - paid;
+        if (paid <= 0) { onlineHint.style.display = 'none'; return; }
+        onlineHint.style.display = 'block';
+        if (balance > 0.005) {
+            onlineHint.className = 'change-display change-short';
+            onlineHint.innerHTML = '&#9888; Deposit — Balance: <strong>RM' + balance.toFixed(2) + '</strong>';
+        } else {
+            onlineHint.className = 'change-display change-ok';
+            onlineHint.innerHTML = '&#10003; Full payment — RM' + paid.toFixed(2);
+        }
+        return;
+    }
+
+    // Cash is active — the plain OCBT-only hint above doesn't know about the
+    // cash portion, so it would show a misleading "still owing" message even
+    // when cash covers the rest (or overpays it, needing change). Hide it and
+    // show the combined change/short figure instead.
+    if (onlineHint) onlineHint.style.display = 'none';
+
+    const cashEl = document.getElementById('payCashInput');
+    const disp   = document.getElementById('changeDisplayBoth');
+    if (!cashEl || !disp) return;
+    const cashGiven = parseFloat(cashEl.value) || 0;
+    if (cashGiven <= 0) { disp.style.display = 'none'; return; }
+
+    const cashOwed = Math.max(0, _pmTotal - paid);
+    const change   = cashGiven - cashOwed;
+    disp.style.display = 'block';
+    if (change < -0.005) {
+        disp.className = 'change-display change-short';
+        disp.innerHTML = '&#9888; Short by <strong>RM' + Math.abs(change).toFixed(2) + '</strong>';
+    } else {
+        disp.className = 'change-display change-ok';
+        disp.innerHTML = 'Change: <strong>RM' + change.toFixed(2) + '</strong>';
     }
 }
 
@@ -2050,8 +2091,9 @@ function _toggleCashSection(prefillVal) {
         // total. A deliberately hand-typed OCBT amount is left alone.
         if (!_ocbtManuallyEdited) {
             const onlineEl = document.getElementById('payOnlineInput');
-            if (onlineEl) { onlineEl.value = _pmTotal.toFixed(2); onlineEl.dispatchEvent(new Event('input')); }
+            if (onlineEl) onlineEl.value = _pmTotal.toFixed(2);
         }
+        _updatePayHints();
         return;
     }
     const cashEl = document.getElementById('payCashInput');
@@ -2060,36 +2102,18 @@ function _toggleCashSection(prefillVal) {
         cashEl._hasListener = true;
         cashEl.addEventListener('input', function() {
             const cashGiven = parseFloat(this.value) || 0;
-            const disp      = document.getElementById('changeDisplayBoth');
-
             // Convenience auto-sync: as long as the staff hasn't hand-edited the
             // OCBT field this session, keep it at "total − cash" so the two
             // always add up with no manual arithmetic. The moment OCBT is
             // edited directly, this stops — see the OCBT input's own listener.
             if (!_ocbtManuallyEdited) {
                 const onlineEl = document.getElementById('payOnlineInput');
-                if (onlineEl) {
-                    onlineEl.value = Math.max(0, _pmTotal - cashGiven).toFixed(2);
-                    const hint = document.getElementById('onlineDepositHint');
-                    if (hint) hint.style.display = 'none'; // full payment vs this cash portion — nothing to flag here
-                }
+                if (onlineEl) onlineEl.value = Math.max(0, _pmTotal - cashGiven).toFixed(2);
             }
-
-            if (cashGiven <= 0) { disp.style.display = 'none'; return; }
-            const onlineNow = parseFloat(document.getElementById('payOnlineInput').value) || 0;
-            const cashOwed  = Math.max(0, _pmTotal - onlineNow);
-            const change    = cashGiven - cashOwed;
-            disp.style.display = 'block';
-            if (change < -0.005) {
-                disp.className = 'change-display change-short';
-                disp.innerHTML = '&#9888; Short by <strong>RM' + Math.abs(change).toFixed(2) + '</strong>';
-            } else {
-                disp.className = 'change-display change-ok';
-                disp.innerHTML = 'Change: <strong>RM' + change.toFixed(2) + '</strong>';
-            }
+            _updatePayHints();
         });
     }
-    if (prefillVal !== undefined) cashEl.dispatchEvent(new Event('input'));
+    _updatePayHints();
 }
 
 // Splits `amount` across `weights` proportionally, rounded to cents, with

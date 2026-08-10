@@ -6,6 +6,9 @@ create table if not exists menu (
     price      numeric(10,2) not null default 0,
     category   text not null default 'skewer',
     unit_label text,
+    bg_image   text,
+    bg_color   text,
+    text_color text,
     sort_order integer not null default 0
 );
 
