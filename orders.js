@@ -1780,6 +1780,11 @@ let _pmOriginalTotal = 0;     // order.totalCost before discount
 let _pmReturnStage = 'prepare';
 let _pmDiscount = { type: null, value: 0, amount: 0, reason: '' };
 let _pmGroupOrderIds = null;  // set when paying multiple linked orders together
+// True once the staff has typed directly into the OCBT amount field this
+// session — once set, the cash-driven auto-sync below stops touching it, so
+// a deliberately custom split (e.g. "give change" scenario) never gets
+// silently overwritten by the next keystroke in the cash field.
+let _ocbtManuallyEdited = false;
 
 // Computes the discount RM amount from a type + raw value, clamped sensibly
 // (percent 0-100, amount capped at the order's own total — never negative).
@@ -1970,6 +1975,12 @@ function _renderPayInputs(method, existingOrder) {
                       : (existingOrder && DIGITAL.includes(exM)) ? existingOrder.paymentOnline : total;
         const cVal    = isBoth ? existingOrder.paymentCash : 0;
 
+        // An existing split payment already has its own deliberate OCBT/cash
+        // breakdown (possibly a "give change" split, not a plain total-minus-cash
+        // one) — treat it as manually set from the start so re-opening this
+        // order for editing doesn't let the auto-sync silently recompute it.
+        _ocbtManuallyEdited = isBoth && cVal > 0;
+
         box.innerHTML =
             '<div class="pay-total-hint">Bill total: <strong>RM' + total.toFixed(2) + '</strong></div>' +
             '<label class="pay-label">' + label + ' Amount (RM)</label>' +
@@ -1985,11 +1996,16 @@ function _renderPayInputs(method, existingOrder) {
                 '<label class="pay-label">Cash Given by Customer (RM)</label>' +
                 '<input type="number" id="payCashInput" step="0.01" min="0" class="pay-input" placeholder="How much did they give?">' +
                 '<div id="changeDisplayBoth" class="change-display" style="display:none;"></div>' +
+                '<div class="pay-total-hint" style="margin-top:6px;">The ' + label + ' amount above auto-adjusts to match — edit it directly if the customer wants change back from the cash instead.</div>' +
             '</div>';
 
         document.getElementById('payOnlineInput').value = dVal.toFixed(2);
 
         document.getElementById('payOnlineInput').addEventListener('input', function() {
+            // A real keystroke here (not the programmatic auto-sync below, which
+            // sets .value directly without going through this listener) means the
+            // staff wants a custom split — stop auto-adjusting this field from cash.
+            _ocbtManuallyEdited = true;
             const paid  = parseFloat(this.value) || 0;
             const hint  = document.getElementById('onlineDepositHint');
             const balance = total - paid;
@@ -2025,7 +2041,17 @@ function _toggleCashSection(prefillVal) {
     btn.style.color      = isOn ? 'white'   : '#6c757d';
     btn.style.borderColor= isOn ? '#28a745' : '#6c757d';
     section.style.display = isOn ? 'block' : 'none';
-    if (!isOn) return;
+    if (!isOn) {
+        // Cash portion turned off — if the OCBT amount was only ever the
+        // auto-computed "total minus cash" figure, put it back to the full
+        // total. A deliberately hand-typed OCBT amount is left alone.
+        if (!_ocbtManuallyEdited) {
+            const onlineEl = document.getElementById('payOnlineInput');
+            if (onlineEl) { onlineEl.value = _pmTotal.toFixed(2); onlineEl.dispatchEvent(new Event('input')); }
+            _ocbtManuallyEdited = false; // that dispatch just flagged it "manual" — it wasn't, so clear it back
+        }
+        return;
+    }
     const cashEl = document.getElementById('payCashInput');
     if (cashEl && prefillVal !== undefined) cashEl.value = prefillVal.toFixed(2);
     if (cashEl && !cashEl._hasListener) {
@@ -2033,9 +2059,24 @@ function _toggleCashSection(prefillVal) {
         cashEl.addEventListener('input', function() {
             const cashGiven = parseFloat(this.value) || 0;
             const disp      = document.getElementById('changeDisplayBoth');
+
+            // Convenience auto-sync: as long as the staff hasn't hand-edited the
+            // OCBT field this session, keep it at "total − cash" so the two
+            // always add up with no manual arithmetic. The moment OCBT is
+            // edited directly, this stops — see the OCBT input's own listener.
+            if (!_ocbtManuallyEdited) {
+                const onlineEl = document.getElementById('payOnlineInput');
+                if (onlineEl) {
+                    onlineEl.value = Math.max(0, _pmTotal - cashGiven).toFixed(2);
+                    const hint = document.getElementById('onlineDepositHint');
+                    if (hint) hint.style.display = 'none'; // full payment vs this cash portion — nothing to flag here
+                }
+            }
+
             if (cashGiven <= 0) { disp.style.display = 'none'; return; }
-            const totalPaid = (parseFloat(document.getElementById('payOnlineInput').value)||0) + cashGiven;
-            const change    = totalPaid - _pmTotal;
+            const onlineNow = parseFloat(document.getElementById('payOnlineInput').value) || 0;
+            const cashOwed  = Math.max(0, _pmTotal - onlineNow);
+            const change    = cashGiven - cashOwed;
             disp.style.display = 'block';
             if (change < -0.005) {
                 disp.className = 'change-display change-short';
@@ -2046,6 +2087,7 @@ function _toggleCashSection(prefillVal) {
             }
         });
     }
+    if (prefillVal !== undefined) cashEl.dispatchEvent(new Event('input'));
 }
 
 // Splits `amount` across `weights` proportionally, rounded to cents, with
@@ -2119,7 +2161,14 @@ async function confirmPayment() {
     }
 
     if (method === 'both') {
-        const sum = onlineAmt + cashAmt;
+        // "cashAmt" here is cash GIVEN, which can legitimately exceed what's
+        // actually owed in cash when the customer wants change back (see
+        // _applyPaymentToOrder's identical cashOwed logic) — only the portion
+        // actually applied to the bill counts toward this total check, so a
+        // deliberate change-due split doesn't trip a false "doesn't match" warning.
+        const cashOwed    = Math.max(0, _pmTotal - onlineAmt);
+        const appliedCash = cashAmt >= cashOwed ? cashOwed : cashAmt;
+        const sum = onlineAmt + appliedCash;
         if (Math.abs(sum - _pmTotal) > 0.01) {
             if (!confirm(`⚠️ Total entered (${formatRM(sum)}) doesn't match order total (${formatRM(_pmTotal)}). Save anyway?`)) return;
         }
