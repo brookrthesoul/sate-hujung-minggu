@@ -1463,7 +1463,8 @@ function renderOrderCard(card, rawOrder, stage) {
         card.dataset.stage   = 'preorder';
         card.innerHTML = isExpanded ? `
             ${header}
-            <div class="order-details">${itemBadges}${statsBadges}${contactBadge}</div>
+            <div class="item-badges-grid">${itemBadges}</div>
+            <div class="order-details">${statsBadges}${contactBadge}</div>
             ${editableDesc}
             ${payBadgePre}
             <div class="action-buttons">
@@ -1492,7 +1493,8 @@ function renderOrderCard(card, rawOrder, stage) {
 
         card.innerHTML = isExpanded ? `
             ${header}
-            <div class="order-details">${itemBadges}${statsBadges}${contactBadge}</div>
+            <div class="item-badges-grid">${itemBadges}</div>
+            <div class="order-details">${statsBadges}${contactBadge}</div>
             ${editableDesc}
             ${groupBadge}
             ${payBadge}
@@ -1532,7 +1534,8 @@ function renderOrderCard(card, rawOrder, stage) {
 
         card.innerHTML = isExpanded ? `
             ${header}
-            <div class="order-details">${itemBadges}${statsBadges}${contactBadge}</div>
+            <div class="item-badges-grid">${itemBadges}</div>
+            <div class="order-details">${statsBadges}${contactBadge}</div>
             <div class="status-row"><span class="status-mark mark-prepared">✅ Prepared</span></div>
             ${editableDesc}
             ${groupBadge}
@@ -1558,7 +1561,8 @@ function renderOrderCard(card, rawOrder, stage) {
             : `<button class="edit-btn" onclick="openLinkOrderModal(${o.id})">🔗 Link</button>`;
         card.innerHTML = isExpanded ? `
             ${header}
-            <div class="order-details">${itemBadges}${statsBadges}${contactBadge}</div>
+            <div class="item-badges-grid">${itemBadges}</div>
+            <div class="order-details">${statsBadges}${contactBadge}</div>
             <div class="status-row"><span class="status-mark mark-paid">✅ Paid</span></div>
             ${groupBadgePaid}
             <div style="margin:8px 0;">${paymentBadgeHTML(o)}</div>
@@ -1577,7 +1581,8 @@ function renderOrderCard(card, rawOrder, stage) {
     if (stage === 'done') {
         card.innerHTML = isExpanded ? `
             ${header}
-            <div class="order-details">${itemBadges}${statsBadges}${contactBadge}</div>
+            <div class="item-badges-grid">${itemBadges}</div>
+            <div class="order-details">${statsBadges}${contactBadge}</div>
             <div class="status-row">
                 <span class="status-mark mark-paid">✅ Paid</span>
                 <span class="status-mark mark-picked">📦 Picked Up</span>
