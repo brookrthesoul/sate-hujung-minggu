@@ -1027,9 +1027,40 @@ const DEFAULT_MENU = [
     { id: 'kuah',     name: 'Kuah Kacang',price: 1.00, category: 'kuah-only'},
 ];
 
+// Asking PostgREST for a column the database doesn't have (older setups that
+// never ran menu_item_button_style.sql) fails the whole request with HTTP 400,
+// which used to drop customers onto a stale cached menu — i.e. possibly wrong
+// prices. Fall back to the base columns instead of losing the live menu.
+const MENU_BASE_SELECT  = 'id,name,price,category,unitLabel:unit_label';
+const MENU_STYLE_SELECT = 'bgImage:bg_image,bgColor:bg_color,textColor:text_color';
+let _menuStyleColumnsSupported = true;
+
+function _isMissingColumnError(e) {
+    return /does not exist|PGRST204|42703/i.test(String((e && e.message) || e));
+}
+
+async function fetchMenuRows() {
+    const query = (select) => `menu?select=${select}&order=sort_order.asc`;
+    try {
+        return await sbFetch(query(_menuStyleColumnsSupported
+            ? `${MENU_BASE_SELECT},${MENU_STYLE_SELECT}`
+            : MENU_BASE_SELECT));
+    } catch (e) {
+        if (!_isMissingColumnError(e)) throw e;
+        console.warn('Menu styling/unit columns missing in database — loading base menu only:', e);
+        _menuStyleColumnsSupported = false;
+        try {
+            return await sbFetch(query(MENU_BASE_SELECT));
+        } catch (e2) {
+            if (!_isMissingColumnError(e2)) throw e2;
+            return await sbFetch(query('id,name,price,category'));
+        }
+    }
+}
+
 async function loadMenu() {
     try {
-        const rows = await sbFetch('menu?select=id,name,price,category,bgImage:bg_image,bgColor:bg_color,textColor:text_color&order=sort_order.asc');
+        const rows = await fetchMenuRows();
         if (rows && rows.length) {
             menuItems = rows;
             localStorage.setItem('menuItems', JSON.stringify(menuItems)); // offline fallback cache

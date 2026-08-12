@@ -31,8 +31,34 @@ async function _menuFetch(path, opts = {}) {
     return t ? JSON.parse(t) : null;
 }
 
+// Some databases were created before the styling/unit columns were added
+// (menu_item_button_style.sql / menu_custom_unit.sql). Asking for a column that
+// doesn't exist makes PostgREST reject the WHOLE request with HTTP 400, so the
+// menu silently fell back to stale cached data. Detect that once and degrade to
+// the base columns instead of losing the live menu.
+const MENU_BASE_SELECT  = 'id,name,price,category';
+const MENU_EXTRA_SELECT = 'unitLabel:unit_label,bgImage:bg_image,bgColor:bg_color,textColor:text_color';
+const MENU_EXTRA_COLUMNS = ['unit_label', 'bg_image', 'bg_color', 'text_color'];
+let _menuExtraColumnsSupported = true;
+
+function _isMissingColumnError(e) {
+    return /does not exist|PGRST204|42703/i.test(String((e && e.message) || e));
+}
+
 async function _loadMenuFromSupabase() {
-    const rows = await _menuFetch(`${MENU_TABLE}?select=id,name,price,category,unitLabel:unit_label,bgImage:bg_image,bgColor:bg_color,textColor:text_color&order=sort_order.asc`);
+    const select = _menuExtraColumnsSupported
+        ? `${MENU_BASE_SELECT},${MENU_EXTRA_SELECT}`
+        : MENU_BASE_SELECT;
+    let rows;
+    try {
+        rows = await _menuFetch(`${MENU_TABLE}?select=${select}&order=sort_order.asc`);
+    } catch (e) {
+        if (!_menuExtraColumnsSupported || !_isMissingColumnError(e)) throw e;
+        console.warn('Menu styling columns missing in database — loading base menu only. ' +
+                     'Run supabase/migrations/menu_item_button_style.sql (and menu_custom_unit.sql) to enable them.');
+        _menuExtraColumnsSupported = false;
+        rows = await _menuFetch(`${MENU_TABLE}?select=${MENU_BASE_SELECT}&order=sort_order.asc`);
+    }
     return rows && rows.length ? rows : null;
 }
 
@@ -51,11 +77,23 @@ async function _saveMenuToSupabase(items) {
         text_color: item.textColor || null,
         sort_order: idx
     }));
-    await _menuFetch(MENU_TABLE, {
+    const postRows = async (payload) => _menuFetch(MENU_TABLE, {
         method:  'POST',
         headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-        body:    JSON.stringify(rows)
+        body:    JSON.stringify(payload)
     });
+    const stripExtras = (list) => list.map(row => {
+        const copy = { ...row };
+        MENU_EXTRA_COLUMNS.forEach(col => { delete copy[col]; });
+        return copy;
+    });
+    try {
+        await postRows(_menuExtraColumnsSupported ? rows : stripExtras(rows));
+    } catch (e) {
+        if (!_menuExtraColumnsSupported || !_isMissingColumnError(e)) throw e;
+        _menuExtraColumnsSupported = false;
+        await postRows(stripExtras(rows));
+    }
     // Delete items that were removed (not in current list)
     const ids = items.map(i => `"${i.id}"`).join(',');
     if (ids) {

@@ -94,7 +94,24 @@ function setupPrinter() {
         return;
     }
 
-    receiptPrinter = new WebBluetoothReceiptPrinter();
+    // The library loads fine on browsers with no Web Bluetooth (iOS Safari,
+    // Firefox, desktops without a BT radio), but its constructor then throws
+    // internally — which used to abort setupPrinter() and everything after it
+    // in app.js. Skip cleanly instead: the rest of the app must still boot.
+    if (!navigator.bluetooth) {
+        console.warn('This browser has no Web Bluetooth support — printing will be unavailable.');
+        updatePrinterStatus();
+        return;
+    }
+
+    try {
+        receiptPrinter = new WebBluetoothReceiptPrinter();
+    } catch (e) {
+        console.warn('Could not initialise the Bluetooth printer — printing will be unavailable:', e);
+        receiptPrinter = null;
+        updatePrinterStatus();
+        return;
+    }
 
     receiptPrinter.addEventListener('connected', (device) => {
         printerInfo = device;

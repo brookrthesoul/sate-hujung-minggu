@@ -202,12 +202,32 @@ function _rerender() {
     if (typeof loadPreorders === 'function') loadPreorders();
 }
 
+// A cold load races the service worker / network stack coming up, so the very
+// first fetch often rejects with a bare "Failed to fetch" even though the
+// connection is fine a moment later. Retry those transient failures quietly
+// instead of flashing a red "Sync error".
+function _isTransientNetworkError(e) {
+    return e instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(String((e && e.message) || e));
+}
+
+async function _withNetworkRetry(fn, attempts = 3, delayMs = 500) {
+    for (let i = 1; ; i++) {
+        try {
+            return await fn();
+        } catch (e) {
+            if (i >= attempts || !_isTransientNetworkError(e)) throw e;
+            console.warn(`[sync] transient network error, retrying (${i}/${attempts - 1})…`);
+            await new Promise(r => setTimeout(r, delayMs * i));
+        }
+    }
+}
+
 async function syncNow() {
     if (_syncing || _draining) return; // don't sync while draining queue
     _syncing = true;
     setSyncStatus('syncing');
     try {
-        const rawRemote = await _sbGetAll();
+        const rawRemote = await _withNetworkRetry(() => _sbGetAll());
         const remote = rawRemote.filter(o => !_recentlyDeletedIds.has(o.id));
         if (_recentlyDeletedIds.size > 0) {
             console.log('[sync] guard active for:', [..._recentlyDeletedIds],
@@ -224,9 +244,16 @@ async function syncNow() {
         _rerender();
         showSyncToast('✅ Synced');
     } catch (e) {
-        console.error('Sync error:', e);
-        setSyncStatus('error');
-        showSyncToast('❌ ' + e.message);
+        // Still offline after retries isn't an app error — show the offline
+        // state (the local cache is authoritative until the network returns).
+        if (_isTransientNetworkError(e) || navigator.onLine === false) {
+            console.warn('Sync unavailable (offline):', e);
+            setSyncStatus('offline');
+        } else {
+            console.error('Sync error:', e);
+            setSyncStatus('error');
+            showSyncToast('❌ ' + e.message);
+        }
     } finally {
         _syncing = false;
     }
