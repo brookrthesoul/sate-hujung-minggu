@@ -59,6 +59,19 @@ async function _sbInsertWithId(id, order) {
     return { ...result.data, id: result.id, updatedAt: result.updated_ms };
 }
 
+// Look up an already-saved order by its creation fingerprint
+// (deviceId + createdAt). Used to avoid saving a duplicate when a write may
+// have succeeded but its confirmation never came back.
+async function _sbFindByFingerprint(order) {
+    if (!order || !order.deviceId || !order.createdAt) return null;
+    const rows = await _sbFetch(
+        `${TABLE}?select=id,data,updated_ms` +
+        `&data->>deviceId=eq.${encodeURIComponent(order.deviceId)}` +
+        `&data->>createdAt=eq.${encodeURIComponent(String(order.createdAt))}`
+    ) || [];
+    return rows.length ? _rowToOrder(rows[0]) : null;
+}
+
 async function _sbUpdate(order) {
     const { id, updatedAt: _a, ...data } = order;
     await _sbFetch(`${TABLE}?id=eq.${id}`, {
@@ -348,6 +361,12 @@ window._idbGetAll = _idbGetAll;
 window._sbAddOrder = async function(order) {
     const { id: _a, updatedAt: _b, _deleted: _c, ...clean } = order;
     clean.createdAt = clean.createdAt || Date.now();
+    // Stamp the device id on EVERY admin order (offline or online). Together
+    // with createdAt this is the order's fingerprint, and it's what
+    // admin_insert_order_with_id() uses to tell "retry of an order that
+    // already saved" apart from "genuinely different order that took this
+    // number" — without it, a lost confirmation created a duplicate row.
+    if (!clean.deviceId && typeof getDeviceId === 'function') clean.deviceId = getDeviceId();
 
     // Shared offline-fallback path: predicts the real order number (used on
     // the printed receipt), marks it _offline, and queues it for later.
@@ -378,6 +397,21 @@ window._sbAddOrder = async function(order) {
         // same offline path a genuinely offline write would take, instead
         // of letting the exception propagate and the order vanish.
         console.warn('Insert failed despite navigator.onLine — falling back to offline queue:', e);
+        // The POST may actually have COMMITTED server-side and only the
+        // response got lost. Before queueing a second copy, look for a row
+        // with this order's fingerprint (deviceId + createdAt); if it's
+        // already there, adopt it instead of creating a duplicate.
+        try {
+            const existing = await _sbFindByFingerprint(clean);
+            if (existing) {
+                await _idbPut(existing);
+                _rerender();
+                console.log('[add] insert had actually succeeded — adopted server row #' + existing.id);
+                return existing.id;
+            }
+        } catch (e2) {
+            console.warn('Duplicate check failed (still offline?):', e2);
+        }
         return _goOffline();
     }
 };
@@ -1439,6 +1473,20 @@ window._resetAllOrders = async function() {
 
     // 3. Clear IndexedDB
     await _idbReplaceAll([]);
+
+    // 3b. Clear the offline order-number prediction and any still-pending
+    // offline ops. Without this, "restart from #1" was defeated: the next
+    // offline order still predicted the OLD high number (e.g. #298), was
+    // inserted under that exact id, and the RPC then pushed the sequence
+    // back up to it — so online orders resumed at #299 instead of #2. Any
+    // queued ops also referred to orders that no longer exist.
+    try {
+        localStorage.removeItem(_NEXT_ORDER_NUM_KEY);
+        _offlineQueue.length = 0;
+        _saveOfflineQueue();
+    } catch (e) {
+        console.warn('Failed to clear offline order numbering after reset:', e);
+    }
 
     // 4. Re-render
     if (typeof loadOrders === 'function') loadOrders();

@@ -317,3 +317,19 @@ function formatTime12hr(hhmm) {
         window.visualViewport.addEventListener('scroll', positionBar);
     }
 })();
+
+// Stable per-browser/device id, shared by the admin app and the customer page
+// (same localStorage key 'shmDeviceId'). Every order carries this plus its
+// createdAt timestamp, which together uniquely identify one real
+// order-creation event. That pair is what lets the server recognise a RETRY
+// of an order it already saved (connection dropped before the confirmation
+// came back) instead of quietly saving a second, duplicate order.
+function getDeviceId() {
+    let id = localStorage.getItem('shmDeviceId');
+    if (!id) {
+        id = (crypto.randomUUID ? crypto.randomUUID()
+                                : 'd_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10));
+        localStorage.setItem('shmDeviceId', id);
+    }
+    return id;
+}
