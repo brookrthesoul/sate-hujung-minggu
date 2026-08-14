@@ -37,51 +37,69 @@
             let ayam = 0;
             let daging = 0;
 
-            while (remaining >= minPrice) {
-                const canBuyAyam = remaining >= ayamPrice;
-                const canBuyDaging = remaining >= dagingPrice;
+            // Pure ends of the slider are hard locks, not preferences: at 100% ayam we must
+            // never buy a daging, and at 0% (all daging) we must never buy an ayam — even if
+            // the leftover balance happens to cover one. Previously the "can't afford daging
+            // but can afford ayam" fallback bought a stray ayam at 0%, e.g. RM6.10 gave
+            // 1 ayam + 3 daging instead of 3 daging + RM1.30 balance.
+            const allAyam   = targetRatio === 1;
+            const allDaging = targetRatio === 0;
 
-                if (canBuyAyam && canBuyDaging) {
-                    const total = ayam + daging;
-                    // Buy whichever item brings the ratio closer to the target, rather than
-                    // comparing the current ratio to the target directly — that approach has
-                    // a tie-breaking bug exactly at the 100%-ayam boundary (it favours daging
-                    // on an exact tie, so it would buy a stray daging at ratio === 1).
-                    const ratioIfAyam = (ayam + 1) / (total + 1);
-                    const ratioIfDaging = ayam / (total + 1);
-                    const diffAyam = Math.abs(targetRatio - ratioIfAyam);
-                    const diffDaging = Math.abs(targetRatio - ratioIfDaging);
+            if (allAyam || allDaging) {
+                const price = allAyam ? ayamPrice : dagingPrice;
+                const qty   = Math.floor((remaining + 1e-9) / price);
+                if (allAyam) ayam = qty; else daging = qty;
+                remaining -= qty * price;
+            } else {
+                while (remaining >= minPrice) {
+                    const canBuyAyam = remaining >= ayamPrice;
+                    const canBuyDaging = remaining >= dagingPrice;
 
-                    if (diffAyam <= diffDaging) {
+                    if (canBuyAyam && canBuyDaging) {
+                        const total = ayam + daging;
+                        // Buy whichever item brings the ratio closer to the target, rather than
+                        // comparing the current ratio to the target directly — that approach has
+                        // a tie-breaking bug exactly at the 100%-ayam boundary (it favours daging
+                        // on an exact tie, so it would buy a stray daging at ratio === 1).
+                        const ratioIfAyam = (ayam + 1) / (total + 1);
+                        const ratioIfDaging = ayam / (total + 1);
+                        const diffAyam = Math.abs(targetRatio - ratioIfAyam);
+                        const diffDaging = Math.abs(targetRatio - ratioIfDaging);
+
+                        if (diffAyam <= diffDaging) {
+                            ayam++;
+                            remaining -= ayamPrice;
+                        } else {
+                            daging++;
+                            remaining -= dagingPrice;
+                        }
+                    } else if (canBuyAyam) {
                         ayam++;
                         remaining -= ayamPrice;
-                    } else {
+                    } else if (canBuyDaging) {
                         daging++;
                         remaining -= dagingPrice;
+                    } else {
+                        break;
                     }
-                } else if (canBuyAyam) {
-                    ayam++;
-                    remaining -= ayamPrice;
-                } else if (canBuyDaging) {
-                    daging++;
-                    remaining -= dagingPrice;
-                } else {
-                    break;
+                }
+
+                // Spend whatever is left, favouring the side the slider leans towards
+                // (previously this always tried ayam first, which skewed daging-leaning mixes).
+                const leansAyam = targetRatio >= 0.5;
+                const first  = leansAyam ? ayamPrice : dagingPrice;
+                const second = leansAyam ? dagingPrice : ayamPrice;
+                if (remaining >= first) {
+                    const extra = Math.floor(remaining / first);
+                    if (leansAyam) ayam += extra; else daging += extra;
+                    remaining -= extra * first;
+                } else if (remaining >= second) {
+                    const extra = Math.floor(remaining / second);
+                    if (leansAyam) daging += extra; else ayam += extra;
+                    remaining -= extra * second;
                 }
             }
 
-            // After ratio loop, try to spend remaining balance on whichever single item fits.
-            // Priority: ayam first (since slider is biased toward ayam side), then daging.
-            // This handles cases like RM1.30 balance when ayam = RM1.30 — buy 1 more ayam.
-            if (remaining >= ayamPrice) {
-                const extra = Math.floor(remaining / ayamPrice);
-                ayam      += extra;
-                remaining -= extra * ayamPrice;
-            } else if (remaining >= dagingPrice) {
-                const extra = Math.floor(remaining / dagingPrice);
-                daging    += extra;
-                remaining -= extra * dagingPrice;
-            }
 
             const totalCost = ayam * ayamPrice + daging * dagingPrice;
             const balance   = money - totalCost;
