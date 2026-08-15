@@ -1,9 +1,83 @@
-// ratio.js — Allocator tab: ayam/daging ratio buying logic
+// ratio.js — Allocator tab: ayam/daging ratio buying logic + RM-split mode
          // ---------- Ratio Tab Functions (Corrected) ----------
+
+        // The Allocator has two modes that share the same output cards, the same
+        // Clear button and the same "Fill New Order Form" button:
+        //   'ratio' — one RM amount, split by the Ayam/Daging slider
+        //   'split' — a separate RM amount for Ayam and for Daging
+        let allocatorMode = 'ratio';
+
+        function setAllocatorMode(mode) {
+            allocatorMode = (mode === 'split') ? 'split' : 'ratio';
+            const isSplit = allocatorMode === 'split';
+
+            const ratioSection = document.getElementById('allocRatioMode');
+            const splitSection = document.getElementById('allocSplitMode');
+            if (ratioSection) ratioSection.style.display = isSplit ? 'none' : '';
+            if (splitSection) splitSection.style.display = isSplit ? '' : 'none';
+
+            const ratioBtn = document.getElementById('allocModeRatioBtn');
+            const splitBtn = document.getElementById('allocModeSplitBtn');
+            [[ratioBtn, !isSplit], [splitBtn, isSplit]].forEach(function (pair) {
+                const btn = pair[0], active = pair[1];
+                if (!btn) return;
+                btn.style.background = active ? '#007bff' : '#e9ecef';
+                btn.style.color = active ? '#ffffff' : '#495057';
+            });
+
+            const hint = document.getElementById('allocatorHint');
+            if (hint) {
+                hint.innerText = isSplit
+                    ? 'Enter how much money goes to Ayam and how much to Daging — each budget is spent on its own Sate, and the leftovers add up to the balance.'
+                    : 'Items are bought one by one, always choosing the Sate that brings the ratio closer to your slider.';
+            }
+
+            calculateRatio();
+        }
+
+        // Clears both modes' inputs and resets the shared output cards.
+        function clearAllocator() {
+            ['moneyInput', 'ayamMoneyInput', 'dagingMoneyInput'].forEach(function (id) {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            const slider = document.getElementById('ratioSlider');
+            if (slider) {
+                slider.value = 50;
+                updateSliderLabel();
+            }
+            calculateRatio();
+        }
+
         function updateSliderLabel() {
             const val = document.getElementById('ratioSlider').value;
             const displayPercent = 100 - val;
             document.getElementById('sliderPercent').innerText = displayPercent + '%';
+        }
+
+        function renderAllocatorResults(ayam, daging, totalCost, balance) {
+            document.getElementById('ayamCount').innerText = ayam;
+            document.getElementById('dagingCount').innerText = daging;
+            document.getElementById('totalItemsCount').innerText = ayam + daging;
+            document.getElementById('balanceAmount').innerText = 'RM' + (balance < 0 ? 0 : balance).toFixed(2);
+            document.getElementById('totalSpent').innerText = 'RM' + totalCost.toFixed(2);
+        }
+
+        // RM Split mode: each Sate gets its own budget, spent independently.
+        function calculateSplit(ayamItem, dagingItem) {
+            const ayamMoney   = parseFloat(document.getElementById('ayamMoneyInput').value) || 0;
+            const dagingMoney = parseFloat(document.getElementById('dagingMoneyInput').value) || 0;
+
+            const ayamPrice   = ayamItem.price;
+            const dagingPrice = dagingItem.price;
+
+            const ayam   = ayamPrice   > 0 ? Math.floor((ayamMoney   + 1e-9) / ayamPrice)   : 0;
+            const daging = dagingPrice > 0 ? Math.floor((dagingMoney + 1e-9) / dagingPrice) : 0;
+
+            const totalCost = ayam * ayamPrice + daging * dagingPrice;
+            const balance   = (ayamMoney + dagingMoney) - totalCost;
+
+            renderAllocatorResults(ayam, daging, totalCost, balance);
         }
 
         function calculateRatio() {
@@ -18,6 +92,11 @@
                 document.getElementById('totalItemsCount').innerText = '–';
                 document.getElementById('balanceAmount').innerText = '–';
                 document.getElementById('totalSpent').innerText = '–';
+                return;
+            }
+
+            if (allocatorMode === 'split') {
+                calculateSplit(ayamItem, dagingItem);
                 return;
             }
 
@@ -104,11 +183,7 @@
             const totalCost = ayam * ayamPrice + daging * dagingPrice;
             const balance   = money - totalCost;
 
-            document.getElementById('ayamCount').innerText = ayam;
-            document.getElementById('dagingCount').innerText = daging;
-            document.getElementById('totalItemsCount').innerText = ayam + daging;
-            document.getElementById('balanceAmount').innerText = 'RM' + (balance < 0 ? 0 : balance).toFixed(2);
-            document.getElementById('totalSpent').innerText = 'RM' + totalCost.toFixed(2);
+            renderAllocatorResults(ayam, daging, totalCost, balance);
         }
 
         // Jumps to the New Order tab and fills in the Ayam/Daging quantity

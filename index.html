@@ -159,19 +159,39 @@
         <div id="preorderList"></div>
     </div>
 
-    <!-- RATIO PANEL (updated with Total Spent) -->
+    <!-- RATIO PANEL (Ratio mode + RM Split mode, shared output) -->
     <div id="ratioPanel" class="panel">
         <h2>Allocator</h2>
-        <label>RM</label>
-        <input type="number" id="moneyInput" min="0" value="" step="0.01" oninput="calculateRatio()">
 
-        <div class="ratio-container">
-            <input type="range" id="ratioSlider" min="0" max="100" value="50" step="1" oninput="updateSliderLabel(); calculateRatio()">
-            <div class="slider-labels">
-                <span>Ayam</span>
-                <span>Daging</span>
+        <!-- Mode switch -->
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+            <button type="button" id="allocModeRatioBtn" onclick="setAllocatorMode('ratio')"
+                style="flex:1;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:bold;cursor:pointer;">&#9878;&#65039; Ratio</button>
+            <button type="button" id="allocModeSplitBtn" onclick="setAllocatorMode('split')"
+                style="flex:1;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:bold;cursor:pointer;">&#128176; RM Split</button>
+        </div>
+
+        <!-- MODE: RATIO -->
+        <div id="allocRatioMode">
+            <label>RM</label>
+            <input type="number" id="moneyInput" min="0" value="" step="0.01" placeholder="0" oninput="calculateRatio()">
+
+            <div class="ratio-container">
+                <input type="range" id="ratioSlider" min="0" max="100" value="50" step="1" oninput="updateSliderLabel(); calculateRatio()">
+                <div class="slider-labels">
+                    <span>Ayam</span>
+                    <span>Daging</span>
+                </div>
+                <div class="percentage" id="sliderPercent">50%</div>
             </div>
-            <div class="percentage" id="sliderPercent">50%</div>
+        </div>
+
+        <!-- MODE: RM SPLIT -->
+        <div id="allocSplitMode" style="display:none;">
+            <label>RM for Ayam</label>
+            <input type="number" id="ayamMoneyInput" min="0" value="" step="0.01" placeholder="0" oninput="calculateRatio()">
+            <label>RM for Daging</label>
+            <input type="number" id="dagingMoneyInput" min="0" value="" step="0.01" placeholder="0" oninput="calculateRatio()">
         </div>
 
         <div class="ratio-results">
@@ -198,11 +218,15 @@
         </div>
 
         <button type="button" onclick="fillNewOrderFromAllocator()"
-            style="width:100%; background:#28a745; color:white; border:none; border-radius:10px; padding:12px; font-size:14px; font-weight:bold; cursor:pointer; margin-bottom:14px;">
-            🧾 Fill New Order Form
+            style="width:100%; background:#28a745; color:white; border:none; border-radius:10px; padding:12px; font-size:14px; font-weight:bold; cursor:pointer; margin-bottom:8px;">
+            &#129534; Fill New Order Form
+        </button>
+        <button type="button" onclick="clearAllocator()"
+            style="width:100%; background:#6c757d; color:white; border:none; border-radius:10px; padding:12px; font-size:14px; font-weight:bold; cursor:pointer; margin-bottom:14px;">
+            &#129529; Clear
         </button>
 
-        <p style="font-size: 14px; color: #6c757d; text-align: center;">
+        <p id="allocatorHint" style="font-size: 14px; color: #6c757d; text-align: center;">
             Items are bought one by one, always choosing the Sate that brings the ratio closer to your slider.
         </p>
     </div>

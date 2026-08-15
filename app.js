@@ -39,7 +39,7 @@ function switchTab(tab) {
         const toggle = document.getElementById('syncBarToggle');
         if (toggle) toggle.checked = stored === null ? true : stored === '1';
     }
-    if (tab === 'ratio') { updateSliderLabel(); calculateRatio(); }
+    if (tab === 'ratio') { if (typeof setAllocatorMode==='function') setAllocatorMode(typeof allocatorMode!=='undefined' ? allocatorMode : 'ratio'); updateSliderLabel(); calculateRatio(); }
     if (tab === 'settings') renderSettingsMenuList();
 }
 
@@ -59,7 +59,7 @@ function switchTab(tab) {
                 if (tab === 'home')      { if (typeof updateStockIndicators === 'function') updateStockIndicators(); }
                 if (tab === 'orders')   loadOrders();
                 if (tab === 'preorder') loadPreorders();
-                if (tab === 'ratio')    { if (typeof updateSliderLabel==='function') updateSliderLabel(); if (typeof calculateRatio==='function') calculateRatio(); }
+                if (tab === 'ratio')    { if (typeof setAllocatorMode==='function') setAllocatorMode(typeof allocatorMode!=='undefined' ? allocatorMode : 'ratio'); if (typeof updateSliderLabel==='function') updateSliderLabel(); if (typeof calculateRatio==='function') calculateRatio(); }
                 if (tab === 'settings') {
                     switchSettingsTab('menu');
                     if (typeof initBusyThresholds === 'function') initBusyThresholds();
