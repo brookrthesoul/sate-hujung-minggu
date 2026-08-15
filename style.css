@@ -920,3 +920,14 @@ html.dark-mode .settings-accordion-header {
 html.dark-mode .settings-accordion-header:active {
     background: #26262a;
 }
+
+.input-group {
+    display: flex;
+}
+label, input {
+    margin-right: 10px; /* This will provide space between the label and input field */
+}
+/* The class 'input-item' ensures that each input field aligns horizontally */
+.input-group .input-item {
+    flex: 1;
+}
