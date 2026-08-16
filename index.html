@@ -187,12 +187,18 @@
         </div>
 
         <!-- MODE: RM SPLIT -->
-        <div class="input-group">
-		    <label for="ayamMoneyInput">RM for Ayam</label>
-		    <input type="number" id="ayamMoneyInput" min="0" value="" step="0.01" placeholder="0" oninput="calculateRatio()" class="input-item">
-		    <label for="dagingMoneyInput">RM for Daging</label>
-		    <input type="number" id="dagingMoneyInput" min="0" value="" step="0.01" placeholder="0" oninput="calculateRatio()" class="input-item">
-		</div>
+        <div id="allocSplitMode" style="display:none;">
+            <div class="split-inputs-row">
+                <div class="split-input-group">
+                    <label for="ayamMoneyInput">RM for Ayam</label>
+                    <input type="number" id="ayamMoneyInput" min="0" value="" step="0.01" placeholder="0" oninput="calculateRatio()">
+                </div>
+                <div class="split-input-group">
+                    <label for="dagingMoneyInput">RM for Daging</label>
+                    <input type="number" id="dagingMoneyInput" min="0" value="" step="0.01" placeholder="0" oninput="calculateRatio()">
+                </div>
+            </div>
+        </div>
 
 
         <div class="ratio-results">
