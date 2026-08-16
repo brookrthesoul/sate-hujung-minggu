@@ -1435,7 +1435,7 @@ function renderOrderCard(card, rawOrder, stage) {
             const qty = (o.items[item.id] && o.items[item.id].qty) || 0;
             return `<div><label>${escapeHtml(item.name)}</label>
                 <input type="number" id="edit-${item.id}-${o.id}" class="edit-input"
-                    value="${qty}" min="0" step="1" oninput="updateEditTotals(${o.id})"></div>`;
+                    value="${qty === 0 ? '' : qty}" placeholder="0" min="0" step="1" oninput="updateEditTotals(${o.id})"></div>`;
         }).join('');
         card.innerHTML = `
             ${header}
