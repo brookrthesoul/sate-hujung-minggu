@@ -5,13 +5,48 @@ let currentTabIndex = 0;
 
 function getVP() { return document.getElementById('panelsTrack'); }
 
+// ── Split view (tablet/PC): Home pinned left, Orders/Preorder/Ratio/
+// Settings share a right column instead of the phone's full-width carousel.
+// Keep this in sync with the `min-width` in the style.css split-view block.
+function isSplitView() { return window.matchMedia('(min-width: 900px)').matches; }
+
+// Remembers which right-column tab was last shown, so that clicking "Home"
+// in split view (which has nothing of its own to show on the right) doesn't
+// leave the right column blank — it just leaves it as-is.
+let lastRightIndex = 1; // defaults to Orders
+
 // ── Slide to tab by index ─────────────────────────────────────────────────
 function slideTo(index, smooth) {
     const vp = getVP();
-    vp.scrollTo({ left: index * vp.offsetWidth, behavior: smooth ? 'smooth' : 'instant' });
+    const split = isSplitView();
+
+    if (!split) {
+        vp.scrollTo({ left: index * vp.offsetWidth, behavior: smooth ? 'smooth' : 'instant' });
+    }
 
     document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === index));
-    document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', i === index));
+
+    if (split) {
+        // Home is pinned via CSS regardless of .active — never touch it here.
+        // Only Home's own tab (index 0) has nothing to show on the right, so
+        // tapping it must not blank out whatever the right column had.
+        if (index !== 0) {
+            lastRightIndex = index;
+            document.querySelectorAll('.panel').forEach((p, i) => {
+                if (p.id === 'homePanel') return;
+                p.classList.toggle('active', i === index);
+            });
+        } else if (!document.querySelector('.panel.active:not(#homePanel)')) {
+            // Right column has nothing active yet (e.g. just resized into
+            // split view while Home was the active phone tab) — fall back.
+            document.querySelectorAll('.panel').forEach((p, i) => {
+                if (p.id === 'homePanel') return;
+                p.classList.toggle('active', i === lastRightIndex);
+            });
+        }
+    } else {
+        document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', i === index));
+    }
 
     currentTabIndex = index;
 }
@@ -47,6 +82,7 @@ function switchTab(tab) {
 (function setupScrollSync() {
     let scrollTimer;
     getVP().addEventListener('scroll', () => {
+        if (isSplitView()) return; // split view doesn't scroll the track — nothing to sync
         clearTimeout(scrollTimer);
         scrollTimer = setTimeout(() => {
             const vp = getVP();
